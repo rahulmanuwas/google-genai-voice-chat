@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     serverVADPrefixPaddingMs: 500,
     serverVADSilenceDurationMs: 1000,
     sessionInitDelayMs: 300,
-    modelId: 'gemini-2.0-flash-live-001',
+    modelId: 'gemini-2.0-flash-exp',
     chatTitle: 'AI Assistant',
     theme: {
         primaryColor: '#2563eb',
