@@ -76,8 +76,8 @@ export interface VoiceChatConfig {
     /** Session initialization delay in ms (default: 300) */
     sessionInitDelayMs?: number;
 
-    /** Model ID to use (default: gemini-2.0-flash-live-001) */
-    modelId?: string;
+    /** Model ID to use - check https://ai.google.dev/gemini-api/docs/live for available models */
+    modelId: string;
 
     /** Theme configuration */
     theme?: ChatTheme;

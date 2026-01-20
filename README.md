@@ -31,16 +31,16 @@ function App() {
       apiKey={process.env.NEXT_PUBLIC_GEMINI_API_KEY!}
       config={{
         systemPrompt: 'You are a helpful assistant...',
+        modelId: 'gemini-2.5-flash-native-audio-preview-12-2025', // Check docs for latest
         welcomeMessage: 'Hello! How can I help you today?',
         chatTitle: 'AI Assistant',
-        suggestedQuestions: [
-          'What can you help me with?',
-          'Tell me about your capabilities',
-        ],
       }}
     />
   );
 }
+```
+
+> **Note**: Check [Google AI Live API docs](https://ai.google.dev/gemini-api/docs/live) for available model IDs.
 ```
 
 ## Configuration

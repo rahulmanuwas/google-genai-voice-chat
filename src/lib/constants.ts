@@ -5,7 +5,7 @@ import type { VoiceChatConfig } from './types';
 /**
  * Default configuration values
  */
-export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme'>> & { theme: NonNullable<VoiceChatConfig['theme']> } = {
+export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId'>> & { theme: NonNullable<VoiceChatConfig['theme']> } = {
     welcomeMessage: 'Hello! How can I help you today?',
     suggestedQuestions: [],
     sessionStorageKey: 'genai-voice-chat-session',
@@ -14,7 +14,6 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     serverVADPrefixPaddingMs: 500,
     serverVADSilenceDurationMs: 1000,
     sessionInitDelayMs: 300,
-    modelId: 'gemini-2.0-flash-exp',
     chatTitle: 'AI Assistant',
     theme: {
         primaryColor: '#2563eb',
