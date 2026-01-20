@@ -94,7 +94,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
 
             // Create buffer at native Gemini rate (24kHz)
             const audioBuffer = ctx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
-            audioBuffer.copyToChannel(float32, 0);
+            audioBuffer.getChannelData(0).set(float32);
 
             const source = ctx.createBufferSource();
             source.buffer = audioBuffer;
