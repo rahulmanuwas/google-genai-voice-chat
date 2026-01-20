@@ -248,19 +248,28 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         voiceInputRef.current = voiceInput;
     }, [voiceInput]);
 
-    // Auto-start mic when connected
+    // Auto-start mic when first connected (only once per connection)
     const startMicRef = useRef(voiceInput.startMic);
+    const hasAutoStartedRef = useRef(false);
     useEffect(() => { startMicRef.current = voiceInput.startMic; }, [voiceInput.startMic]);
 
+    // Reset auto-start flag when disconnected
     useEffect(() => {
-        if (session.isConnected && !voiceInput.isListening && !isMuted && isMicEnabled && !session.isReconnecting) {
+        if (!session.isConnected) {
+            hasAutoStartedRef.current = false;
+        }
+    }, [session.isConnected]);
+
+    useEffect(() => {
+        if (session.isConnected && !hasAutoStartedRef.current && !isMuted && isMicEnabled && !session.isReconnecting) {
+            hasAutoStartedRef.current = true;
             console.log('Auto-starting mic after connection...');
             const timer = setTimeout(() => {
                 void startMicRef.current();
             }, config.sessionInitDelayMs);
             return () => clearTimeout(timer);
         }
-    }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs]);
+    }, [session.isConnected, session.isReconnecting, isMuted, isMicEnabled, config.sessionInitDelayMs]);
 
     // Stop everything when disconnected
     const isAISpeakingRef = useRef(false);
