@@ -1,13 +1,17 @@
 // src/hooks/useVoiceInput.ts
 
 /**
- * Hook for managing microphone input and voice activity detection
+ * Hook for managing microphone input and streaming to Gemini Live API
+ * Ported from tested g2p implementation (server-side VAD mode)
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LiveSession } from '../lib/types';
-import { AUDIO_CONFIG } from '../lib/constants';
-import { encodeAudioForAPI, calculateRMSLevel } from '../lib/audio-utils';
+import { INPUT_SAMPLE_RATE, encodeAudioToBase64, calculateRMSLevel } from '../lib/audio-utils';
+
+// Microphone settings
+const MIC_BUFFER_SIZE = 2048;
+const MIC_CHANNELS = 1;
 
 interface UseVoiceInputOptions {
     session: LiveSession | null;
@@ -30,54 +34,66 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     const [isListening, setIsListening] = useState(false);
     const [micLevel, setMicLevel] = useState(0);
 
-    const streamRef = useRef<MediaStream | null>(null);
-    const audioCtxRef = useRef<AudioContext | null>(null);
-    const processorRef = useRef<ScriptProcessorNode | null>(null);
-    const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    // Refs for audio context and nodes
+    const micCtxRef = useRef<AudioContext | null>(null);
+    const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const micProcRef = useRef<ScriptProcessorNode | null>(null);
+    const micStreamRef = useRef<MediaStream | null>(null);
+    const micSilenceGainRef = useRef<GainNode | null>(null);
 
-    // Keep callbacks in refs
+    // Refs for state that needs to be accessed in callbacks
+    const isListeningRef = useRef(false);
+    const sessionRef = useRef(session);
+
+    // Callback refs
     const onVoiceStartRef = useRef(onVoiceStart);
     const onVoiceEndRef = useRef(onVoiceEnd);
     const onErrorRef = useRef(onError);
-    const sessionRef = useRef(session);
 
+    // Keep refs updated
+    useEffect(() => { sessionRef.current = session; }, [session]);
     useEffect(() => { onVoiceStartRef.current = onVoiceStart; }, [onVoiceStart]);
     useEffect(() => { onVoiceEndRef.current = onVoiceEnd; }, [onVoiceEnd]);
     useEffect(() => { onErrorRef.current = onError; }, [onError]);
-    useEffect(() => { sessionRef.current = session; }, [session]);
 
-    const stopMic = useCallback(() => {
-        console.log('Stopping microphone...');
+    const cleanup = useCallback(() => {
+        try { micProcRef.current?.disconnect(); } catch (e) { void e; }
+        try { micSourceRef.current?.disconnect(); } catch (e) { void e; }
+        try { micSilenceGainRef.current?.disconnect(); } catch (e) { void e; }
+        try { micCtxRef.current?.close(); } catch (e) { void e; }
 
-        if (processorRef.current) {
-            processorRef.current.disconnect();
-            processorRef.current = null;
-        }
+        micProcRef.current = null;
+        micSourceRef.current = null;
+        micSilenceGainRef.current = null;
+        micCtxRef.current = null;
 
-        if (sourceRef.current) {
-            sourceRef.current.disconnect();
-            sourceRef.current = null;
-        }
+        micStreamRef.current?.getTracks().forEach(t => t.stop());
+        micStreamRef.current = null;
 
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
-            streamRef.current = null;
-        }
-
-        if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-            void audioCtxRef.current.close();
-            audioCtxRef.current = null;
-        }
-
+        isListeningRef.current = false;
         setIsListening(false);
         setMicLevel(0);
-        onVoiceEndRef.current?.();
     }, []);
 
+    const stopMic = useCallback((): void => {
+        if (!isListeningRef.current) return;
+
+        console.log('Stopping microphone...');
+
+        // Signal end of audio to API (server VAD mode)
+        try {
+            sessionRef.current?.sendRealtimeInput({ audioStreamEnd: true });
+        } catch (e) {
+            console.warn('Audio stream end failed:', e);
+        }
+
+        cleanup();
+        onVoiceEndRef.current?.();
+    }, [cleanup]);
+
     const startMic = useCallback(async (): Promise<void> => {
-        if (isListening) return;
-        if (!sessionRef.current) {
-            console.warn('Cannot start mic: no session');
+        if (!sessionRef.current || isListeningRef.current) {
+            console.log('Cannot start mic: session missing or already listening');
             return;
         }
 
@@ -87,85 +103,92 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
             // Get microphone stream
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    channelCount: 1,
-                    sampleRate: AUDIO_CONFIG.INPUT_SAMPLE_RATE,
                     echoCancellation: true,
                     noiseSuppression: true,
-                    autoGainControl: true,
+                    autoGainControl: false,
+                    channelCount: MIC_CHANNELS,
+                    sampleRate: 48000, // Request high rate, will downsample
                 },
-            });
-
-            streamRef.current = stream;
+            } as MediaStreamConstraints);
+            micStreamRef.current = stream;
 
             // Create audio context
             const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-            const audioCtx = new Ctx({ sampleRate: AUDIO_CONFIG.INPUT_SAMPLE_RATE });
-            audioCtxRef.current = audioCtx;
+            micCtxRef.current = new Ctx();
 
-            // Create source from stream
-            const source = audioCtx.createMediaStreamSource(stream);
-            sourceRef.current = source;
+            if (micCtxRef.current.state === 'suspended') {
+                await micCtxRef.current.resume();
+            }
 
-            // Create script processor for audio processing
-            const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
+            micSourceRef.current = micCtxRef.current.createMediaStreamSource(stream);
 
-            processor.onaudioprocess = (e) => {
-                if (!sessionRef.current) return;
+            // Smoothing for mic level
+            let previousLevel = 0;
 
-                const inputData = e.inputBuffer.getChannelData(0);
-                const level = calculateRMSLevel(inputData);
-                setMicLevel(level);
+            // Create audio processor
+            const audioProcessor = micCtxRef.current.createScriptProcessor(MIC_BUFFER_SIZE, MIC_CHANNELS, MIC_CHANNELS);
 
-                // Encode and send to API
-                const encoded = encodeAudioForAPI(inputData, audioCtx.sampleRate);
+            audioProcessor.onaudioprocess = (event: AudioProcessingEvent) => {
+                if (!micCtxRef.current || !isListeningRef.current) return;
+
+                const inputData = event.inputBuffer.getChannelData(0);
+
+                // Calculate and smooth mic level for visual feedback
+                const rms = calculateRMSLevel(inputData);
+                const visualLevel = Math.min(1, rms * 10); // Scale for visibility
+                previousLevel = previousLevel * 0.8 + visualLevel * 0.2;
+                setMicLevel(previousLevel);
+
+                // Encode and send audio (server VAD mode - send all audio)
+                const sourceSampleRate = micCtxRef.current.sampleRate;
+                const { data, mimeType } = encodeAudioToBase64(inputData, sourceSampleRate, INPUT_SAMPLE_RATE);
 
                 try {
-                    sessionRef.current.sendRealtimeInput({
-                        audio: {
-                            data: encoded,
-                            mimeType: AUDIO_CONFIG.INPUT_MIME_TYPE,
-                        },
-                    });
+                    sessionRef.current?.sendRealtimeInput({ audio: { data, mimeType } });
                 } catch (err) {
-                    console.warn('Failed to send audio:', err);
+                    console.error('sendRealtimeInput error:', err);
+                    onErrorRef.current?.('Audio streaming error');
                 }
             };
 
-            source.connect(processor);
-            processor.connect(audioCtx.destination);
+            // Connect nodes (with silence to prevent feedback)
+            micSilenceGainRef.current = micCtxRef.current.createGain();
+            micSilenceGainRef.current.gain.value = 0;
+            micSourceRef.current.connect(audioProcessor);
+            audioProcessor.connect(micSilenceGainRef.current);
+            micSilenceGainRef.current.connect(micCtxRef.current.destination);
+            micProcRef.current = audioProcessor;
 
+            isListeningRef.current = true;
             setIsListening(true);
+
+            console.log(`Microphone started at ${micCtxRef.current.sampleRate}Hz`);
             onVoiceStartRef.current?.();
-            console.log('Microphone started at', audioCtx.sampleRate, 'Hz');
-
         } catch (err) {
-            console.error('Failed to start microphone:', err);
-            const message = (err as Error).message;
-
-            if (message.includes('Permission denied') || message.includes('NotAllowedError')) {
-                onErrorRef.current?.('Microphone access denied. Please allow microphone access.');
-            } else {
-                onErrorRef.current?.(`Microphone error: ${message}`);
-            }
-
-            stopMic();
+            console.error('Mic start failed:', err);
+            cleanup();
+            onErrorRef.current?.(`Microphone error: ${(err as Error).message}`);
         }
-    }, [isListening, stopMic]);
+    }, [cleanup]);
+
+    // Stop mic when disabled - use ref to avoid effect dependency warning
+    const stopMicRef = useRef(stopMic);
+    useEffect(() => { stopMicRef.current = stopMic; }, [stopMic]);
+
+    useEffect(() => {
+        if (!isEnabled && isListeningRef.current) {
+            stopMicRef.current();
+        }
+    }, [isEnabled]);
 
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            stopMic();
+            if (isListeningRef.current) {
+                cleanup();
+            }
         };
-    }, [stopMic]);
-
-    // Stop when disabled
-    useEffect(() => {
-        if (!isEnabled && isListening) {
-            stopMic();
-        }
-    }, [isEnabled, isListening, stopMic]);
+    }, [cleanup]);
 
     return {
         isListening,

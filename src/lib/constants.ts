@@ -22,8 +22,11 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
 };
 
 /**
- * Audio configuration constants
+ * Audio configuration constants - re-exported from audio-utils
  */
+export { INPUT_SAMPLE_RATE, OUTPUT_SAMPLE_RATE, PLAYBACK_COMPLETE_DELAY_MS } from './audio-utils';
+
+// Legacy AUDIO_CONFIG for backwards compatibility
 export const AUDIO_CONFIG = {
     /** Input sample rate for microphone */
     INPUT_SAMPLE_RATE: 16000,

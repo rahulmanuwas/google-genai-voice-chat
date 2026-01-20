@@ -1,83 +1,104 @@
 // src/lib/audio-utils.ts
 
-import { AUDIO_CONFIG } from './constants';
+/**
+ * PCM audio conversion utilities - ported from tested g2p implementation
+ */
+
+/** Input sample rate for microphone (Google expects 16kHz) */
+export const INPUT_SAMPLE_RATE = 16000;
+
+/** Output sample rate for playback (Gemini outputs 24kHz) */
+export const OUTPUT_SAMPLE_RATE = 24000;
+
+/** Delay after playback ends before calling onPlaybackComplete */
+export const PLAYBACK_COMPLETE_DELAY_MS = 200;
 
 /**
- * Convert Float32 audio samples to Int16 PCM
+ * Convert Float32 audio samples to 16-bit PCM
  */
-export function float32ToInt16(float32: Float32Array): Int16Array {
-    const int16 = new Int16Array(float32.length);
+export function float32ToPCM16(float32: Float32Array): Int16Array {
+    const out = new Int16Array(float32.length);
     for (let i = 0; i < float32.length; i++) {
         const s = Math.max(-1, Math.min(1, float32[i]));
-        int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
-    return int16;
+    return out;
 }
 
 /**
- * Convert Int16 PCM to Float32 audio samples
+ * Convert 16-bit PCM to Float32 audio samples (for Web Audio API)
  */
-export function int16ToFloat32(int16: Int16Array): Float32Array {
-    const float32 = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) {
-        float32[i] = int16[i] / (int16[i] < 0 ? 0x8000 : 0x7fff);
+export function pcm16ToFloat32(pcm16: Int16Array): Float32Array {
+    const float32 = new Float32Array(pcm16.length);
+    for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768.0;
     }
     return float32;
 }
 
 /**
- * Resample audio data from one sample rate to another
+ * Convert Uint8Array to base64 string
  */
-export function resample(
-    input: Float32Array,
-    inputRate: number,
-    outputRate: number
+export function uint8ToBase64(u8: Uint8Array): string {
+    let s = '';
+    for (let i = 0; i < u8.length; i++) {
+        s += String.fromCharCode(u8[i]);
+    }
+    return btoa(s);
+}
+
+/**
+ * Convert base64 string to Int16Array PCM data
+ */
+export function base64ToPCM16(base64: string): Int16Array {
+    const bin = atob(base64);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+        buf[i] = bin.charCodeAt(i);
+    }
+    return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 2));
+}
+
+/**
+ * Downsample audio data to target sample rate
+ */
+export function downsample(
+    inputData: Float32Array,
+    inputSampleRate: number,
+    targetSampleRate: number
 ): Float32Array {
-    if (inputRate === outputRate) return input;
-
-    const ratio = inputRate / outputRate;
-    const outputLength = Math.round(input.length / ratio);
-    const output = new Float32Array(outputLength);
-
-    for (let i = 0; i < outputLength; i++) {
-        const srcIndex = i * ratio;
-        const srcIndexFloor = Math.floor(srcIndex);
-        const srcIndexCeil = Math.min(srcIndexFloor + 1, input.length - 1);
-        const t = srcIndex - srcIndexFloor;
-        output[i] = input[srcIndexFloor] * (1 - t) + input[srcIndexCeil] * t;
+    if (inputSampleRate === targetSampleRate) {
+        return inputData;
     }
 
-    return output;
+    const ratio = inputSampleRate / targetSampleRate;
+    const newLength = Math.floor(inputData.length / ratio);
+    const result = new Float32Array(newLength);
+
+    for (let i = 0; i < newLength; i++) {
+        result[i] = inputData[Math.floor(i * ratio)];
+    }
+
+    return result;
 }
 
 /**
- * Encode audio data as base64 PCM for sending to API
+ * Encode audio data to base64 PCM string for sending to API
  */
-export function encodeAudioForAPI(float32: Float32Array, inputSampleRate: number): string {
-    // Resample to API input rate if needed
-    const resampled = resample(float32, inputSampleRate, AUDIO_CONFIG.INPUT_SAMPLE_RATE);
-    const int16 = float32ToInt16(resampled);
+export function encodeAudioToBase64(
+    audioData: Float32Array,
+    sourceSampleRate: number,
+    targetSampleRate: number = INPUT_SAMPLE_RATE
+): { data: string; mimeType: string } {
+    const processedData = downsample(audioData, sourceSampleRate, targetSampleRate);
+    const pcm16 = float32ToPCM16(processedData);
+    const u8 = new Uint8Array(pcm16.buffer);
+    const base64 = uint8ToBase64(u8);
 
-    // Convert to base64
-    const bytes = new Uint8Array(int16.buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-}
-
-/**
- * Decode base64 PCM audio from API response
- */
-export function decodeAudioFromAPI(base64: string): Float32Array {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    const int16 = new Int16Array(bytes.buffer);
-    return int16ToFloat32(int16);
+    return {
+        data: base64,
+        mimeType: `audio/pcm;rate=${targetSampleRate}`,
+    };
 }
 
 /**

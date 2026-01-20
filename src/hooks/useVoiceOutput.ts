@@ -1,12 +1,12 @@
 // src/hooks/useVoiceOutput.ts
 
 /**
- * Hook for managing audio playback of AI responses
+ * Hook for managing audio playback from Gemini Live API responses
+ * Ported from tested g2p implementation
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AUDIO_CONFIG } from '../lib/constants';
-import { decodeAudioFromAPI, resample } from '../lib/audio-utils';
+import { OUTPUT_SAMPLE_RATE, PLAYBACK_COMPLETE_DELAY_MS, base64ToPCM16, pcm16ToFloat32 } from '../lib/audio-utils';
 
 interface UseVoiceOutputOptions {
     playbackContext: AudioContext | null;
@@ -19,6 +19,7 @@ interface UseVoiceOutputReturn {
     isPlaying: boolean;
     enqueueAudio: (base64Data: string) => void;
     stopPlayback: () => void;
+    clearQueue: () => void;
 }
 
 export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputReturn {
@@ -26,121 +27,213 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
 
     const [isPlaying, setIsPlaying] = useState(false);
 
-    const queueRef = useRef<Float32Array[]>([]);
-    const isProcessingRef = useRef(false);
+    // Audio queue and state refs
+    const playQueueRef = useRef<Int16Array[]>([]);
+    const isDrainingRef = useRef(false);
     const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const scheduledEndTimeRef = useRef(0);
 
-    // Keep callbacks in refs
+    // Callback refs
     const onPlaybackStartRef = useRef(onPlaybackStart);
     const onPlaybackCompleteRef = useRef(onPlaybackComplete);
+    const playCtxRef = useRef(playbackContext);
+    const isPausedRef = useRef(isPaused);
+    const isPlayingRef = useRef(isPlaying);
 
+    // Keep refs updated
     useEffect(() => { onPlaybackStartRef.current = onPlaybackStart; }, [onPlaybackStart]);
     useEffect(() => { onPlaybackCompleteRef.current = onPlaybackComplete; }, [onPlaybackComplete]);
+    useEffect(() => { playCtxRef.current = playbackContext; }, [playbackContext]);
+    useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+    useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+    // Use a ref for recursive scheduling to avoid circular dependency
+    const scheduleChunksRef = useRef<() => void>(() => { });
+
+    // Define scheduleChunks implementation
+    useEffect(() => {
+        const scheduleChunks = () => {
+            const ctx = playCtxRef.current;
+            if (!ctx) {
+                isDrainingRef.current = false;
+                return;
+            }
+
+            // No more chunks to play
+            if (playQueueRef.current.length === 0) {
+                isDrainingRef.current = false;
+                currentSourceRef.current = null;
+                scheduledEndTimeRef.current = 0;
+
+                // Delay callback to allow for more chunks
+                setTimeout(() => {
+                    if (playQueueRef.current.length === 0) {
+                        setIsPlaying(false);
+                        onPlaybackCompleteRef.current?.();
+                    }
+                }, PLAYBACK_COMPLETE_DELAY_MS);
+                return;
+            }
+
+            // Combine all queued chunks
+            const chunks = playQueueRef.current.splice(0, playQueueRef.current.length);
+            let totalLength = 0;
+            for (const chunk of chunks) {
+                totalLength += chunk.length;
+            }
+
+            const combined = new Int16Array(totalLength);
+            let offset = 0;
+            for (const chunk of chunks) {
+                combined.set(chunk, offset);
+                offset += chunk.length;
+            }
+
+            // Convert to Float32 for Web Audio
+            const float32 = pcm16ToFloat32(combined);
+
+            // Create buffer at native Gemini rate (24kHz)
+            const audioBuffer = ctx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
+            audioBuffer.copyToChannel(float32, 0);
+
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            currentSourceRef.current = source;
+
+            // Schedule playback precisely
+            const now = ctx.currentTime;
+            const startTime = Math.max(now, scheduledEndTimeRef.current);
+            scheduledEndTimeRef.current = startTime + audioBuffer.duration;
+
+            source.onended = () => {
+                currentSourceRef.current = null;
+
+                // Check for more chunks using ref
+                if (playQueueRef.current.length > 0) {
+                    scheduleChunksRef.current();
+                } else {
+                    // Wait a bit for more chunks
+                    setTimeout(() => {
+                        if (playQueueRef.current.length > 0) {
+                            scheduleChunksRef.current();
+                        } else {
+                            isDrainingRef.current = false;
+                            scheduledEndTimeRef.current = 0;
+                            setIsPlaying(false);
+                            onPlaybackCompleteRef.current?.();
+                        }
+                    }, PLAYBACK_COMPLETE_DELAY_MS);
+                }
+            };
+
+            source.start(startTime);
+        };
+
+        scheduleChunksRef.current = scheduleChunks;
+    }, []);
+
+    const drainQueue = useCallback(() => {
+        const ctx = playCtxRef.current;
+        if (!ctx || isDrainingRef.current) return;
+
+        isDrainingRef.current = true;
+
+        // Resume context if needed
+        if (ctx.state === 'suspended') {
+            ctx.resume().then(() => scheduleChunksRef.current()).catch(console.warn);
+        } else {
+            scheduleChunksRef.current();
+        }
+    }, []);
 
     const stopPlayback = useCallback(() => {
-        console.log('Stopping playback...');
-
+        // Stop current source
         if (currentSourceRef.current) {
             try {
-                currentSourceRef.current.stop();
-                currentSourceRef.current.disconnect();
+                currentSourceRef.current.onended = null;
+                currentSourceRef.current.stop(0);
             } catch (e) {
-                // Ignore errors from already stopped sources
+                console.warn('Stop playback error:', e);
             }
             currentSourceRef.current = null;
         }
 
-        queueRef.current = [];
-        isProcessingRef.current = false;
+        // Clear queue
+        playQueueRef.current = [];
+        isDrainingRef.current = false;
+        scheduledEndTimeRef.current = 0;
         setIsPlaying(false);
-        onPlaybackCompleteRef.current?.();
+
+        // Note: Don't call onPlaybackComplete here - that's for natural completion only
+
+        // Suspend context
+        if (playCtxRef.current && playCtxRef.current.state === 'running') {
+            playCtxRef.current.suspend().catch(console.warn);
+        }
     }, []);
 
-    const processQueue = useCallback(async () => {
-        if (isProcessingRef.current || !playbackContext || isPaused) return;
-        if (queueRef.current.length === 0) {
-            setIsPlaying(false);
-            onPlaybackCompleteRef.current?.();
-            return;
-        }
-
-        isProcessingRef.current = true;
-        setIsPlaying(true);
-
-        const chunk = queueRef.current.shift()!;
-
-        try {
-            // Resample to playback context's sample rate if needed
-            const resampled = resample(chunk, AUDIO_CONFIG.OUTPUT_SAMPLE_RATE, playbackContext.sampleRate);
-
-            // Create audio buffer
-            const buffer = playbackContext.createBuffer(1, resampled.length, playbackContext.sampleRate);
-            buffer.getChannelData(0).set(resampled);
-
-            // Create and play source
-            const source = playbackContext.createBufferSource();
-            source.buffer = buffer;
-            source.connect(playbackContext.destination);
-            currentSourceRef.current = source;
-
-            source.onended = () => {
-                currentSourceRef.current = null;
-                isProcessingRef.current = false;
-                // Process next chunk
-                void processQueue();
-            };
-
-            if (onPlaybackStartRef.current && !isPlaying) {
-                onPlaybackStartRef.current();
-            }
-
-            source.start();
-        } catch (err) {
-            console.error('Playback error:', err);
-            isProcessingRef.current = false;
-            // Try next chunk
-            void processQueue();
-        }
-    }, [playbackContext, isPaused, isPlaying]);
+    const clearQueue = useCallback(() => {
+        playQueueRef.current = [];
+    }, []);
 
     const enqueueAudio = useCallback((base64Data: string) => {
+        if (isPausedRef.current) return;
+
         try {
-            const audioData = decodeAudioFromAPI(base64Data);
-            queueRef.current.push(audioData);
+            const pcm16 = base64ToPCM16(base64Data);
 
-            // Start processing if not already
-            if (!isProcessingRef.current && !isPaused) {
-                void processQueue();
+            if (pcm16.length > 0) {
+                // Clone to avoid buffer reuse issues
+                const chunk = new Int16Array(pcm16.length);
+                chunk.set(pcm16);
+                playQueueRef.current.push(chunk);
+
+                // Signal playback started
+                if (!isPlayingRef.current) {
+                    setIsPlaying(true);
+                    onPlaybackStartRef.current?.();
+                }
+
+                // Start draining if not already
+                if (!isDrainingRef.current) {
+                    drainQueue();
+                }
             }
-        } catch (err) {
-            console.error('Failed to decode audio:', err);
+        } catch (e) {
+            console.error('Failed to enqueue audio:', e);
         }
-    }, [isPaused, processQueue]);
+    }, [drainQueue]);
 
-    // Stop when paused
-    useEffect(() => {
-        if (isPaused && isPlaying) {
-            stopPlayback();
-        }
-    }, [isPaused, isPlaying, stopPlayback]);
+    // Handle pause state changes
+    const stopPlaybackRef = useRef(stopPlayback);
+    useEffect(() => { stopPlaybackRef.current = stopPlayback; }, [stopPlayback]);
 
-    // Resume when unpaused
     useEffect(() => {
-        if (!isPaused && queueRef.current.length > 0 && !isProcessingRef.current) {
-            void processQueue();
+        if (isPaused) {
+            stopPlaybackRef.current();
         }
-    }, [isPaused, processQueue]);
+    }, [isPaused]);
 
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            stopPlayback();
+            // Clear resources directly without calling setState
+            if (currentSourceRef.current) {
+                try {
+                    currentSourceRef.current.onended = null;
+                    currentSourceRef.current.stop(0);
+                } catch (e) { void e; }
+            }
+            playQueueRef.current = [];
+            isDrainingRef.current = false;
         };
-    }, [stopPlayback]);
+    }, []);
 
     return {
         isPlaying,
         enqueueAudio,
         stopPlayback,
+        clearQueue,
     };
 }
