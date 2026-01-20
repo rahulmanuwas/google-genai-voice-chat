@@ -260,6 +260,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         }
     }, [session.isConnected]);
 
+    // Initial auto-start (once per connection)
     useEffect(() => {
         if (session.isConnected && !hasAutoStartedRef.current && !isMuted && isMicEnabled && !session.isReconnecting) {
             hasAutoStartedRef.current = true;
@@ -270,6 +271,17 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             return () => clearTimeout(timer);
         }
     }, [session.isConnected, session.isReconnecting, isMuted, isMicEnabled, config.sessionInitDelayMs]);
+
+    // Restart mic if it's stopped but should be running (e.g., after playback completes)
+    useEffect(() => {
+        if (session.isConnected && hasAutoStartedRef.current && !voiceInput.isListening && !isMuted && isMicEnabled && !session.isReconnecting && !isAISpeaking) {
+            console.log('Restarting mic (was stopped, should be running)...');
+            const timer = setTimeout(() => {
+                void startMicRef.current();
+            }, 200);
+            return () => clearTimeout(timer);
+        }
+    }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, isAISpeaking]);
 
     // Stop everything when disconnected
     const isAISpeakingRef = useRef(false);
