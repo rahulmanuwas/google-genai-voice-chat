@@ -25,6 +25,9 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     thinkingConfig: {},
     enableAffectiveDialog: false,
     proactivity: {},
+    autoPauseMicOnSendText: true,
+    autoWelcomeAudio: false,
+    welcomeAudioPrompt: '',
     chatTitle: 'AI Assistant',
     theme: {
         primaryColor: '#2563eb',

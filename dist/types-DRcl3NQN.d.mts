@@ -92,6 +92,12 @@ interface VoiceChatConfig {
     enableAffectiveDialog?: boolean;
     /** Proactive audio settings (v1alpha only) */
     proactivity?: Record<string, unknown>;
+    /** Automatically pause mic when sending text (default: true) */
+    autoPauseMicOnSendText?: boolean;
+    /** Speak a welcome message on connect */
+    autoWelcomeAudio?: boolean;
+    /** Prompt used to generate the welcome audio */
+    welcomeAudioPrompt?: string;
     /** Model ID to use - check https://ai.google.dev/gemini-api/docs/live for available models */
     modelId: string;
     /** Theme configuration */

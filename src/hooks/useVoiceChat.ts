@@ -71,6 +71,9 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     // Input transcription handling (user's speech)
     const currentInputTranscriptRef = useRef('');
     const streamingInputMsgIdRef = useRef<string | null>(null);
+    const pendingMicResumeRef = useRef(false);
+    const sessionConnectedRef = useRef(false);
+    const welcomeSentRef = useRef(false);
 
     // Refs for cross-hook communication (avoids circular dependencies)
     const voiceOutputRef = useRef<{ stopPlayback: () => void; enqueueAudio: (data: string, sampleRate?: number) => void } | null>(null);
@@ -88,6 +91,11 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             role,
             ts: Date.now(),
         }]);
+    }, []);
+
+    const pauseMicForModelReply = useCallback(() => {
+        pendingMicResumeRef.current = true;
+        voiceInputRef.current?.stopMic();
     }, []);
 
     // Message handler for processing Gemini responses
@@ -204,8 +212,14 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             }
             currentTranscriptRef.current = '';
             streamingMsgIdRef.current = null;
+
+            if (pendingMicResumeRef.current && sessionConnectedRef.current && !isMutedRef.current && isMicEnabledRef.current) {
+                pendingMicResumeRef.current = false;
+                const delay = config.micResumeDelayMs ?? 200;
+                setTimeout(() => void voiceInputRef.current?.startMic(), delay);
+            }
         }
-    }, [config.replyAsAudio, pushMsg]);
+    }, [config.replyAsAudio, config.micResumeDelayMs, pushMsg]);
 
     // Session hook
     const session = useLiveSession({
@@ -227,6 +241,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             pushMsg(message, 'system');
         },
     });
+
+    useEffect(() => {
+        sessionConnectedRef.current = session.isConnected;
+    }, [session.isConnected]);
 
     // Voice output hook
     const voiceOutput = useVoiceOutput({
@@ -282,6 +300,19 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             return () => clearTimeout(timer);
         }
     }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs]);
+
+    useEffect(() => {
+        if (
+            session.isConnected &&
+            config.autoWelcomeAudio &&
+            config.welcomeAudioPrompt &&
+            !welcomeSentRef.current
+        ) {
+            welcomeSentRef.current = true;
+            pauseMicForModelReply();
+            session.sendText(config.welcomeAudioPrompt);
+        }
+    }, [session.isConnected, config.autoWelcomeAudio, config.welcomeAudioPrompt, pauseMicForModelReply, session]);
 
     // Stop everything when disconnected
     const isAISpeakingRef = useRef(false);
@@ -340,10 +371,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     const sendTextMessage = useCallback((text: string) => {
         if (!text.trim()) return;
         pushMsg(text, 'user');
+        if (config.replyAsAudio && config.autoPauseMicOnSendText !== false) {
+            pauseMicForModelReply();
+        }
         setIsLoading(true);
         session.sendText(text);
         setIsLoading(false);
-    }, [session, pushMsg]);
+    }, [session, pushMsg, config.replyAsAudio, config.autoPauseMicOnSendText, pauseMicForModelReply]);
 
     return {
         // Connection

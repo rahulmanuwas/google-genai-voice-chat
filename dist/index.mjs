@@ -97,6 +97,9 @@ var DEFAULT_CONFIG = {
   thinkingConfig: {},
   enableAffectiveDialog: false,
   proactivity: {},
+  autoPauseMicOnSendText: true,
+  autoWelcomeAudio: false,
+  welcomeAudioPrompt: "",
   chatTitle: "AI Assistant",
   theme: {
     primaryColor: "#2563eb",
@@ -727,6 +730,9 @@ function useVoiceChat(options) {
   const streamingMsgIdRef = useRef(null);
   const currentInputTranscriptRef = useRef("");
   const streamingInputMsgIdRef = useRef(null);
+  const pendingMicResumeRef = useRef(false);
+  const sessionConnectedRef = useRef(false);
+  const welcomeSentRef = useRef(false);
   const voiceOutputRef = useRef(null);
   const voiceInputRef = useRef(null);
   useEffect(() => {
@@ -742,6 +748,10 @@ function useVoiceChat(options) {
       role,
       ts: Date.now()
     }]);
+  }, []);
+  const pauseMicForModelReply = useCallback(() => {
+    pendingMicResumeRef.current = true;
+    voiceInputRef.current?.stopMic();
   }, []);
   const handleMessage = useCallback((msg) => {
     const parseSampleRate = (mimeType) => {
@@ -833,8 +843,13 @@ function useVoiceChat(options) {
       }
       currentTranscriptRef.current = "";
       streamingMsgIdRef.current = null;
+      if (pendingMicResumeRef.current && sessionConnectedRef.current && !isMutedRef.current && isMicEnabledRef.current) {
+        pendingMicResumeRef.current = false;
+        const delay = config.micResumeDelayMs ?? 200;
+        setTimeout(() => void voiceInputRef.current?.startMic(), delay);
+      }
     }
-  }, [config.replyAsAudio, pushMsg]);
+  }, [config.replyAsAudio, config.micResumeDelayMs, pushMsg]);
   const session = useLiveSession({
     config: userConfig,
     apiKey,
@@ -854,6 +869,9 @@ function useVoiceChat(options) {
       pushMsg(message, "system");
     }
   });
+  useEffect(() => {
+    sessionConnectedRef.current = session.isConnected;
+  }, [session.isConnected]);
   const voiceOutput = useVoiceOutput({
     playbackContext: session.playbackContext,
     isPaused: isSpeakerPaused,
@@ -900,6 +918,13 @@ function useVoiceChat(options) {
       return () => clearTimeout(timer);
     }
   }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs]);
+  useEffect(() => {
+    if (session.isConnected && config.autoWelcomeAudio && config.welcomeAudioPrompt && !welcomeSentRef.current) {
+      welcomeSentRef.current = true;
+      pauseMicForModelReply();
+      session.sendText(config.welcomeAudioPrompt);
+    }
+  }, [session.isConnected, config.autoWelcomeAudio, config.welcomeAudioPrompt, pauseMicForModelReply, session]);
   const isAISpeakingRef = useRef(false);
   useEffect(() => {
     isAISpeakingRef.current = isAISpeaking;
@@ -949,10 +974,13 @@ function useVoiceChat(options) {
   const sendTextMessage = useCallback((text) => {
     if (!text.trim()) return;
     pushMsg(text, "user");
+    if (config.replyAsAudio && config.autoPauseMicOnSendText !== false) {
+      pauseMicForModelReply();
+    }
     setIsLoading(true);
     session.sendText(text);
     setIsLoading(false);
-  }, [session, pushMsg]);
+  }, [session, pushMsg, config.replyAsAudio, config.autoPauseMicOnSendText, pauseMicForModelReply]);
   return {
     // Connection
     isConnected: session.isConnected,
