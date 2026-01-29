@@ -129,6 +129,12 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             }
         }
 
+        // Direct text response (non-audio mode) - cast for runtime properties
+        const msgAny = msg as LiveServerMessage & { text?: string; data?: string };
+        if (msgAny.text && !config.replyAsAudio) {
+            pushMsg(msgAny.text, 'model');
+        }
+
         // Parts from modelTurn
         const parts = msg.serverContent?.modelTurn?.parts ?? [];
         for (const p of parts) {
@@ -141,6 +147,12 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
                 setIsAISpeaking(true);
                 voiceOutputRef.current?.enqueueAudio(p.inlineData.data);
             }
+        }
+
+        // Direct audio data (when not in parts)
+        if (msgAny.data && config.replyAsAudio && !parts.some(p => p.inlineData?.data)) {
+            setIsAISpeaking(true);
+            voiceOutputRef.current?.enqueueAudio(msgAny.data);
         }
 
         // Output transcription (streaming)
@@ -248,40 +260,19 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         voiceInputRef.current = voiceInput;
     }, [voiceInput]);
 
-    // Auto-start mic when first connected (only once per connection)
+    // Auto-start mic when connected (simplified from Daejung)
     const startMicRef = useRef(voiceInput.startMic);
-    const hasAutoStartedRef = useRef(false);
     useEffect(() => { startMicRef.current = voiceInput.startMic; }, [voiceInput.startMic]);
 
-    // Reset auto-start flag when disconnected
     useEffect(() => {
-        if (!session.isConnected) {
-            hasAutoStartedRef.current = false;
-        }
-    }, [session.isConnected]);
-
-    // Initial auto-start (once per connection)
-    useEffect(() => {
-        if (session.isConnected && !hasAutoStartedRef.current && !isMuted && isMicEnabled && !session.isReconnecting) {
-            hasAutoStartedRef.current = true;
+        if (session.isConnected && !voiceInput.isListening && !isMuted && isMicEnabled && !session.isReconnecting) {
             console.log('Auto-starting mic after connection...');
             const timer = setTimeout(() => {
                 void startMicRef.current();
             }, config.sessionInitDelayMs);
             return () => clearTimeout(timer);
         }
-    }, [session.isConnected, session.isReconnecting, isMuted, isMicEnabled, config.sessionInitDelayMs]);
-
-    // Restart mic if it's stopped but should be running (e.g., after playback completes)
-    useEffect(() => {
-        if (session.isConnected && hasAutoStartedRef.current && !voiceInput.isListening && !isMuted && isMicEnabled && !session.isReconnecting && !isAISpeaking) {
-            console.log('Restarting mic (was stopped, should be running)...');
-            const timer = setTimeout(() => {
-                void startMicRef.current();
-            }, 200);
-            return () => clearTimeout(timer);
-        }
-    }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, isAISpeaking]);
+    }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs]);
 
     // Stop everything when disconnected
     const isAISpeakingRef = useRef(false);
