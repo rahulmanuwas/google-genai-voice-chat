@@ -74,6 +74,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     const pendingMicResumeRef = useRef(false);
     const sessionConnectedRef = useRef(false);
     const welcomeSentRef = useRef(false);
+    const sawAudioRef = useRef(false);
 
     // Refs for cross-hook communication (avoids circular dependencies)
     const voiceOutputRef = useRef<{ stopPlayback: () => void; enqueueAudio: (data: string, sampleRate?: number) => void } | null>(null);
@@ -95,6 +96,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
     const pauseMicForModelReply = useCallback(() => {
         pendingMicResumeRef.current = true;
+        sawAudioRef.current = false;
         voiceInputRef.current?.stopMic();
     }, []);
 
@@ -159,6 +161,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
             // Audio data
             if (p.inlineData?.mimeType?.startsWith('audio/') && p.inlineData.data && config.replyAsAudio) {
+                sawAudioRef.current = true;
                 setIsAISpeaking(true);
                 voiceOutputRef.current?.enqueueAudio(p.inlineData.data, parseSampleRate(p.inlineData.mimeType));
             }
@@ -166,6 +169,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
         // Direct audio data (when not in parts)
         if (msgAny.data && config.replyAsAudio && !parts.some(p => p.inlineData?.data)) {
+            sawAudioRef.current = true;
             setIsAISpeaking(true);
             voiceOutputRef.current?.enqueueAudio(msgAny.data);
         }
@@ -213,10 +217,17 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             currentTranscriptRef.current = '';
             streamingMsgIdRef.current = null;
 
-            if (pendingMicResumeRef.current && sessionConnectedRef.current && !isMutedRef.current && isMicEnabledRef.current) {
-                pendingMicResumeRef.current = false;
-                const delay = config.micResumeDelayMs ?? 200;
-                setTimeout(() => void voiceInputRef.current?.startMic(), delay);
+            if (
+                pendingMicResumeRef.current &&
+                sessionConnectedRef.current &&
+                !isMutedRef.current &&
+                isMicEnabledRef.current
+            ) {
+                if (!sawAudioRef.current) {
+                    pendingMicResumeRef.current = false;
+                    const delay = config.micResumeDelayMs ?? 200;
+                    setTimeout(() => void voiceInputRef.current?.startMic(), delay);
+                }
             }
         }
     }, [config.replyAsAudio, config.micResumeDelayMs, pushMsg]);
@@ -257,7 +268,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         },
         onPlaybackComplete: () => {
             setIsAISpeaking(false);
-            if (session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
+            if (pendingMicResumeRef.current && session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
+                pendingMicResumeRef.current = false;
                 const delay = config.micResumeDelayMs ?? 200;
                 setTimeout(() => void voiceInputRef.current?.startMic(), delay);
             }

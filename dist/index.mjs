@@ -734,6 +734,7 @@ function useVoiceChat(options) {
   const pendingMicResumeRef = useRef(false);
   const sessionConnectedRef = useRef(false);
   const welcomeSentRef = useRef(false);
+  const sawAudioRef = useRef(false);
   const voiceOutputRef = useRef(null);
   const voiceInputRef = useRef(null);
   useEffect(() => {
@@ -752,6 +753,7 @@ function useVoiceChat(options) {
   }, []);
   const pauseMicForModelReply = useCallback(() => {
     pendingMicResumeRef.current = true;
+    sawAudioRef.current = false;
     voiceInputRef.current?.stopMic();
   }, []);
   const handleMessage = useCallback((msg) => {
@@ -802,11 +804,13 @@ function useVoiceChat(options) {
         pushMsg(p.text, "model");
       }
       if (p.inlineData?.mimeType?.startsWith("audio/") && p.inlineData.data && config.replyAsAudio) {
+        sawAudioRef.current = true;
         setIsAISpeaking(true);
         voiceOutputRef.current?.enqueueAudio(p.inlineData.data, parseSampleRate(p.inlineData.mimeType));
       }
     }
     if (msgAny.data && config.replyAsAudio && !parts.some((p) => p.inlineData?.data)) {
+      sawAudioRef.current = true;
       setIsAISpeaking(true);
       voiceOutputRef.current?.enqueueAudio(msgAny.data);
     }
@@ -845,9 +849,11 @@ function useVoiceChat(options) {
       currentTranscriptRef.current = "";
       streamingMsgIdRef.current = null;
       if (pendingMicResumeRef.current && sessionConnectedRef.current && !isMutedRef.current && isMicEnabledRef.current) {
-        pendingMicResumeRef.current = false;
-        const delay = config.micResumeDelayMs ?? 200;
-        setTimeout(() => void voiceInputRef.current?.startMic(), delay);
+        if (!sawAudioRef.current) {
+          pendingMicResumeRef.current = false;
+          const delay = config.micResumeDelayMs ?? 200;
+          setTimeout(() => void voiceInputRef.current?.startMic(), delay);
+        }
       }
     }
   }, [config.replyAsAudio, config.micResumeDelayMs, pushMsg]);
@@ -883,7 +889,8 @@ function useVoiceChat(options) {
     },
     onPlaybackComplete: () => {
       setIsAISpeaking(false);
-      if (session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
+      if (pendingMicResumeRef.current && session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
+        pendingMicResumeRef.current = false;
         const delay = config.micResumeDelayMs ?? 200;
         setTimeout(() => void voiceInputRef.current?.startMic(), delay);
       }
