@@ -100,6 +100,7 @@ var DEFAULT_CONFIG = {
   autoPauseMicOnSendText: true,
   autoWelcomeAudio: false,
   welcomeAudioPrompt: "",
+  autoStartMicOnConnect: true,
   chatTitle: "AI Assistant",
   theme: {
     primaryColor: "#2563eb",
@@ -910,7 +911,7 @@ function useVoiceChat(options) {
     startMicRef.current = voiceInput.startMic;
   }, [voiceInput.startMic]);
   useEffect(() => {
-    if (session.isConnected && !voiceInput.isListening && !isMuted && isMicEnabled && !session.isReconnecting) {
+    if (session.isConnected && config.autoStartMicOnConnect !== false && !voiceInput.isListening && !isMuted && isMicEnabled && !session.isReconnecting && !pendingMicResumeRef.current && !isAISpeakingRef.current) {
       console.log("Auto-starting mic after connection...");
       const timer = setTimeout(() => {
         void startMicRef.current();

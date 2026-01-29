@@ -98,6 +98,8 @@ interface VoiceChatConfig {
     autoWelcomeAudio?: boolean;
     /** Prompt used to generate the welcome audio */
     welcomeAudioPrompt?: string;
+    /** Auto-start mic after connecting (default: true) */
+    autoStartMicOnConnect?: boolean;
     /** Model ID to use - check https://ai.google.dev/gemini-api/docs/live for available models */
     modelId: string;
     /** Theme configuration */
