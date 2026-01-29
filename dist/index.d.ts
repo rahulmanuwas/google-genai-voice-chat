@@ -1,6 +1,6 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { V as VoiceChatConfig, C as ChatMessage$1, M as MessageHandler, L as LiveSession } from './types-ppcWTFPF.js';
-export { c as ChatHandlerConfig, a as ChatRole, b as ChatTheme } from './types-ppcWTFPF.js';
+import { V as VoiceChatConfig, C as ChatMessage$1, M as MessageHandler, L as LiveSession } from './types-Cn2btWbS.js';
+export { c as ChatHandlerConfig, a as ChatRole, b as ChatTheme } from './types-Cn2btWbS.js';
 import '@google/genai';
 
 interface ChatBotProps {

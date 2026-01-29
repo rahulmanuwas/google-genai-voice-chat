@@ -88,8 +88,12 @@ var DEFAULT_CONFIG = {
   useClientVAD: false,
   serverVADPrefixPaddingMs: 500,
   serverVADSilenceDurationMs: 1e3,
+  serverVADStartSensitivity: genai.StartSensitivity.START_SENSITIVITY_LOW,
+  serverVADEndSensitivity: genai.EndSensitivity.END_SENSITIVITY_HIGH,
   sessionInitDelayMs: 300,
+  micResumeDelayMs: 200,
   playbackStartDelayMs: 0,
+  playbackSampleRate: 24e3,
   clearSessionOnMount: true,
   speechConfig: {},
   thinkingConfig: {},
@@ -208,7 +212,7 @@ function useLiveSession(options) {
       const ai = new genai.GoogleGenAI({ apiKey });
       if (!playCtxRef.current || playCtxRef.current.state === "closed") {
         const Ctx = window.AudioContext || window.webkitAudioContext;
-        playCtxRef.current = new Ctx();
+        playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24e3 });
         console.log("Created playback context at", playCtxRef.current.sampleRate, "Hz");
       } else if (playCtxRef.current.state === "suspended") {
         await playCtxRef.current.resume();
@@ -230,8 +234,8 @@ function useLiveSession(options) {
           } : {
             automaticActivityDetection: {
               disabled: false,
-              startOfSpeechSensitivity: genai.StartSensitivity.START_SENSITIVITY_LOW,
-              endOfSpeechSensitivity: genai.EndSensitivity.END_SENSITIVITY_HIGH,
+              startOfSpeechSensitivity: config.serverVADStartSensitivity ?? genai.StartSensitivity.START_SENSITIVITY_LOW,
+              endOfSpeechSensitivity: config.serverVADEndSensitivity ?? genai.EndSensitivity.END_SENSITIVITY_HIGH,
               prefixPaddingMs: config.serverVADPrefixPaddingMs,
               silenceDurationMs: config.serverVADSilenceDurationMs
             },
@@ -863,7 +867,8 @@ function useVoiceChat(options) {
     onPlaybackComplete: () => {
       setIsAISpeaking(false);
       if (session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
-        void voiceInputRef.current?.startMic();
+        const delay = config.micResumeDelayMs ?? 200;
+        setTimeout(() => void voiceInputRef.current?.startMic(), delay);
       }
     }
   });

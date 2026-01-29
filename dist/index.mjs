@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { GoogleGenAI, ActivityHandling, EndSensitivity, StartSensitivity, Modality } from '@google/genai';
+import { EndSensitivity, StartSensitivity, GoogleGenAI, ActivityHandling, Modality } from '@google/genai';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 
 // src/components/ChatBot.tsx
@@ -86,8 +86,12 @@ var DEFAULT_CONFIG = {
   useClientVAD: false,
   serverVADPrefixPaddingMs: 500,
   serverVADSilenceDurationMs: 1e3,
+  serverVADStartSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+  serverVADEndSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
   sessionInitDelayMs: 300,
+  micResumeDelayMs: 200,
   playbackStartDelayMs: 0,
+  playbackSampleRate: 24e3,
   clearSessionOnMount: true,
   speechConfig: {},
   thinkingConfig: {},
@@ -206,7 +210,7 @@ function useLiveSession(options) {
       const ai = new GoogleGenAI({ apiKey });
       if (!playCtxRef.current || playCtxRef.current.state === "closed") {
         const Ctx = window.AudioContext || window.webkitAudioContext;
-        playCtxRef.current = new Ctx();
+        playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24e3 });
         console.log("Created playback context at", playCtxRef.current.sampleRate, "Hz");
       } else if (playCtxRef.current.state === "suspended") {
         await playCtxRef.current.resume();
@@ -228,8 +232,8 @@ function useLiveSession(options) {
           } : {
             automaticActivityDetection: {
               disabled: false,
-              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
-              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
+              startOfSpeechSensitivity: config.serverVADStartSensitivity ?? StartSensitivity.START_SENSITIVITY_LOW,
+              endOfSpeechSensitivity: config.serverVADEndSensitivity ?? EndSensitivity.END_SENSITIVITY_HIGH,
               prefixPaddingMs: config.serverVADPrefixPaddingMs,
               silenceDurationMs: config.serverVADSilenceDurationMs
             },
@@ -861,7 +865,8 @@ function useVoiceChat(options) {
     onPlaybackComplete: () => {
       setIsAISpeaking(false);
       if (session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
-        void voiceInputRef.current?.startMic();
+        const delay = config.micResumeDelayMs ?? 200;
+        setTimeout(() => void voiceInputRef.current?.startMic(), delay);
       }
     }
   });

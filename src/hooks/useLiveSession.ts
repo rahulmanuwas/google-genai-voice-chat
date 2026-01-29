@@ -137,7 +137,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             // Initialize playback context
             if (!playCtxRef.current || playCtxRef.current.state === 'closed') {
                 const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-                playCtxRef.current = new Ctx();
+                playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24000 });
                 console.log('Created playback context at', playCtxRef.current.sampleRate, 'Hz');
             } else if (playCtxRef.current.state === 'suspended') {
                 await playCtxRef.current.resume();
@@ -161,8 +161,8 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                     } : {
                         automaticActivityDetection: {
                             disabled: false,
-                            startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
-                            endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
+                            startOfSpeechSensitivity: config.serverVADStartSensitivity ?? StartSensitivity.START_SENSITIVITY_LOW,
+                            endOfSpeechSensitivity: config.serverVADEndSensitivity ?? EndSensitivity.END_SENSITIVITY_HIGH,
                             prefixPaddingMs: config.serverVADPrefixPaddingMs,
                             silenceDurationMs: config.serverVADSilenceDurationMs,
                         },

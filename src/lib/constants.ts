@@ -1,6 +1,7 @@
 // src/lib/constants.ts
 
 import type { VoiceChatConfig } from './types';
+import { StartSensitivity, EndSensitivity } from '@google/genai';
 
 /**
  * Default configuration values
@@ -13,8 +14,12 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     useClientVAD: false,
     serverVADPrefixPaddingMs: 500,
     serverVADSilenceDurationMs: 1000,
+    serverVADStartSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+    serverVADEndSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
     sessionInitDelayMs: 300,
+    micResumeDelayMs: 200,
     playbackStartDelayMs: 0,
+    playbackSampleRate: 24000,
     clearSessionOnMount: true,
     speechConfig: {},
     thinkingConfig: {},

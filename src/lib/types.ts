@@ -1,6 +1,7 @@
 // src/lib/types.ts
 
 import type { LiveServerMessage } from '@google/genai';
+import type { StartSensitivity, EndSensitivity } from '@google/genai';
 
 /**
  * Chat message role
@@ -73,11 +74,23 @@ export interface VoiceChatConfig {
     /** Server VAD silence duration in ms (default: 1000) */
     serverVADSilenceDurationMs?: number;
 
+    /** Server VAD start sensitivity (default: LOW) */
+    serverVADStartSensitivity?: StartSensitivity;
+
+    /** Server VAD end sensitivity (default: HIGH) */
+    serverVADEndSensitivity?: EndSensitivity;
+
     /** Session initialization delay in ms (default: 300) */
     sessionInitDelayMs?: number;
 
+    /** Delay before starting mic after AI playback completes (ms) */
+    micResumeDelayMs?: number;
+
     /** Delay before starting playback to buffer audio chunks (ms) */
     playbackStartDelayMs?: number;
+
+    /** Playback AudioContext sample rate (default: 24000) */
+    playbackSampleRate?: number;
 
     /** Clear stored session handle on mount (default: true) */
     clearSessionOnMount?: boolean;

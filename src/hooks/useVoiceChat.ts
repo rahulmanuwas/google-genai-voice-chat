@@ -240,7 +240,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         onPlaybackComplete: () => {
             setIsAISpeaking(false);
             if (session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
-                void voiceInputRef.current?.startMic();
+                const delay = config.micResumeDelayMs ?? 200;
+                setTimeout(() => void voiceInputRef.current?.startMic(), delay);
             }
         },
     });
