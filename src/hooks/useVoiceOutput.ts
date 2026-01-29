@@ -11,6 +11,7 @@ import { OUTPUT_SAMPLE_RATE, PLAYBACK_COMPLETE_DELAY_MS, base64ToPCM16, pcm16ToF
 interface UseVoiceOutputOptions {
     playbackContext: AudioContext | null;
     isPaused: boolean;
+    startBufferMs?: number;
     onPlaybackStart?: () => void;
     onPlaybackComplete?: () => void;
 }
@@ -23,7 +24,7 @@ interface UseVoiceOutputReturn {
 }
 
 export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputReturn {
-    const { playbackContext, isPaused, onPlaybackStart, onPlaybackComplete } = options;
+    const { playbackContext, isPaused, startBufferMs, onPlaybackStart, onPlaybackComplete } = options;
 
     const [isPlaying, setIsPlaying] = useState(false);
 
@@ -39,6 +40,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     const playCtxRef = useRef(playbackContext);
     const isPausedRef = useRef(isPaused);
     const isPlayingRef = useRef(isPlaying);
+    const startBufferMsRef = useRef(startBufferMs ?? 0);
 
     // Keep refs updated
     useEffect(() => { onPlaybackStartRef.current = onPlaybackStart; }, [onPlaybackStart]);
@@ -46,6 +48,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     useEffect(() => { playCtxRef.current = playbackContext; }, [playbackContext]);
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
     useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+    useEffect(() => { startBufferMsRef.current = startBufferMs ?? 0; }, [startBufferMs]);
 
     // Use a ref for recursive scheduling to avoid circular dependency
     const scheduleChunksRef = useRef<() => void>(() => { });
@@ -114,7 +117,9 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
 
             // Schedule playback precisely
             const now = ctx.currentTime;
-            const startTime = Math.max(now, scheduledEndTimeRef.current);
+            const bufferSeconds = startBufferMsRef.current / 1000;
+            const baseStart = scheduledEndTimeRef.current === 0 ? now + bufferSeconds : scheduledEndTimeRef.current;
+            const startTime = Math.max(now, baseStart);
             scheduledEndTimeRef.current = startTime + audioBuffer.duration;
 
             source.onended = () => {

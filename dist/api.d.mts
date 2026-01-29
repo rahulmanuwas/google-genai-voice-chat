@@ -1,4 +1,4 @@
-import { c as ChatHandlerConfig } from './types-DSjSIOeZ.mjs';
+import { c as ChatHandlerConfig } from './types-ppcWTFPF.mjs';
 import '@google/genai';
 
 /**

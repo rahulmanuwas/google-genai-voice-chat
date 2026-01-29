@@ -64,13 +64,15 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
 
     // Clear stored session handle on mount - stale handles cause issues on page refresh
     useEffect(() => {
-        try {
-            localStorage.removeItem(config.sessionStorageKey);
-            console.log('Cleared stored session handle on mount');
-        } catch (e) {
-            console.warn('Failed to clear stored session handle:', e);
+        if (config.clearSessionOnMount !== false) {
+            try {
+                localStorage.removeItem(config.sessionStorageKey);
+                console.log('Cleared stored session handle on mount');
+            } catch (e) {
+                console.warn('Failed to clear stored session handle:', e);
+            }
         }
-    }, [config.sessionStorageKey]);
+    }, [config.sessionStorageKey, config.clearSessionOnMount]);
 
     const storeSessionHandle = useCallback((handle: string) => {
         setSessionHandle(handle);
@@ -143,6 +145,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
 
             console.log('Connecting to Google GenAI Live...', { model: config.modelId, hasResumption: !!resumptionHandle });
 
+            const hasKeys = (obj?: Record<string, unknown>) => !!obj && Object.keys(obj).length > 0;
             const session = await ai.live.connect({
                 model: config.modelId,
                 config: {
@@ -166,6 +169,12 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                         activityHandling: ActivityHandling.NO_INTERRUPTION,
                     },
                     systemInstruction: { parts: [{ text: config.systemPrompt }] },
+                    ...(hasKeys(config.speechConfig) ? { speechConfig: config.speechConfig } : {}),
+                    ...(hasKeys(config.proactivity) ? { proactivity: config.proactivity } : {}),
+                    ...(config.thinkingConfig && (config.thinkingConfig.thinkingBudget !== undefined || config.thinkingConfig.includeThoughts !== undefined)
+                        ? { thinkingConfig: config.thinkingConfig }
+                        : {}),
+                    ...(config.enableAffectiveDialog ? { enableAffectiveDialog: true } : {}),
                 },
                 callbacks: {
                     onopen: () => {

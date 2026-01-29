@@ -1,6 +1,6 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { V as VoiceChatConfig, C as ChatMessage$1, M as MessageHandler, L as LiveSession } from './types-DSjSIOeZ.js';
-export { c as ChatHandlerConfig, a as ChatRole, b as ChatTheme } from './types-DSjSIOeZ.js';
+import { V as VoiceChatConfig, C as ChatMessage$1, M as MessageHandler, L as LiveSession } from './types-ppcWTFPF.js';
+export { c as ChatHandlerConfig, a as ChatRole, b as ChatTheme } from './types-ppcWTFPF.js';
 import '@google/genai';
 
 interface ChatBotProps {
@@ -78,6 +78,7 @@ declare function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetu
 interface UseVoiceOutputOptions {
     playbackContext: AudioContext | null;
     isPaused: boolean;
+    startBufferMs?: number;
     onPlaybackStart?: () => void;
     onPlaybackComplete?: () => void;
 }

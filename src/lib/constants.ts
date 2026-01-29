@@ -14,6 +14,12 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     serverVADPrefixPaddingMs: 500,
     serverVADSilenceDurationMs: 1000,
     sessionInitDelayMs: 300,
+    playbackStartDelayMs: 0,
+    clearSessionOnMount: true,
+    speechConfig: {},
+    thinkingConfig: {},
+    enableAffectiveDialog: false,
+    proactivity: {},
     chatTitle: 'AI Assistant',
     theme: {
         primaryColor: '#2563eb',

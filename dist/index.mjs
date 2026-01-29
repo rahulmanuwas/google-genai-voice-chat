@@ -87,6 +87,12 @@ var DEFAULT_CONFIG = {
   serverVADPrefixPaddingMs: 500,
   serverVADSilenceDurationMs: 1e3,
   sessionInitDelayMs: 300,
+  playbackStartDelayMs: 0,
+  clearSessionOnMount: true,
+  speechConfig: {},
+  thinkingConfig: {},
+  enableAffectiveDialog: false,
+  proactivity: {},
   chatTitle: "AI Assistant",
   theme: {
     primaryColor: "#2563eb",
@@ -143,13 +149,15 @@ function useLiveSession(options) {
     onSystemMessageRef.current = onSystemMessage;
   }, [onSystemMessage]);
   useEffect(() => {
-    try {
-      localStorage.removeItem(config.sessionStorageKey);
-      console.log("Cleared stored session handle on mount");
-    } catch (e) {
-      console.warn("Failed to clear stored session handle:", e);
+    if (config.clearSessionOnMount !== false) {
+      try {
+        localStorage.removeItem(config.sessionStorageKey);
+        console.log("Cleared stored session handle on mount");
+      } catch (e) {
+        console.warn("Failed to clear stored session handle:", e);
+      }
     }
-  }, [config.sessionStorageKey]);
+  }, [config.sessionStorageKey, config.clearSessionOnMount]);
   const storeSessionHandle = useCallback((handle) => {
     setSessionHandle(handle);
     try {
@@ -204,6 +212,7 @@ function useLiveSession(options) {
         await playCtxRef.current.resume();
       }
       console.log("Connecting to Google GenAI Live...", { model: config.modelId, hasResumption: !!resumptionHandle });
+      const hasKeys = (obj) => !!obj && Object.keys(obj).length > 0;
       const session = await ai.live.connect({
         model: config.modelId,
         config: {
@@ -226,7 +235,11 @@ function useLiveSession(options) {
             },
             activityHandling: ActivityHandling.NO_INTERRUPTION
           },
-          systemInstruction: { parts: [{ text: config.systemPrompt }] }
+          systemInstruction: { parts: [{ text: config.systemPrompt }] },
+          ...hasKeys(config.speechConfig) ? { speechConfig: config.speechConfig } : {},
+          ...hasKeys(config.proactivity) ? { proactivity: config.proactivity } : {},
+          ...config.thinkingConfig && (config.thinkingConfig.thinkingBudget !== void 0 || config.thinkingConfig.includeThoughts !== void 0) ? { thinkingConfig: config.thinkingConfig } : {},
+          ...config.enableAffectiveDialog ? { enableAffectiveDialog: true } : {}
         },
         callbacks: {
           onopen: () => {
@@ -505,7 +518,7 @@ function useVoiceInput(options) {
   };
 }
 function useVoiceOutput(options) {
-  const { playbackContext, isPaused, onPlaybackStart, onPlaybackComplete } = options;
+  const { playbackContext, isPaused, startBufferMs, onPlaybackStart, onPlaybackComplete } = options;
   const [isPlaying, setIsPlaying] = useState(false);
   const playQueueRef = useRef([]);
   const isDrainingRef = useRef(false);
@@ -516,6 +529,7 @@ function useVoiceOutput(options) {
   const playCtxRef = useRef(playbackContext);
   const isPausedRef = useRef(isPaused);
   const isPlayingRef = useRef(isPlaying);
+  const startBufferMsRef = useRef(startBufferMs ?? 0);
   useEffect(() => {
     onPlaybackStartRef.current = onPlaybackStart;
   }, [onPlaybackStart]);
@@ -531,6 +545,9 @@ function useVoiceOutput(options) {
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+  useEffect(() => {
+    startBufferMsRef.current = startBufferMs ?? 0;
+  }, [startBufferMs]);
   const scheduleChunksRef = useRef(() => {
   });
   useEffect(() => {
@@ -582,7 +599,9 @@ function useVoiceOutput(options) {
       source.connect(ctx.destination);
       currentSourceRef.current = source;
       const now = ctx.currentTime;
-      const startTime = Math.max(now, scheduledEndTimeRef.current);
+      const bufferSeconds = startBufferMsRef.current / 1e3;
+      const baseStart = scheduledEndTimeRef.current === 0 ? now + bufferSeconds : scheduledEndTimeRef.current;
+      const startTime = Math.max(now, baseStart);
       scheduledEndTimeRef.current = startTime + audioBuffer.duration;
       source.onended = () => {
         currentSourceRef.current = null;
@@ -834,6 +853,7 @@ function useVoiceChat(options) {
   const voiceOutput = useVoiceOutput({
     playbackContext: session.playbackContext,
     isPaused: isSpeakerPaused,
+    startBufferMs: config.playbackStartDelayMs,
     onPlaybackStart: () => {
       setIsAISpeaking(true);
       voiceInputRef.current?.stopMic();

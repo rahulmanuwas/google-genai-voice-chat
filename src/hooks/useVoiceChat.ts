@@ -232,6 +232,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     const voiceOutput = useVoiceOutput({
         playbackContext: session.playbackContext,
         isPaused: isSpeakerPaused,
+        startBufferMs: config.playbackStartDelayMs,
         onPlaybackStart: () => {
             setIsAISpeaking(true);
             voiceInputRef.current?.stopMic();

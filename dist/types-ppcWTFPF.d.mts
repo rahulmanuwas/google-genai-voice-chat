@@ -69,6 +69,21 @@ interface VoiceChatConfig {
     serverVADSilenceDurationMs?: number;
     /** Session initialization delay in ms (default: 300) */
     sessionInitDelayMs?: number;
+    /** Delay before starting playback to buffer audio chunks (ms) */
+    playbackStartDelayMs?: number;
+    /** Clear stored session handle on mount (default: true) */
+    clearSessionOnMount?: boolean;
+    /** Voice configuration for native audio output */
+    speechConfig?: Record<string, unknown>;
+    /** Thinking configuration for native audio output */
+    thinkingConfig?: {
+        thinkingBudget?: number;
+        includeThoughts?: boolean;
+    };
+    /** Enable affective dialog (v1alpha only) */
+    enableAffectiveDialog?: boolean;
+    /** Proactive audio settings (v1alpha only) */
+    proactivity?: Record<string, unknown>;
     /** Model ID to use - check https://ai.google.dev/gemini-api/docs/live for available models */
     modelId: string;
     /** Theme configuration */
