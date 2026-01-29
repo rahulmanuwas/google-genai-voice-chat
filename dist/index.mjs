@@ -552,7 +552,18 @@ function useVoiceOutput(options) {
         }, PLAYBACK_COMPLETE_DELAY_MS);
         return;
       }
-      const chunks = playQueueRef.current.splice(0, playQueueRef.current.length);
+      const first = playQueueRef.current.shift();
+      if (!first) {
+        isDrainingRef.current = false;
+        return;
+      }
+      const targetRate = first.sampleRate;
+      const chunks = [first.pcm];
+      while (playQueueRef.current.length > 0 && playQueueRef.current[0].sampleRate === targetRate) {
+        const next = playQueueRef.current.shift();
+        if (!next) break;
+        chunks.push(next.pcm);
+      }
       let totalLength = 0;
       for (const chunk of chunks) {
         totalLength += chunk.length;
@@ -564,7 +575,7 @@ function useVoiceOutput(options) {
         offset += chunk.length;
       }
       const float32 = pcm16ToFloat32(combined);
-      const audioBuffer = ctx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
+      const audioBuffer = ctx.createBuffer(1, float32.length, targetRate);
       audioBuffer.getChannelData(0).set(float32);
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
@@ -625,14 +636,15 @@ function useVoiceOutput(options) {
   const clearQueue = useCallback(() => {
     playQueueRef.current = [];
   }, []);
-  const enqueueAudio = useCallback((base64Data) => {
+  const enqueueAudio = useCallback((base64Data, sampleRate) => {
     if (isPausedRef.current) return;
     try {
       const pcm16 = base64ToPCM16(base64Data);
       if (pcm16.length > 0) {
+        const targetRate = sampleRate ?? OUTPUT_SAMPLE_RATE;
         const chunk = new Int16Array(pcm16.length);
         chunk.set(pcm16);
-        playQueueRef.current.push(chunk);
+        playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate });
         if (!isPlayingRef.current) {
           setIsPlaying(true);
           onPlaybackStartRef.current?.();
@@ -709,6 +721,13 @@ function useVoiceChat(options) {
     }]);
   }, []);
   const handleMessage = useCallback((msg) => {
+    const parseSampleRate = (mimeType) => {
+      if (!mimeType) return void 0;
+      const match = mimeType.match(/rate=(\d+)/i);
+      if (!match) return void 0;
+      const rate = Number(match[1]);
+      return Number.isFinite(rate) ? rate : void 0;
+    };
     const inputTranscript = msg.serverContent?.inputTranscription?.text;
     if (inputTranscript && config.replyAsAudio) {
       console.log("Received input transcription:", inputTranscript);
@@ -750,7 +769,7 @@ function useVoiceChat(options) {
       }
       if (p.inlineData?.mimeType?.startsWith("audio/") && p.inlineData.data && config.replyAsAudio) {
         setIsAISpeaking(true);
-        voiceOutputRef.current?.enqueueAudio(p.inlineData.data);
+        voiceOutputRef.current?.enqueueAudio(p.inlineData.data, parseSampleRate(p.inlineData.mimeType));
       }
     }
     if (msgAny.data && config.replyAsAudio && !parts.some((p) => p.inlineData?.data)) {

@@ -17,7 +17,7 @@ interface UseVoiceOutputOptions {
 
 interface UseVoiceOutputReturn {
     isPlaying: boolean;
-    enqueueAudio: (base64Data: string) => void;
+    enqueueAudio: (base64Data: string, sampleRate?: number) => void;
     stopPlayback: () => void;
     clearQueue: () => void;
 }
@@ -28,7 +28,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     const [isPlaying, setIsPlaying] = useState(false);
 
     // Audio queue and state refs
-    const playQueueRef = useRef<Int16Array[]>([]);
+    const playQueueRef = useRef<Array<{ pcm: Int16Array; sampleRate: number }>>([]);
     const isDrainingRef = useRef(false);
     const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const scheduledEndTimeRef = useRef(0);
@@ -75,8 +75,19 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
                 return;
             }
 
-            // Combine all queued chunks
-            const chunks = playQueueRef.current.splice(0, playQueueRef.current.length);
+            // Combine queued chunks that share the same sample rate
+            const first = playQueueRef.current.shift();
+            if (!first) {
+                isDrainingRef.current = false;
+                return;
+            }
+            const targetRate = first.sampleRate;
+            const chunks = [first.pcm];
+            while (playQueueRef.current.length > 0 && playQueueRef.current[0].sampleRate === targetRate) {
+                const next = playQueueRef.current.shift();
+                if (!next) break;
+                chunks.push(next.pcm);
+            }
             let totalLength = 0;
             for (const chunk of chunks) {
                 totalLength += chunk.length;
@@ -92,8 +103,8 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
             // Convert to Float32 for Web Audio
             const float32 = pcm16ToFloat32(combined);
 
-            // Create buffer at native Gemini rate (24kHz)
-            const audioBuffer = ctx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
+            // Create buffer at the chunk's sample rate (defaults to Gemini 24kHz)
+            const audioBuffer = ctx.createBuffer(1, float32.length, targetRate);
             audioBuffer.getChannelData(0).set(float32);
 
             const source = ctx.createBufferSource();
@@ -177,17 +188,18 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         playQueueRef.current = [];
     }, []);
 
-    const enqueueAudio = useCallback((base64Data: string) => {
+    const enqueueAudio = useCallback((base64Data: string, sampleRate?: number) => {
         if (isPausedRef.current) return;
 
         try {
             const pcm16 = base64ToPCM16(base64Data);
 
             if (pcm16.length > 0) {
+                const targetRate = sampleRate ?? OUTPUT_SAMPLE_RATE;
                 // Clone to avoid buffer reuse issues
                 const chunk = new Int16Array(pcm16.length);
                 chunk.set(pcm16);
-                playQueueRef.current.push(chunk);
+                playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate });
 
                 // Signal playback started
                 if (!isPlayingRef.current) {

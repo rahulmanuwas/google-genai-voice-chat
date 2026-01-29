@@ -73,7 +73,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     const streamingInputMsgIdRef = useRef<string | null>(null);
 
     // Refs for cross-hook communication (avoids circular dependencies)
-    const voiceOutputRef = useRef<{ stopPlayback: () => void; enqueueAudio: (data: string) => void } | null>(null);
+    const voiceOutputRef = useRef<{ stopPlayback: () => void; enqueueAudio: (data: string, sampleRate?: number) => void } | null>(null);
     const voiceInputRef = useRef<{ stopMic: () => void; startMic: () => Promise<void>; isListening: boolean } | null>(null);
 
     // Keep refs synced
@@ -92,6 +92,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
     // Message handler for processing Gemini responses
     const handleMessage = useCallback((msg: LiveServerMessage) => {
+        const parseSampleRate = (mimeType?: string): number | undefined => {
+            if (!mimeType) return undefined;
+            const match = mimeType.match(/rate=(\d+)/i);
+            if (!match) return undefined;
+            const rate = Number(match[1]);
+            return Number.isFinite(rate) ? rate : undefined;
+        };
         // Handle input transcription (user's speech)
         const inputTranscript = msg.serverContent?.inputTranscription?.text;
         if (inputTranscript && config.replyAsAudio) {
@@ -145,7 +152,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             // Audio data
             if (p.inlineData?.mimeType?.startsWith('audio/') && p.inlineData.data && config.replyAsAudio) {
                 setIsAISpeaking(true);
-                voiceOutputRef.current?.enqueueAudio(p.inlineData.data);
+                voiceOutputRef.current?.enqueueAudio(p.inlineData.data, parseSampleRate(p.inlineData.mimeType));
             }
         }
 

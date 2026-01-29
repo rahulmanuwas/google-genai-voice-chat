@@ -83,7 +83,7 @@ interface UseVoiceOutputOptions {
 }
 interface UseVoiceOutputReturn {
     isPlaying: boolean;
-    enqueueAudio: (base64Data: string) => void;
+    enqueueAudio: (base64Data: string, sampleRate?: number) => void;
     stopPlayback: () => void;
     clearQueue: () => void;
 }
