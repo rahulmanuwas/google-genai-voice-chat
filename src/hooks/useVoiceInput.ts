@@ -105,7 +105,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
-                    autoGainControl: false,
+                    autoGainControl: true,
                     channelCount: MIC_CHANNELS,
                     sampleRate: 48000, // Request high rate, will downsample
                 },

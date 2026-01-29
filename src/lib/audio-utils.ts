@@ -75,8 +75,17 @@ export function downsample(
     const newLength = Math.floor(inputData.length / ratio);
     const result = new Float32Array(newLength);
 
+    // Average samples to reduce aliasing when downsampling
     for (let i = 0; i < newLength; i++) {
-        result[i] = inputData[Math.floor(i * ratio)];
+        const start = Math.floor(i * ratio);
+        const end = Math.min(Math.floor((i + 1) * ratio), inputData.length);
+        let sum = 0;
+        let count = 0;
+        for (let j = start; j < end; j++) {
+            sum += inputData[j];
+            count++;
+        }
+        result[i] = count > 0 ? sum / count : 0;
     }
 
     return result;

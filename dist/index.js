@@ -48,7 +48,15 @@ function downsample(inputData, inputSampleRate, targetSampleRate) {
   const newLength = Math.floor(inputData.length / ratio);
   const result = new Float32Array(newLength);
   for (let i = 0; i < newLength; i++) {
-    result[i] = inputData[Math.floor(i * ratio)];
+    const start = Math.floor(i * ratio);
+    const end = Math.min(Math.floor((i + 1) * ratio), inputData.length);
+    let sum = 0;
+    let count = 0;
+    for (let j = start; j < end; j++) {
+      sum += inputData[j];
+      count++;
+    }
+    result[i] = count > 0 ? sum / count : 0;
   }
   return result;
 }
@@ -428,7 +436,7 @@ function useVoiceInput(options) {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: false,
+          autoGainControl: true,
           channelCount: MIC_CHANNELS,
           sampleRate: 48e3
           // Request high rate, will downsample
