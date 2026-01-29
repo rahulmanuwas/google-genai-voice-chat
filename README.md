@@ -1,23 +1,30 @@
 # google-genai-voice-chat
 
-Real-time voice and text chat component for Google Gemini Live API.
+Real-time voice and text chat UI + hooks for Google Gemini Live API.
 
 [![npm version](https://badge.fury.io/js/google-genai-voice-chat.svg)](https://www.npmjs.com/package/google-genai-voice-chat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
-- 🎙️ **Real-time voice chat** with Gemini Live API
-- 💬 **Text chat** fallback option
-- 🔄 **Session resumption** for persistent conversations
-- 🎨 **Customizable UI** with configurable themes
-- 📱 **Responsive design** that works on all devices
-- ⚡ **Easy integration** with Next.js and React apps
+- Real-time voice + text chat with Gemini Live API
+- Drop-in `ChatBot` UI and low-level hooks
+- Session resumption (handle storage)
+- Configurable server VAD (sensitivity + silence window)
+- Playback buffering and mic resume delays
+- Optional welcome audio prompt
+- Theme + placement customization
 
 ## Installation
 
 ```bash
 npm install google-genai-voice-chat @google/genai
+```
+
+Bleeding edge (GitHub main):
+
+```bash
+npm install github:rahulmanuwas/google-genai-voice-chat#main
 ```
 
 ## Quick Start
@@ -31,8 +38,9 @@ function App() {
       apiKey={process.env.NEXT_PUBLIC_GEMINI_API_KEY!}
       config={{
         systemPrompt: 'You are a helpful assistant...',
-        modelId: 'gemini-2.5-flash-native-audio-preview-12-2025', // Check docs for latest
-        welcomeMessage: 'Hello! How can I help you today?',
+        modelId: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        replyAsAudio: true,
+        autoStartMicOnConnect: false,
         chatTitle: 'AI Assistant',
       }}
     />
@@ -40,27 +48,9 @@ function App() {
 }
 ```
 
-> **Note**: Check [Google AI Live API docs](https://ai.google.dev/gemini-api/docs/live) for available model IDs.
-```
-
-## Configuration
-
-### VoiceChatConfig
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `systemPrompt` | `string` | **required** | System instruction for the AI |
-| `welcomeMessage` | `string` | `'Hello! How can I help you today?'` | Welcome message shown on connect |
-| `suggestedQuestions` | `string[]` | `[]` | Suggested questions to show |
-| `sessionStorageKey` | `string` | `'genai-voice-chat-session'` | localStorage key for session |
-| `replyAsAudio` | `boolean` | `true` | Whether AI replies with audio |
-| `chatTitle` | `string` | `'AI Assistant'` | Title in chat header |
-| `theme.primaryColor` | `string` | `'#2563eb'` | Primary accent color |
-| `theme.position` | `'bottom-right' \| 'bottom-left'` | `'bottom-right'` | Launcher position |
+Note: Browsers require a user gesture to start audio. Wire `connect()` to a button click or set `autoStartMicOnConnect: false` and prompt the user to enable mic.
 
 ## Using Individual Hooks
-
-For more control, use the hooks directly:
 
 ```tsx
 import { useVoiceChat } from 'google-genai-voice-chat';
@@ -80,12 +70,74 @@ function CustomChat() {
     apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY!,
     config: {
       systemPrompt: 'You are a helpful assistant...',
+      modelId: 'gemini-2.5-flash-native-audio-preview-12-2025',
     },
   });
 
   // Build your own UI...
 }
 ```
+
+## Configuration
+
+### Core
+
+| Option | Type | Default | Notes |
+|---|---|---|---|
+| `systemPrompt` | `string` | required | System instruction for the AI |
+| `modelId` | `string` | required | Live API model ID |
+| `welcomeMessage` | `string` | `"Hello! How can I help you today?"` | UI-only system message |
+| `suggestedQuestions` | `string[]` | `[]` | Suggested question buttons |
+| `sessionStorageKey` | `string` | `"genai-voice-chat-session"` | localStorage key for session handle |
+| `replyAsAudio` | `boolean` | `true` | AUDIO vs TEXT response modality |
+| `chatTitle` | `string` | `"AI Assistant"` | Header title |
+| `theme.primaryColor` | `string` | `"#2563eb"` | Accent color |
+| `theme.position` | `"bottom-right" \| "bottom-left"` | `"bottom-right"` | Launcher position |
+
+Note: Live API supports only one response modality per session. Use `replyAsAudio: true` for audio responses or `false` for text-only.
+
+### Audio format
+
+- Input audio is 16-bit PCM at 16kHz (the hook downsamples automatically).
+- Output audio is 16-bit PCM at 24kHz (the hook plays it at 24kHz).
+
+### Audio + VAD
+
+| Option | Type | Default | Notes |
+|---|---|---|---|
+| `useClientVAD` | `boolean` | `false` | Server VAD by default. Client VAD requires custom activity start/end handling. |
+| `serverVADPrefixPaddingMs` | `number` | `500` | VAD pre-roll padding |
+| `serverVADSilenceDurationMs` | `number` | `1000` | Silence window before end-of-speech |
+| `serverVADStartSensitivity` | `StartSensitivity` | `LOW` | Lower = less sensitive |
+| `serverVADEndSensitivity` | `EndSensitivity` | `HIGH` | Lower = longer tail |
+| `playbackSampleRate` | `number` | `24000` | Output sample rate |
+| `playbackStartDelayMs` | `number` | `0` | Buffer before playback starts |
+| `micResumeDelayMs` | `number` | `200` | Delay before mic resumes after playback |
+| `autoPauseMicOnSendText` | `boolean` | `true` | Prevents echo when sending text |
+| `autoStartMicOnConnect` | `boolean` | `true` | Start mic immediately after connect |
+| `autoWelcomeAudio` | `boolean` | `false` | Speak a welcome prompt on connect |
+| `welcomeAudioPrompt` | `string` | `""` | Prompt used to generate welcome audio |
+| `clearSessionOnMount` | `boolean` | `true` | Clear stored session handle on mount |
+
+To use VAD sensitivities:
+
+```ts
+import { StartSensitivity, EndSensitivity } from '@google/genai';
+
+const config = {
+  serverVADStartSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+  serverVADEndSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
+};
+```
+
+### Native audio options
+
+| Option | Type | Default | Notes |
+|---|---|---|---|
+| `speechConfig` | `object` | `{}` | Voice selection / native audio config |
+| `thinkingConfig` | `{ thinkingBudget?: number; includeThoughts?: boolean }` | `{}` | Thinking controls |
+| `enableAffectiveDialog` | `boolean` | `false` | v1alpha-only feature |
+| `proactivity` | `object` | `{}` | v1alpha-only feature |
 
 ## Text-only API Route
 
@@ -111,10 +163,16 @@ NEXT_PUBLIC_GEMINI_API_KEY=your-api-key
 GEMINI_API_KEY=your-api-key
 ```
 
+## Troubleshooting
+
+- No audio output: ensure a user gesture created the AudioContext. Call `connect()` on a click and set `autoStartMicOnConnect: false` if needed. Also confirm `replyAsAudio: true`.
+- Audio response skips words: increase `playbackStartDelayMs` (100-200ms) and `micResumeDelayMs` (400-800ms), and raise `serverVADSilenceDurationMs` (1200-2000ms).
+- 1008 referer blocked: check Google Cloud referrer restrictions or use ephemeral tokens for production.
+
 ## Requirements
 
 - React 18+
-- `@google/genai` package
+- `@google/genai`
 - Gemini API key with Live API access
 
 ## License
