@@ -385,6 +385,9 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             setIsMicEnabled(false);
             voiceInput.stopMic();
         } else if (session.isConnected && !isMuted) {
+            session.playbackContext?.resume().catch((e) => {
+                console.warn('Playback context resume failed:', e);
+            });
             setIsMicEnabled(true);
             void voiceInput.startMic();
         }

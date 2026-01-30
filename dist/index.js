@@ -217,6 +217,18 @@ function useLiveSession(options) {
     }
     onMessageRef.current?.(msg);
   }, [storeSessionHandle]);
+  const ensurePlaybackContext = react.useCallback(() => {
+    if (!playCtxRef.current || playCtxRef.current.state === "closed") {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24e3 });
+      console.log("Created playback context at", playCtxRef.current.sampleRate, "Hz");
+    }
+    if (playCtxRef.current.state === "suspended") {
+      playCtxRef.current.resume().catch((e) => {
+        console.warn("Playback context resume failed:", e);
+      });
+    }
+  }, [config.playbackSampleRate]);
   const initializeSession = react.useCallback(async (resumptionHandle) => {
     if (!apiKey) {
       onErrorRef.current?.("AI Assistant unavailable. Please check configuration.");
@@ -224,13 +236,7 @@ function useLiveSession(options) {
     }
     try {
       const ai = new genai.GoogleGenAI({ apiKey });
-      if (!playCtxRef.current || playCtxRef.current.state === "closed") {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24e3 });
-        console.log("Created playback context at", playCtxRef.current.sampleRate, "Hz");
-      } else if (playCtxRef.current.state === "suspended") {
-        await playCtxRef.current.resume();
-      }
+      ensurePlaybackContext();
       console.log("Connecting to Google GenAI Live...", { model: config.modelId, hasResumption: !!resumptionHandle });
       const hasKeys = (obj) => !!obj && Object.keys(obj).length > 0;
       const session = await ai.live.connect({
@@ -303,7 +309,7 @@ function useLiveSession(options) {
       setIsConnected(false);
       onErrorRef.current?.(`Failed to initialize: ${err.message}`);
     }
-  }, [apiKey, config, handleInternalMessage, clearSessionHandle]);
+  }, [apiKey, config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext]);
   const attemptReconnection = react.useCallback(async (maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -342,8 +348,9 @@ function useLiveSession(options) {
     attemptReconnectionRef.current = attemptReconnection;
   }, [attemptReconnection]);
   const connect = react.useCallback(async () => {
+    ensurePlaybackContext();
     await initializeSession(sessionHandle || void 0);
-  }, [initializeSession, sessionHandle]);
+  }, [initializeSession, sessionHandle, ensurePlaybackContext]);
   const disconnect = react.useCallback(async () => {
     console.log("Disconnecting session...");
     if (sessionRef.current) {
@@ -994,6 +1001,9 @@ function useVoiceChat(options) {
       setIsMicEnabled(false);
       voiceInput.stopMic();
     } else if (session.isConnected && !isMuted) {
+      session.playbackContext?.resume().catch((e) => {
+        console.warn("Playback context resume failed:", e);
+      });
       setIsMicEnabled(true);
       void voiceInput.startMic();
     }

@@ -136,6 +136,20 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         onMessageRef.current?.(msg);
     }, [storeSessionHandle]);
 
+    const ensurePlaybackContext = useCallback(() => {
+        if (!playCtxRef.current || playCtxRef.current.state === 'closed') {
+            const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+            playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24000 });
+            console.log('Created playback context at', playCtxRef.current.sampleRate, 'Hz');
+        }
+
+        if (playCtxRef.current.state === 'suspended') {
+            playCtxRef.current.resume().catch((e) => {
+                console.warn('Playback context resume failed:', e);
+            });
+        }
+    }, [config.playbackSampleRate]);
+
     const initializeSession = useCallback(async (resumptionHandle?: string): Promise<void> => {
         if (!apiKey) {
             onErrorRef.current?.('AI Assistant unavailable. Please check configuration.');
@@ -145,14 +159,8 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         try {
             const ai = new GoogleGenAI({ apiKey });
 
-            // Initialize playback context
-            if (!playCtxRef.current || playCtxRef.current.state === 'closed') {
-                const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-                playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24000 });
-                console.log('Created playback context at', playCtxRef.current.sampleRate, 'Hz');
-            } else if (playCtxRef.current.state === 'suspended') {
-                await playCtxRef.current.resume();
-            }
+            // Initialize playback context (best-effort unlock)
+            ensurePlaybackContext();
 
             console.log('Connecting to Google GenAI Live...', { model: config.modelId, hasResumption: !!resumptionHandle });
 
@@ -232,7 +240,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             setIsConnected(false);
             onErrorRef.current?.(`Failed to initialize: ${(err as Error).message}`);
         }
-    }, [apiKey, config, handleInternalMessage, clearSessionHandle]);
+    }, [apiKey, config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext]);
 
     const attemptReconnection = useCallback(async (maxRetries = 3): Promise<boolean> => {
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -280,8 +288,10 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     }, [attemptReconnection]);
 
     const connect = useCallback(async (): Promise<void> => {
+        // Try to unlock audio on a user gesture
+        ensurePlaybackContext();
         await initializeSession(sessionHandle || undefined);
-    }, [initializeSession, sessionHandle]);
+    }, [initializeSession, sessionHandle, ensurePlaybackContext]);
 
     const disconnect = useCallback(async (): Promise<void> => {
         console.log('Disconnecting session...');
