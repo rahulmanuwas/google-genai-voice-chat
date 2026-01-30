@@ -22,20 +22,21 @@ function createChatHandler(config) {
       }
       const ai = new GoogleGenAI({ apiKey });
       const contents = [
-        { role: "user", parts: [{ text: systemPrompt }] },
         { role: "model", parts: [{ text: modelAcknowledgment }] }
       ];
-      if (Array.isArray(history)) {
-        for (const msg of history) {
-          contents.push({
-            role: msg.role === "user" ? "user" : "model",
-            parts: [{ text: msg.content }]
-          });
-        }
+      const historyLimit = 10;
+      const safeHistory = Array.isArray(history) ? history.slice(-historyLimit) : [];
+      for (const msg of safeHistory) {
+        if (!msg || typeof msg.content !== "string") continue;
+        contents.push({
+          role: msg.role === "user" ? "user" : "model",
+          parts: [{ text: msg.content }]
+        });
       }
       contents.push({ role: "user", parts: [{ text: message }] });
       const response = await ai.models.generateContent({
         model,
+        systemInstruction: { parts: [{ text: systemPrompt }] },
         contents
       });
       const text = response.text || "I apologize, but I couldn't generate a response. Please try again.";

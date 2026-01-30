@@ -166,6 +166,16 @@ function useLiveSession(options) {
       } catch (e) {
         console.warn("Failed to clear stored session handle:", e);
       }
+      return;
+    }
+    try {
+      const stored = localStorage.getItem(config.sessionStorageKey);
+      if (stored) {
+        setSessionHandle(stored);
+        console.log("Loaded stored session handle");
+      }
+    } catch (e) {
+      console.warn("Failed to load stored session handle:", e);
     }
   }, [config.sessionStorageKey, config.clearSessionOnMount]);
   const storeSessionHandle = react.useCallback((handle) => {
@@ -391,6 +401,7 @@ function useVoiceInput(options) {
   const micProcRef = react.useRef(null);
   const micStreamRef = react.useRef(null);
   const micSilenceGainRef = react.useRef(null);
+  const lastMicLevelUpdateRef = react.useRef(0);
   const isListeningRef = react.useRef(false);
   const sessionRef = react.useRef(session);
   const onVoiceStartRef = react.useRef(onVoiceStart);
@@ -475,10 +486,14 @@ function useVoiceInput(options) {
       audioProcessor.onaudioprocess = (event) => {
         if (!micCtxRef.current || !isListeningRef.current) return;
         const inputData = event.inputBuffer.getChannelData(0);
-        const rms = calculateRMSLevel(inputData);
-        const visualLevel = Math.min(1, rms * 10);
-        previousLevel = previousLevel * 0.8 + visualLevel * 0.2;
-        setMicLevel(previousLevel);
+        const now = performance.now();
+        if (now - lastMicLevelUpdateRef.current > 50) {
+          lastMicLevelUpdateRef.current = now;
+          const rms = calculateRMSLevel(inputData);
+          const visualLevel = Math.min(1, rms * 10);
+          previousLevel = previousLevel * 0.8 + visualLevel * 0.2;
+          setMicLevel(previousLevel);
+        }
         const sourceSampleRate = micCtxRef.current.sampleRate;
         const { data, mimeType } = encodeAudioToBase64(inputData, sourceSampleRate, INPUT_SAMPLE_RATE);
         try {
@@ -758,6 +773,18 @@ function useVoiceChat(options) {
     sawAudioRef.current = false;
     voiceInputRef.current?.stopMic();
   }, []);
+  const resumeMicIfAllowed = react.useCallback(() => {
+    if (!pendingMicResumeRef.current || !sessionConnectedRef.current || isMutedRef.current || !isMicEnabledRef.current) {
+      return;
+    }
+    pendingMicResumeRef.current = false;
+    const delay = config.micResumeDelayMs ?? 200;
+    setTimeout(() => {
+      if (!voiceInputRef.current?.isListening) {
+        void voiceInputRef.current?.startMic();
+      }
+    }, delay);
+  }, [config.micResumeDelayMs]);
   const handleMessage = react.useCallback((msg) => {
     const parseSampleRate = (mimeType) => {
       if (!mimeType) return void 0;
@@ -799,11 +826,13 @@ function useVoiceChat(options) {
     const msgAny = msg;
     if (msgAny.text && !config.replyAsAudio) {
       pushMsg(msgAny.text, "model");
+      setIsLoading(false);
     }
     const parts = msg.serverContent?.modelTurn?.parts ?? [];
     for (const p of parts) {
       if (p.text && !config.replyAsAudio) {
         pushMsg(p.text, "model");
+        setIsLoading(false);
       }
       if (p.inlineData?.mimeType?.startsWith("audio/") && p.inlineData.data && config.replyAsAudio) {
         sawAudioRef.current = true;
@@ -836,6 +865,7 @@ function useVoiceChat(options) {
       currentTranscriptRef.current += transcript;
     }
     if (msg.serverContent?.turnComplete && config.replyAsAudio) {
+      setIsLoading(false);
       if (streamingInputMsgIdRef.current && currentInputTranscriptRef.current.trim()) {
         const cleanInput = currentInputTranscriptRef.current.replace(/\s+/g, " ").trim();
         const inputId = streamingInputMsgIdRef.current;
@@ -850,15 +880,11 @@ function useVoiceChat(options) {
       }
       currentTranscriptRef.current = "";
       streamingMsgIdRef.current = null;
-      if (pendingMicResumeRef.current && sessionConnectedRef.current && !isMutedRef.current && isMicEnabledRef.current) {
-        if (!sawAudioRef.current) {
-          pendingMicResumeRef.current = false;
-          const delay = config.micResumeDelayMs ?? 200;
-          setTimeout(() => void voiceInputRef.current?.startMic(), delay);
-        }
+      if (!sawAudioRef.current) {
+        resumeMicIfAllowed();
       }
     }
-  }, [config.replyAsAudio, config.micResumeDelayMs, pushMsg]);
+  }, [config.replyAsAudio, pushMsg, resumeMicIfAllowed]);
   const session = useLiveSession({
     config: userConfig,
     apiKey,
@@ -870,9 +896,12 @@ function useVoiceChat(options) {
     },
     onDisconnected: () => {
       setIsAISpeaking(false);
+      setIsLoading(false);
+      pendingMicResumeRef.current = false;
     },
     onError: (error) => {
       pushMsg(error, "system");
+      setIsLoading(false);
     },
     onSystemMessage: (message) => {
       pushMsg(message, "system");
@@ -887,15 +916,12 @@ function useVoiceChat(options) {
     startBufferMs: config.playbackStartDelayMs,
     onPlaybackStart: () => {
       setIsAISpeaking(true);
+      pendingMicResumeRef.current = true;
       voiceInputRef.current?.stopMic();
     },
     onPlaybackComplete: () => {
       setIsAISpeaking(false);
-      if (pendingMicResumeRef.current && session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
-        pendingMicResumeRef.current = false;
-        const delay = config.micResumeDelayMs ?? 200;
-        setTimeout(() => void voiceInputRef.current?.startMic(), delay);
-      }
+      resumeMicIfAllowed();
     }
   });
   const voiceInput = useVoiceInput({
@@ -943,6 +969,7 @@ function useVoiceChat(options) {
     if (!session.isConnected) {
       voiceInputRef.current?.stopMic();
       voiceOutputRef.current?.stopPlayback();
+      pendingMicResumeRef.current = false;
     }
   }, [session.isConnected]);
   const toggleMute = react.useCallback(() => {
@@ -977,10 +1004,11 @@ function useVoiceChat(options) {
       if (newPaused) {
         voiceOutputRef.current?.stopPlayback();
         setIsAISpeaking(false);
+        resumeMicIfAllowed();
       }
       return newPaused;
     });
-  }, []);
+  }, [resumeMicIfAllowed]);
   const sendTextMessage = react.useCallback((text) => {
     if (!text.trim()) return;
     pushMsg(text, "user");
@@ -989,7 +1017,6 @@ function useVoiceChat(options) {
     }
     setIsLoading(true);
     session.sendText(text);
-    setIsLoading(false);
   }, [session, pushMsg, config.replyAsAudio, config.autoPauseMicOnSendText, pauseMicForModelReply]);
   return {
     // Connection

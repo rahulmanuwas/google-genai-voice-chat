@@ -62,7 +62,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     useEffect(() => { onErrorRef.current = onError; }, [onError]);
     useEffect(() => { onSystemMessageRef.current = onSystemMessage; }, [onSystemMessage]);
 
-    // Clear stored session handle on mount - stale handles cause issues on page refresh
+    // Session handle lifecycle on mount
     useEffect(() => {
         if (config.clearSessionOnMount !== false) {
             try {
@@ -71,6 +71,17 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             } catch (e) {
                 console.warn('Failed to clear stored session handle:', e);
             }
+            return;
+        }
+
+        try {
+            const stored = localStorage.getItem(config.sessionStorageKey);
+            if (stored) {
+                setSessionHandle(stored);
+                console.log('Loaded stored session handle');
+            }
+        } catch (e) {
+            console.warn('Failed to load stored session handle:', e);
         }
     }, [config.sessionStorageKey, config.clearSessionOnMount]);
 

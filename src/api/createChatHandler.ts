@@ -55,26 +55,27 @@ export function createChatHandler(config: ChatHandlerConfig) {
 
             const ai = new GoogleGenAI({ apiKey });
 
-            const contents = [
-                { role: 'user' as const, parts: [{ text: systemPrompt }] },
+            const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [
                 { role: 'model' as const, parts: [{ text: modelAcknowledgment }] },
             ];
 
-            if (Array.isArray(history)) {
-                for (const msg of history) {
-                    contents.push({
-                        role: msg.role === 'user' ? 'user' as const : 'model' as const,
-                        parts: [{ text: msg.content }],
-                    });
-                }
+            const historyLimit = 10;
+            const safeHistory = Array.isArray(history) ? history.slice(-historyLimit) : [];
+            for (const msg of safeHistory) {
+                if (!msg || typeof msg.content !== 'string') continue;
+                contents.push({
+                    role: msg.role === 'user' ? 'user' as const : 'model' as const,
+                    parts: [{ text: msg.content }],
+                });
             }
 
             contents.push({ role: 'user' as const, parts: [{ text: message }] });
 
             const response = await ai.models.generateContent({
                 model,
+                systemInstruction: { parts: [{ text: systemPrompt }] },
                 contents,
-            });
+            } as unknown as Parameters<typeof ai.models.generateContent>[0]);
 
             const text = response.text || "I apologize, but I couldn't generate a response. Please try again.";
 

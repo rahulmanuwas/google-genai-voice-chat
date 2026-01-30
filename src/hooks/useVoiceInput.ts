@@ -40,6 +40,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     const micProcRef = useRef<ScriptProcessorNode | null>(null);
     const micStreamRef = useRef<MediaStream | null>(null);
     const micSilenceGainRef = useRef<GainNode | null>(null);
+    const lastMicLevelUpdateRef = useRef(0);
 
     // Refs for state that needs to be accessed in callbacks
     const isListeningRef = useRef(false);
@@ -134,10 +135,14 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
                 const inputData = event.inputBuffer.getChannelData(0);
 
                 // Calculate and smooth mic level for visual feedback
-                const rms = calculateRMSLevel(inputData);
-                const visualLevel = Math.min(1, rms * 10); // Scale for visibility
-                previousLevel = previousLevel * 0.8 + visualLevel * 0.2;
-                setMicLevel(previousLevel);
+                const now = performance.now();
+                if (now - lastMicLevelUpdateRef.current > 50) {
+                    lastMicLevelUpdateRef.current = now;
+                    const rms = calculateRMSLevel(inputData);
+                    const visualLevel = Math.min(1, rms * 10); // Scale for visibility
+                    previousLevel = previousLevel * 0.8 + visualLevel * 0.2;
+                    setMicLevel(previousLevel);
+                }
 
                 // Encode and send audio (server VAD mode - send all audio)
                 const sourceSampleRate = micCtxRef.current.sampleRate;

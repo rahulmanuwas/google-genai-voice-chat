@@ -100,6 +100,25 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         voiceInputRef.current?.stopMic();
     }, []);
 
+    const resumeMicIfAllowed = useCallback(() => {
+        if (
+            !pendingMicResumeRef.current ||
+            !sessionConnectedRef.current ||
+            isMutedRef.current ||
+            !isMicEnabledRef.current
+        ) {
+            return;
+        }
+
+        pendingMicResumeRef.current = false;
+        const delay = config.micResumeDelayMs ?? 200;
+        setTimeout(() => {
+            if (!voiceInputRef.current?.isListening) {
+                void voiceInputRef.current?.startMic();
+            }
+        }, delay);
+    }, [config.micResumeDelayMs]);
+
     // Message handler for processing Gemini responses
     const handleMessage = useCallback((msg: LiveServerMessage) => {
         const parseSampleRate = (mimeType?: string): number | undefined => {
@@ -150,6 +169,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         const msgAny = msg as LiveServerMessage & { text?: string; data?: string };
         if (msgAny.text && !config.replyAsAudio) {
             pushMsg(msgAny.text, 'model');
+            setIsLoading(false);
         }
 
         // Parts from modelTurn
@@ -157,6 +177,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         for (const p of parts) {
             if (p.text && !config.replyAsAudio) {
                 pushMsg(p.text, 'model');
+                setIsLoading(false);
             }
 
             // Audio data
@@ -199,6 +220,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
         // Turn complete
         if (msg.serverContent?.turnComplete && config.replyAsAudio) {
+            setIsLoading(false);
             // Finalize user input transcription
             if (streamingInputMsgIdRef.current && currentInputTranscriptRef.current.trim()) {
                 const cleanInput = currentInputTranscriptRef.current.replace(/\s+/g, ' ').trim();
@@ -217,20 +239,11 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             currentTranscriptRef.current = '';
             streamingMsgIdRef.current = null;
 
-            if (
-                pendingMicResumeRef.current &&
-                sessionConnectedRef.current &&
-                !isMutedRef.current &&
-                isMicEnabledRef.current
-            ) {
-                if (!sawAudioRef.current) {
-                    pendingMicResumeRef.current = false;
-                    const delay = config.micResumeDelayMs ?? 200;
-                    setTimeout(() => void voiceInputRef.current?.startMic(), delay);
-                }
+            if (!sawAudioRef.current) {
+                resumeMicIfAllowed();
             }
         }
-    }, [config.replyAsAudio, config.micResumeDelayMs, pushMsg]);
+    }, [config.replyAsAudio, pushMsg, resumeMicIfAllowed]);
 
     // Session hook
     const session = useLiveSession({
@@ -244,9 +257,12 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         },
         onDisconnected: () => {
             setIsAISpeaking(false);
+            setIsLoading(false);
+            pendingMicResumeRef.current = false;
         },
         onError: (error) => {
             pushMsg(error, 'system');
+            setIsLoading(false);
         },
         onSystemMessage: (message) => {
             pushMsg(message, 'system');
@@ -264,15 +280,12 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         startBufferMs: config.playbackStartDelayMs,
         onPlaybackStart: () => {
             setIsAISpeaking(true);
+            pendingMicResumeRef.current = true;
             voiceInputRef.current?.stopMic();
         },
         onPlaybackComplete: () => {
             setIsAISpeaking(false);
-            if (pendingMicResumeRef.current && session.isConnected && !isMutedRef.current && isMicEnabledRef.current) {
-                pendingMicResumeRef.current = false;
-                const delay = config.micResumeDelayMs ?? 200;
-                setTimeout(() => void voiceInputRef.current?.startMic(), delay);
-            }
+            resumeMicIfAllowed();
         },
     });
 
@@ -343,6 +356,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         if (!session.isConnected) {
             voiceInputRef.current?.stopMic();
             voiceOutputRef.current?.stopPlayback();
+            pendingMicResumeRef.current = false;
         }
     }, [session.isConnected]);
 
@@ -383,10 +397,11 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             if (newPaused) {
                 voiceOutputRef.current?.stopPlayback();
                 setIsAISpeaking(false);
+                resumeMicIfAllowed();
             }
             return newPaused;
         });
-    }, []);
+    }, [resumeMicIfAllowed]);
 
     // Send text
     const sendTextMessage = useCallback((text: string) => {
@@ -397,7 +412,6 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         }
         setIsLoading(true);
         session.sendText(text);
-        setIsLoading(false);
     }, [session, pushMsg, config.replyAsAudio, config.autoPauseMicOnSendText, pauseMicForModelReply]);
 
     return {
