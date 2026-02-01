@@ -1,6 +1,6 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { V as VoiceChatConfig, C as ChatMessage$1, M as MessageHandler, L as LiveSession } from './types-BMaxkbtj.mjs';
-export { c as ChatHandlerConfig, a as ChatRole, b as ChatTheme } from './types-BMaxkbtj.mjs';
+import { V as VoiceChatConfig, C as ChatMessage$1, M as MessageHandler, L as LiveSession, a as VoiceChatEvent } from './types-ZoP0AQBP.mjs';
+export { d as ChatHandlerConfig, b as ChatRole, c as ChatTheme } from './types-ZoP0AQBP.mjs';
 import '@google/genai';
 
 interface ChatBotProps {
@@ -63,6 +63,9 @@ declare function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionR
 interface UseVoiceInputOptions {
     session: LiveSession | null;
     isEnabled: boolean;
+    maxConsecutiveErrors?: number;
+    errorCooldownMs?: number;
+    onEvent?: (event: VoiceChatEvent) => void;
     onVoiceStart?: () => void;
     onVoiceEnd?: () => void;
     onError?: (error: string) => void;
@@ -79,6 +82,9 @@ interface UseVoiceOutputOptions {
     playbackContext: AudioContext | null;
     isPaused: boolean;
     startBufferMs?: number;
+    maxQueueMs?: number;
+    maxQueueChunks?: number;
+    onEvent?: (event: VoiceChatEvent) => void;
     onPlaybackStart?: () => void;
     onPlaybackComplete?: () => void;
 }
@@ -93,7 +99,7 @@ declare function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputR
 /**
  * Default configuration values
  */
-declare const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId'>> & {
+declare const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId' | 'onEvent'>> & {
     theme: NonNullable<VoiceChatConfig['theme']>;
 };
 
@@ -108,10 +114,16 @@ declare const AUDIO_CONFIG: {
     readonly OUTPUT_MIME_TYPE: "audio/pcm;rate=24000";
 };
 /**
+ * Stable preset tuned for smoother playback and mic transitions.
+ * Use as: mergeConfig({ ...STABLE_PRESET, ...yourConfig })
+ */
+declare const STABLE_PRESET: Partial<VoiceChatConfig>;
+/**
  * Merge user config with defaults
  */
-declare function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceChatConfig, 'theme'>> & {
+declare function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceChatConfig, 'theme' | 'onEvent'>> & {
     theme: NonNullable<VoiceChatConfig['theme']>;
+    onEvent?: VoiceChatConfig['onEvent'];
 };
 
-export { AUDIO_CONFIG, ChatBot, ChatMessage, ChatMessage$1 as ChatMessageType, DEFAULT_CONFIG, LiveSession, MessageHandler, VoiceChatConfig, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };
+export { AUDIO_CONFIG, ChatBot, ChatMessage, ChatMessage$1 as ChatMessageType, DEFAULT_CONFIG, LiveSession, MessageHandler, STABLE_PRESET, VoiceChatConfig, VoiceChatEvent, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };

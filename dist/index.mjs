@@ -82,6 +82,7 @@ var DEFAULT_CONFIG = {
   welcomeMessage: "Hello! How can I help you today?",
   suggestedQuestions: [],
   sessionStorageKey: "genai-voice-chat-session",
+  sessionHandleTtlMs: 6 * 60 * 60 * 1e3,
   replyAsAudio: true,
   useClientVAD: false,
   serverVADPrefixPaddingMs: 500,
@@ -89,9 +90,15 @@ var DEFAULT_CONFIG = {
   serverVADStartSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
   serverVADEndSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
   sessionInitDelayMs: 300,
-  micResumeDelayMs: 200,
-  playbackStartDelayMs: 0,
+  micResumeDelayMs: 600,
+  playbackStartDelayMs: 120,
   playbackSampleRate: 24e3,
+  maxMessages: 200,
+  maxTranscriptChars: 6e3,
+  maxOutputQueueMs: 15e3,
+  maxOutputQueueChunks: 200,
+  maxConsecutiveInputErrors: 3,
+  inputErrorCooldownMs: 750,
   clearSessionOnMount: true,
   speechConfig: {},
   thinkingConfig: {},
@@ -117,6 +124,10 @@ var AUDIO_CONFIG = {
   /** Audio MIME type for playback */
   OUTPUT_MIME_TYPE: "audio/pcm;rate=24000"
 };
+var STABLE_PRESET = {
+  micResumeDelayMs: 600,
+  playbackStartDelayMs: 120
+};
 function mergeConfig(userConfig) {
   return {
     ...DEFAULT_CONFIG,
@@ -136,6 +147,13 @@ function useLiveSession(options) {
   const sessionRef = useRef(null);
   const playCtxRef = useRef(null);
   const isReconnectingRef = useRef(false);
+  const sessionHandleRef = useRef(null);
+  const isConnectedRef = useRef(false);
+  const connectPromiseRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
+  const closeReasonRef = useRef("none");
+  const offlineRef = useRef(false);
+  const shouldReconnectRef = useRef(false);
   const onMessageRef = useRef(onMessage);
   const onConnectedRef = useRef(onConnected);
   const onDisconnectedRef = useRef(onDisconnected);
@@ -157,9 +175,19 @@ function useLiveSession(options) {
     onSystemMessageRef.current = onSystemMessage;
   }, [onSystemMessage]);
   useEffect(() => {
+    sessionHandleRef.current = sessionHandle;
+  }, [sessionHandle]);
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+  }, [isConnected]);
+  const emitEvent = useCallback((type, data) => {
+    config.onEvent?.({ type, ts: Date.now(), data });
+  }, [config.onEvent]);
+  useEffect(() => {
+    const storageKey = config.sessionStorageKey;
     if (config.clearSessionOnMount !== false) {
       try {
-        localStorage.removeItem(config.sessionStorageKey);
+        localStorage.removeItem(storageKey);
         console.log("Cleared stored session handle on mount");
       } catch (e) {
         console.warn("Failed to clear stored session handle:", e);
@@ -167,34 +195,73 @@ function useLiveSession(options) {
       return;
     }
     try {
-      const stored = localStorage.getItem(config.sessionStorageKey);
-      if (stored) {
-        setSessionHandle(stored);
-        console.log("Loaded stored session handle");
+      const stored = localStorage.getItem(storageKey);
+      if (!stored) return;
+      let handle = null;
+      let ts = 0;
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.handle === "string") {
+          handle = parsed.handle;
+          ts = typeof parsed.ts === "number" ? parsed.ts : Date.now();
+        }
+      } catch {
+        handle = stored;
+        ts = Date.now();
       }
+      if (!handle) return;
+      const ttl = config.sessionHandleTtlMs ?? 0;
+      if (ttl > 0 && Date.now() - ts > ttl) {
+        localStorage.removeItem(storageKey);
+        emitEvent("session_handle_expired", { ttlMs: ttl });
+        console.log("Stored session handle expired");
+        return;
+      }
+      setSessionHandle(handle);
+      console.log("Loaded stored session handle");
     } catch (e) {
       console.warn("Failed to load stored session handle:", e);
     }
-  }, [config.sessionStorageKey, config.clearSessionOnMount]);
+  }, [config.sessionStorageKey, config.clearSessionOnMount, config.sessionHandleTtlMs, emitEvent]);
   const storeSessionHandle = useCallback((handle) => {
     setSessionHandle(handle);
     try {
-      localStorage.setItem(config.sessionStorageKey, handle);
+      const payload = JSON.stringify({ handle, ts: Date.now() });
+      localStorage.setItem(config.sessionStorageKey, payload);
       console.log("Session handle stored for resumption");
+      emitEvent("session_handle_stored");
     } catch (e) {
       console.warn("Failed to store session handle:", e);
     }
-  }, [config.sessionStorageKey]);
+  }, [config.sessionStorageKey, emitEvent]);
   const clearSessionHandle = useCallback(() => {
     setSessionHandle(null);
     try {
       localStorage.removeItem(config.sessionStorageKey);
       console.log("Session handle cleared");
+      emitEvent("session_handle_cleared");
     } catch (e) {
       console.warn("Failed to clear session handle:", e);
     }
-  }, [config.sessionStorageKey]);
+  }, [config.sessionStorageKey, emitEvent]);
   const attemptReconnectionRef = useRef(() => Promise.resolve(false));
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+  const scheduleReconnect = useCallback((reason, delayMs) => {
+    if (isReconnectingRef.current) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    clearReconnectTimer();
+    isReconnectingRef.current = true;
+    setIsReconnecting(true);
+    emitEvent("session_reconnect_scheduled", { reason, delayMs });
+    reconnectTimerRef.current = setTimeout(() => {
+      void attemptReconnectionRef.current();
+    }, Math.max(0, delayMs));
+  }, [clearReconnectTimer, emitEvent]);
   const handleInternalMessage = useCallback((msg) => {
     if (msg.sessionResumptionUpdate) {
       if (msg.sessionResumptionUpdate.resumable && msg.sessionResumptionUpdate.newHandle) {
@@ -204,17 +271,11 @@ function useLiveSession(options) {
     if (msg.goAway) {
       console.warn("GoAway received, connection will terminate in:", msg.goAway.timeLeft);
       onSystemMessageRef.current?.(`Connection will terminate in ${msg.goAway.timeLeft}`);
-      if (!isReconnectingRef.current) {
-        isReconnectingRef.current = true;
-        setIsReconnecting(true);
-        const delay = Math.max(1e3, parseInt(msg.goAway.timeLeft?.replace(/[^0-9]/g, "") || "5000") - 2e3);
-        setTimeout(() => {
-          void attemptReconnectionRef.current();
-        }, delay);
-      }
+      const delay = Math.max(1e3, parseInt(msg.goAway.timeLeft?.replace(/[^0-9]/g, "") || "5000") - 2e3);
+      scheduleReconnect("goaway", delay);
     }
     onMessageRef.current?.(msg);
-  }, [storeSessionHandle]);
+  }, [storeSessionHandle, scheduleReconnect]);
   const ensurePlaybackContext = useCallback(() => {
     if (!playCtxRef.current || playCtxRef.current.state === "closed") {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -230,12 +291,14 @@ function useLiveSession(options) {
   const initializeSession = useCallback(async (resumptionHandle) => {
     if (!apiKey) {
       onErrorRef.current?.("AI Assistant unavailable. Please check configuration.");
-      return;
+      emitEvent("session_connect_error", { reason: "missing_api_key" });
+      return false;
     }
     try {
       const ai = new GoogleGenAI({ apiKey });
       ensurePlaybackContext();
       console.log("Connecting to Google GenAI Live...", { model: config.modelId, hasResumption: !!resumptionHandle });
+      emitEvent("session_connect_start", { hasResumption: !!resumptionHandle });
       const hasKeys = (obj) => !!obj && Object.keys(obj).length > 0;
       const session = await ai.live.connect({
         model: config.modelId,
@@ -271,30 +334,57 @@ function useLiveSession(options) {
             setIsConnected(true);
             setIsReconnecting(false);
             isReconnectingRef.current = false;
+            clearReconnectTimer();
+            shouldReconnectRef.current = true;
+            offlineRef.current = false;
+            emitEvent("session_connected");
             onConnectedRef.current?.();
           },
           onmessage: handleInternalMessage,
           onerror: (err) => {
             console.error("Google GenAI Live error:", err);
             setIsConnected(false);
+            emitEvent("session_error", { error: typeof err === "string" ? err : "Connection error" });
             onErrorRef.current?.(typeof err === "string" ? err : "Connection error");
           },
           onclose: (event) => {
             const code = event?.code || 0;
             const reason = event?.reason || "";
+            const closeReason = closeReasonRef.current;
+            closeReasonRef.current = "none";
             console.log("Connection closed - Code:", code, "Reason:", reason);
+            emitEvent("session_closed", { code, reason, closeReason });
             setIsConnected(false);
-            if (code !== 1e3) {
-              let errorMsg = "AI Assistant disconnected";
-              if (code === 1008 && reason.includes("session not found")) {
-                errorMsg = "Session could not be established. Please refresh.";
-                clearSessionHandle();
-              } else if (code === 1008 || reason.includes("API key")) {
-                errorMsg = "API key may not have Live API access.";
-              } else if (code === 1013 || reason.includes("quota")) {
-                errorMsg = "Usage limits reached.";
-              }
+            if (closeReason === "intentional") {
+              onDisconnectedRef.current?.();
+              return;
+            }
+            if (closeReason === "offline") {
+              onDisconnectedRef.current?.();
+              return;
+            }
+            let errorMsg = null;
+            let shouldReconnect = code !== 1e3;
+            if (code === 1008 && reason.includes("session not found")) {
+              errorMsg = "Session expired. Reconnecting...";
+              clearSessionHandle();
+            } else if (code === 1008 || reason.includes("API key")) {
+              errorMsg = "API key may not have Live API access.";
+              shouldReconnect = false;
+            } else if (code === 1013 || reason.includes("quota")) {
+              errorMsg = "Usage limits reached.";
+              shouldReconnect = false;
+            } else if (code !== 1e3) {
+              errorMsg = "AI Assistant disconnected";
+            }
+            if (errorMsg) {
               onErrorRef.current?.(errorMsg);
+            }
+            if (!shouldReconnect) {
+              shouldReconnectRef.current = false;
+            }
+            if (shouldReconnect && !isReconnectingRef.current) {
+              scheduleReconnect("close", 1500);
             }
             onDisconnectedRef.current?.();
           }
@@ -302,17 +392,45 @@ function useLiveSession(options) {
       });
       sessionRef.current = session;
       console.log("Google GenAI Live session initialized successfully");
+      emitEvent("session_initialized");
+      return true;
     } catch (err) {
       console.error("Failed to initialize Google GenAI Live:", err);
       setIsConnected(false);
+      emitEvent("session_connect_error", { reason: err.message });
       onErrorRef.current?.(`Failed to initialize: ${err.message}`);
+      return false;
     }
-  }, [apiKey, config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext]);
+  }, [apiKey, config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext, emitEvent, scheduleReconnect, clearReconnectTimer]);
+  const initializeSessionWithFallback = useCallback(async (resumptionHandle) => {
+    const hadHandle = !!resumptionHandle;
+    const success = await initializeSession(resumptionHandle || void 0);
+    if (!success && hadHandle) {
+      clearSessionHandle();
+      return initializeSession(void 0);
+    }
+    return success;
+  }, [initializeSession, clearSessionHandle]);
   const attemptReconnection = useCallback(async (maxRetries = 3) => {
+    if (connectPromiseRef.current) {
+      try {
+        await connectPromiseRef.current;
+      } catch {
+      }
+    }
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      emitEvent("session_reconnect_skipped", { reason: "offline" });
+      return false;
+    }
+    if (!isReconnectingRef.current) {
+      isReconnectingRef.current = true;
+      setIsReconnecting(true);
+    }
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`Reconnection attempt ${attempt}/${maxRetries}`);
         onSystemMessageRef.current?.(`Reconnecting... (${attempt}/${maxRetries})`);
+        emitEvent("session_reconnect_attempt", { attempt, maxRetries });
         if (sessionRef.current) {
           try {
             if (!config.useClientVAD) {
@@ -324,14 +442,16 @@ function useLiveSession(options) {
           }
           sessionRef.current = null;
         }
-        await initializeSession(sessionHandle || void 0);
+        await initializeSessionWithFallback(sessionHandleRef.current);
         if (sessionRef.current) {
           console.log("Reconnection successful");
           onSystemMessageRef.current?.("Reconnected successfully");
+          emitEvent("session_reconnect_success", { attempt });
           return true;
         }
       } catch (error) {
         console.warn(`Reconnection attempt ${attempt} failed:`, error);
+        emitEvent("session_reconnect_error", { attempt, error: error.message });
         if (attempt < maxRetries) {
           await new Promise((r) => setTimeout(r, 2e3 * Math.pow(1.5, attempt - 1)));
         }
@@ -340,17 +460,78 @@ function useLiveSession(options) {
     setIsReconnecting(false);
     isReconnectingRef.current = false;
     onSystemMessageRef.current?.("Reconnection failed. Please refresh the page.");
+    emitEvent("session_reconnect_failed", { maxRetries });
     return false;
-  }, [initializeSession, sessionHandle, config.useClientVAD]);
+  }, [initializeSessionWithFallback, config.useClientVAD, emitEvent]);
   useEffect(() => {
     attemptReconnectionRef.current = attemptReconnection;
   }, [attemptReconnection]);
+  useEffect(() => {
+    return () => {
+      clearReconnectTimer();
+    };
+  }, [clearReconnectTimer]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleOnline = () => {
+      offlineRef.current = false;
+      emitEvent("network_online");
+      if (!isConnectedRef.current && shouldReconnectRef.current && !isReconnectingRef.current) {
+        scheduleReconnect("online", 500);
+      }
+    };
+    const handleOffline = () => {
+      offlineRef.current = true;
+      emitEvent("network_offline");
+      clearReconnectTimer();
+      if (sessionRef.current) {
+        closeReasonRef.current = "offline";
+        try {
+          sessionRef.current.close();
+        } catch (e) {
+          console.warn("Session close failed during offline:", e);
+        }
+        sessionRef.current = null;
+      }
+      setIsConnected(false);
+      setIsReconnecting(false);
+      isReconnectingRef.current = false;
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [emitEvent, scheduleReconnect, clearReconnectTimer]);
   const connect = useCallback(async () => {
-    ensurePlaybackContext();
-    await initializeSession(sessionHandle || void 0);
-  }, [initializeSession, sessionHandle, ensurePlaybackContext]);
+    if (connectPromiseRef.current) {
+      await connectPromiseRef.current;
+      return;
+    }
+    if (isConnectedRef.current) return;
+    const connectTask = (async () => {
+      ensurePlaybackContext();
+      await initializeSessionWithFallback(sessionHandleRef.current);
+    })();
+    connectPromiseRef.current = connectTask;
+    try {
+      await connectTask;
+    } finally {
+      connectPromiseRef.current = null;
+    }
+  }, [ensurePlaybackContext, initializeSessionWithFallback]);
   const disconnect = useCallback(async () => {
     console.log("Disconnecting session...");
+    closeReasonRef.current = "intentional";
+    shouldReconnectRef.current = false;
+    clearReconnectTimer();
+    if (connectPromiseRef.current) {
+      try {
+        await connectPromiseRef.current;
+      } catch {
+      }
+    }
     if (sessionRef.current) {
       try {
         if (!config.useClientVAD) {
@@ -373,7 +554,7 @@ function useLiveSession(options) {
     setIsConnected(false);
     setIsReconnecting(false);
     isReconnectingRef.current = false;
-  }, [config.useClientVAD]);
+  }, [config.useClientVAD, clearReconnectTimer]);
   const sendText = useCallback((text) => {
     if (!sessionRef.current || !text.trim()) return;
     try {
@@ -398,7 +579,7 @@ function useLiveSession(options) {
 var MIC_BUFFER_SIZE = 2048;
 var MIC_CHANNELS = 1;
 function useVoiceInput(options) {
-  const { session, isEnabled, onVoiceStart, onVoiceEnd, onError } = options;
+  const { session, isEnabled, maxConsecutiveErrors, errorCooldownMs, onEvent, onVoiceStart, onVoiceEnd, onError } = options;
   const [isListening, setIsListening] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
   const micCtxRef = useRef(null);
@@ -407,6 +588,11 @@ function useVoiceInput(options) {
   const micStreamRef = useRef(null);
   const micSilenceGainRef = useRef(null);
   const lastMicLevelUpdateRef = useRef(0);
+  const sendErrorStreakRef = useRef(0);
+  const sendBlockedUntilRef = useRef(0);
+  const maxConsecutiveErrorsRef = useRef(maxConsecutiveErrors ?? 3);
+  const errorCooldownMsRef = useRef(errorCooldownMs ?? 750);
+  const onEventRef = useRef(onEvent);
   const isListeningRef = useRef(false);
   const sessionRef = useRef(session);
   const onVoiceStartRef = useRef(onVoiceStart);
@@ -424,6 +610,18 @@ function useVoiceInput(options) {
   useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
+  useEffect(() => {
+    maxConsecutiveErrorsRef.current = maxConsecutiveErrors ?? 3;
+  }, [maxConsecutiveErrors]);
+  useEffect(() => {
+    errorCooldownMsRef.current = errorCooldownMs ?? 750;
+  }, [errorCooldownMs]);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+  const emitEvent = useCallback((type, data) => {
+    onEventRef.current?.({ type, ts: Date.now(), data });
+  }, []);
   const cleanup = useCallback(() => {
     try {
       micProcRef.current?.disconnect();
@@ -450,6 +648,8 @@ function useVoiceInput(options) {
     isListeningRef.current = false;
     setIsListening(false);
     setMicLevel(0);
+    sendErrorStreakRef.current = 0;
+    sendBlockedUntilRef.current = 0;
   }, []);
   const stopMic = useCallback(() => {
     if (!isListeningRef.current) return;
@@ -460,8 +660,9 @@ function useVoiceInput(options) {
       console.warn("Audio stream end failed:", e);
     }
     cleanup();
+    emitEvent("mic_stopped");
     onVoiceEndRef.current?.();
-  }, [cleanup]);
+  }, [cleanup, emitEvent]);
   const startMic = useCallback(async () => {
     if (!sessionRef.current || isListeningRef.current) {
       console.log("Cannot start mic: session missing or already listening");
@@ -492,6 +693,9 @@ function useVoiceInput(options) {
         if (!micCtxRef.current || !isListeningRef.current) return;
         const inputData = event.inputBuffer.getChannelData(0);
         const now = performance.now();
+        if (now < sendBlockedUntilRef.current) {
+          return;
+        }
         if (now - lastMicLevelUpdateRef.current > 50) {
           lastMicLevelUpdateRef.current = now;
           const rms = calculateRMSLevel(inputData);
@@ -503,9 +707,20 @@ function useVoiceInput(options) {
         const { data, mimeType } = encodeAudioToBase64(inputData, sourceSampleRate, INPUT_SAMPLE_RATE);
         try {
           sessionRef.current?.sendRealtimeInput({ audio: { data, mimeType } });
+          sendErrorStreakRef.current = 0;
         } catch (err) {
           console.error("sendRealtimeInput error:", err);
-          onErrorRef.current?.("Audio streaming error");
+          sendErrorStreakRef.current += 1;
+          sendBlockedUntilRef.current = now + errorCooldownMsRef.current;
+          emitEvent("audio_input_send_error", {
+            streak: sendErrorStreakRef.current,
+            error: err.message
+          });
+          if (sendErrorStreakRef.current >= maxConsecutiveErrorsRef.current) {
+            emitEvent("audio_input_stream_halted", { reason: "too_many_errors" });
+            onErrorRef.current?.("Audio streaming unstable. Please reconnect.");
+            setTimeout(() => stopMicRef.current(), 0);
+          }
         }
       };
       micSilenceGainRef.current = micCtxRef.current.createGain();
@@ -516,14 +731,18 @@ function useVoiceInput(options) {
       micProcRef.current = audioProcessor;
       isListeningRef.current = true;
       setIsListening(true);
+      sendErrorStreakRef.current = 0;
+      sendBlockedUntilRef.current = 0;
+      emitEvent("mic_started");
       console.log(`Microphone started at ${micCtxRef.current.sampleRate}Hz`);
       onVoiceStartRef.current?.();
     } catch (err) {
       console.error("Mic start failed:", err);
       cleanup();
+      emitEvent("mic_error", { error: err.message });
       onErrorRef.current?.(`Microphone error: ${err.message}`);
     }
-  }, [cleanup]);
+  }, [cleanup, emitEvent]);
   const stopMicRef = useRef(stopMic);
   useEffect(() => {
     stopMicRef.current = stopMic;
@@ -548,18 +767,24 @@ function useVoiceInput(options) {
   };
 }
 function useVoiceOutput(options) {
-  const { playbackContext, isPaused, startBufferMs, onPlaybackStart, onPlaybackComplete } = options;
+  const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, onEvent, onPlaybackStart, onPlaybackComplete } = options;
   const [isPlaying, setIsPlaying] = useState(false);
   const playQueueRef = useRef([]);
   const isDrainingRef = useRef(false);
   const currentSourceRef = useRef(null);
   const scheduledEndTimeRef = useRef(0);
+  const completeTimerRef = useRef(null);
+  const queuedMsRef = useRef(0);
+  const queuedChunksRef = useRef(0);
   const onPlaybackStartRef = useRef(onPlaybackStart);
   const onPlaybackCompleteRef = useRef(onPlaybackComplete);
   const playCtxRef = useRef(playbackContext);
   const isPausedRef = useRef(isPaused);
   const isPlayingRef = useRef(isPlaying);
   const startBufferMsRef = useRef(startBufferMs ?? 0);
+  const maxQueueMsRef = useRef(maxQueueMs ?? 0);
+  const maxQueueChunksRef = useRef(maxQueueChunks ?? 0);
+  const onEventRef = useRef(onEvent);
   useEffect(() => {
     onPlaybackStartRef.current = onPlaybackStart;
   }, [onPlaybackStart]);
@@ -578,8 +803,26 @@ function useVoiceOutput(options) {
   useEffect(() => {
     startBufferMsRef.current = startBufferMs ?? 0;
   }, [startBufferMs]);
+  useEffect(() => {
+    maxQueueMsRef.current = maxQueueMs ?? 0;
+  }, [maxQueueMs]);
+  useEffect(() => {
+    maxQueueChunksRef.current = maxQueueChunks ?? 0;
+  }, [maxQueueChunks]);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+  const emitEvent = useCallback((type, data) => {
+    onEventRef.current?.({ type, ts: Date.now(), data });
+  }, []);
   const scheduleChunksRef = useRef(() => {
   });
+  const clearCompleteTimer = useCallback(() => {
+    if (completeTimerRef.current) {
+      clearTimeout(completeTimerRef.current);
+      completeTimerRef.current = null;
+    }
+  }, []);
   useEffect(() => {
     const scheduleChunks = () => {
       const ctx = playCtxRef.current;
@@ -591,7 +834,8 @@ function useVoiceOutput(options) {
         isDrainingRef.current = false;
         currentSourceRef.current = null;
         scheduledEndTimeRef.current = 0;
-        setTimeout(() => {
+        clearCompleteTimer();
+        completeTimerRef.current = setTimeout(() => {
           if (playQueueRef.current.length === 0) {
             setIsPlaying(false);
             onPlaybackCompleteRef.current?.();
@@ -606,10 +850,14 @@ function useVoiceOutput(options) {
       }
       const targetRate = first.sampleRate;
       const chunks = [first.pcm];
+      queuedMsRef.current = Math.max(0, queuedMsRef.current - first.durationMs);
+      queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
       while (playQueueRef.current.length > 0 && playQueueRef.current[0].sampleRate === targetRate) {
         const next = playQueueRef.current.shift();
         if (!next) break;
         chunks.push(next.pcm);
+        queuedMsRef.current = Math.max(0, queuedMsRef.current - next.durationMs);
+        queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
       }
       let totalLength = 0;
       for (const chunk of chunks) {
@@ -638,7 +886,8 @@ function useVoiceOutput(options) {
         if (playQueueRef.current.length > 0) {
           scheduleChunksRef.current();
         } else {
-          setTimeout(() => {
+          clearCompleteTimer();
+          completeTimerRef.current = setTimeout(() => {
             if (playQueueRef.current.length > 0) {
               scheduleChunksRef.current();
             } else {
@@ -653,7 +902,7 @@ function useVoiceOutput(options) {
       source.start(startTime);
     };
     scheduleChunksRef.current = scheduleChunks;
-  }, []);
+  }, [clearCompleteTimer]);
   const drainQueue = useCallback(() => {
     const ctx = playCtxRef.current;
     if (!ctx || isDrainingRef.current) return;
@@ -677,23 +926,56 @@ function useVoiceOutput(options) {
     playQueueRef.current = [];
     isDrainingRef.current = false;
     scheduledEndTimeRef.current = 0;
+    clearCompleteTimer();
+    queuedMsRef.current = 0;
+    queuedChunksRef.current = 0;
     setIsPlaying(false);
     if (playCtxRef.current && playCtxRef.current.state === "running") {
       playCtxRef.current.suspend().catch(console.warn);
     }
-  }, []);
+  }, [clearCompleteTimer]);
   const clearQueue = useCallback(() => {
     playQueueRef.current = [];
-  }, []);
+    queuedMsRef.current = 0;
+    queuedChunksRef.current = 0;
+    clearCompleteTimer();
+  }, [clearCompleteTimer]);
   const enqueueAudio = useCallback((base64Data, sampleRate) => {
-    if (isPausedRef.current) return;
+    if (isPausedRef.current) {
+      emitEvent("audio_output_dropped", { reason: "speaker_paused" });
+      return;
+    }
     try {
       const pcm16 = base64ToPCM16(base64Data);
       if (pcm16.length > 0) {
-        const targetRate = sampleRate ?? OUTPUT_SAMPLE_RATE;
+        const targetRate = Number.isFinite(sampleRate) && (sampleRate ?? 0) > 0 ? sampleRate : OUTPUT_SAMPLE_RATE;
         const chunk = new Int16Array(pcm16.length);
         chunk.set(pcm16);
-        playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate });
+        const durationMs = chunk.length / targetRate * 1e3;
+        playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate, durationMs });
+        queuedMsRef.current += durationMs;
+        queuedChunksRef.current += 1;
+        const maxMs = maxQueueMsRef.current;
+        const maxChunks = maxQueueChunksRef.current;
+        let droppedChunks = 0;
+        let droppedMs = 0;
+        while (maxMs > 0 && queuedMsRef.current > maxMs || maxChunks > 0 && queuedChunksRef.current > maxChunks) {
+          const dropped = playQueueRef.current.shift();
+          if (!dropped) break;
+          queuedMsRef.current = Math.max(0, queuedMsRef.current - dropped.durationMs);
+          queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
+          droppedChunks += 1;
+          droppedMs += dropped.durationMs;
+        }
+        if (droppedChunks > 0) {
+          emitEvent("audio_output_queue_overflow", {
+            droppedChunks,
+            droppedMs,
+            queueMs: queuedMsRef.current,
+            queueChunks: queuedChunksRef.current
+          });
+        }
+        clearCompleteTimer();
         if (!isPlayingRef.current) {
           setIsPlaying(true);
           onPlaybackStartRef.current?.();
@@ -705,7 +987,7 @@ function useVoiceOutput(options) {
     } catch (e) {
       console.error("Failed to enqueue audio:", e);
     }
-  }, [drainQueue]);
+  }, [drainQueue, clearCompleteTimer, emitEvent]);
   const stopPlaybackRef = useRef(stopPlayback);
   useEffect(() => {
     stopPlaybackRef.current = stopPlayback;
@@ -726,8 +1008,11 @@ function useVoiceOutput(options) {
       }
       playQueueRef.current = [];
       isDrainingRef.current = false;
+      queuedMsRef.current = 0;
+      queuedChunksRef.current = 0;
+      clearCompleteTimer();
     };
-  }, []);
+  }, [clearCompleteTimer]);
   return {
     isPlaying,
     enqueueAudio,
@@ -742,6 +1027,8 @@ function useVoiceChat(options) {
   const config = mergeConfig(userConfig);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const maxMessages = config.maxMessages ?? 0;
+  const maxTranscriptChars = config.maxTranscriptChars ?? 0;
   const [isMuted, setIsMuted] = useState(false);
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isSpeakerPaused, setIsSpeakerPaused] = useState(false);
@@ -749,6 +1036,28 @@ function useVoiceChat(options) {
   const isMutedRef = useRef(false);
   const isMicEnabledRef = useRef(true);
   const micEnabledBeforeMuteRef = useRef(true);
+  const isSpeakerPausedRef = useRef(isSpeakerPaused);
+  const limitText = useCallback((text) => {
+    if (!maxTranscriptChars || maxTranscriptChars <= 0) return text;
+    if (text.length <= maxTranscriptChars) return text;
+    return text.slice(text.length - maxTranscriptChars);
+  }, [maxTranscriptChars]);
+  const appendWithLimit = useCallback((base, addition) => {
+    if (!addition) return base;
+    return limitText(base + addition);
+  }, [limitText]);
+  const updateMessages = useCallback((updater) => {
+    setMessages((prev) => {
+      const next = updater(prev);
+      if (maxMessages && maxMessages > 0 && next.length > maxMessages) {
+        return next.slice(next.length - maxMessages);
+      }
+      return next;
+    });
+  }, [maxMessages]);
+  const emitEvent = useCallback((type, data) => {
+    config.onEvent?.({ type, ts: Date.now(), data });
+  }, [config.onEvent]);
   const currentTranscriptRef = useRef("");
   const streamingMsgIdRef = useRef(null);
   const currentInputTranscriptRef = useRef("");
@@ -757,6 +1066,9 @@ function useVoiceChat(options) {
   const sessionConnectedRef = useRef(false);
   const welcomeSentRef = useRef(false);
   const sawAudioRef = useRef(false);
+  const wasListeningBeforeHideRef = useRef(false);
+  const wasListeningBeforeOfflineRef = useRef(false);
+  const micResumeTimerRef = useRef(null);
   const voiceOutputRef = useRef(null);
   const voiceInputRef = useRef(null);
   useEffect(() => {
@@ -765,14 +1077,18 @@ function useVoiceChat(options) {
   useEffect(() => {
     isMicEnabledRef.current = isMicEnabled;
   }, [isMicEnabled]);
+  useEffect(() => {
+    isSpeakerPausedRef.current = isSpeakerPaused;
+  }, [isSpeakerPaused]);
   const pushMsg = useCallback((content, role) => {
-    setMessages((prev) => [...prev, {
+    const safeContent = limitText(content);
+    updateMessages((prev) => [...prev, {
       id: `${Date.now()}-${Math.random()}`,
-      content,
+      content: safeContent,
       role,
       ts: Date.now()
     }]);
-  }, []);
+  }, [limitText, updateMessages]);
   const pauseMicForModelReply = useCallback(() => {
     pendingMicResumeRef.current = true;
     sawAudioRef.current = false;
@@ -790,6 +1106,22 @@ function useVoiceChat(options) {
       }
     }, delay);
   }, [config.micResumeDelayMs]);
+  const scheduleMicResume = useCallback((reason) => {
+    if (micResumeTimerRef.current) {
+      clearTimeout(micResumeTimerRef.current);
+    }
+    const delay = config.micResumeDelayMs ?? 200;
+    micResumeTimerRef.current = setTimeout(() => {
+      micResumeTimerRef.current = null;
+      if (!sessionConnectedRef.current || isMutedRef.current || !isMicEnabledRef.current || isAISpeakingRef.current) {
+        return;
+      }
+      if (!voiceInputRef.current?.isListening) {
+        void voiceInputRef.current?.startMic();
+      }
+    }, delay);
+    emitEvent("mic_resume_scheduled", { reason, delay });
+  }, [config.micResumeDelayMs, emitEvent]);
   const handleMessage = useCallback((msg) => {
     const parseSampleRate = (mimeType) => {
       if (!mimeType) return void 0;
@@ -804,12 +1136,12 @@ function useVoiceChat(options) {
       if (!streamingInputMsgIdRef.current) {
         const id = `input-${Date.now()}-${Math.random()}`;
         streamingInputMsgIdRef.current = id;
-        currentInputTranscriptRef.current = inputTranscript;
-        setMessages((prev) => [...prev, { id, content: inputTranscript, role: "user", ts: Date.now() }]);
+        currentInputTranscriptRef.current = limitText(inputTranscript);
+        updateMessages((prev) => [...prev, { id, content: currentInputTranscriptRef.current, role: "user", ts: Date.now() }]);
       } else {
         const id = streamingInputMsgIdRef.current;
-        currentInputTranscriptRef.current += inputTranscript;
-        setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: m.content + inputTranscript } : m));
+        currentInputTranscriptRef.current = appendWithLimit(currentInputTranscriptRef.current, inputTranscript);
+        updateMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: appendWithLimit(m.content, inputTranscript) } : m));
       }
     }
     if (msg.serverContent?.interrupted) {
@@ -821,9 +1153,9 @@ function useVoiceChat(options) {
     if (msg.serverContent?.generationComplete) {
       setIsLoading(false);
       if (config.replyAsAudio && streamingMsgIdRef.current && currentTranscriptRef.current.trim()) {
-        const cleanTranscript = currentTranscriptRef.current.replace(/\s+/g, " ").trim();
+        const cleanTranscript = limitText(currentTranscriptRef.current.replace(/\s+/g, " ").trim());
         const id = streamingMsgIdRef.current;
-        setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: cleanTranscript } : m));
+        updateMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: cleanTranscript } : m));
         currentTranscriptRef.current = "";
         streamingMsgIdRef.current = null;
       }
@@ -840,56 +1172,66 @@ function useVoiceChat(options) {
         setIsLoading(false);
       }
       if (p.inlineData?.mimeType?.startsWith("audio/") && p.inlineData.data && config.replyAsAudio) {
-        sawAudioRef.current = true;
-        setIsAISpeaking(true);
-        voiceOutputRef.current?.enqueueAudio(p.inlineData.data, parseSampleRate(p.inlineData.mimeType));
+        if (isSpeakerPausedRef.current) {
+          pauseMicForModelReply();
+          emitEvent("audio_output_dropped", { reason: "speaker_paused" });
+        } else {
+          sawAudioRef.current = true;
+          setIsAISpeaking(true);
+          voiceOutputRef.current?.enqueueAudio(p.inlineData.data, parseSampleRate(p.inlineData.mimeType));
+        }
       }
     }
     if (msgAny.data && config.replyAsAudio && !parts.some((p) => p.inlineData?.data)) {
-      sawAudioRef.current = true;
-      setIsAISpeaking(true);
-      voiceOutputRef.current?.enqueueAudio(msgAny.data);
+      if (isSpeakerPausedRef.current) {
+        pauseMicForModelReply();
+        emitEvent("audio_output_dropped", { reason: "speaker_paused" });
+      } else {
+        sawAudioRef.current = true;
+        setIsAISpeaking(true);
+        voiceOutputRef.current?.enqueueAudio(msgAny.data);
+      }
     }
     const transcript = msg.serverContent?.outputTranscription?.text;
     if (transcript && config.replyAsAudio) {
       if (streamingInputMsgIdRef.current && currentInputTranscriptRef.current.trim()) {
-        const cleanInput = currentInputTranscriptRef.current.replace(/\s+/g, " ").trim();
+        const cleanInput = limitText(currentInputTranscriptRef.current.replace(/\s+/g, " ").trim());
         const inputId = streamingInputMsgIdRef.current;
-        setMessages((prev) => prev.map((m) => m.id === inputId ? { ...m, content: cleanInput } : m));
+        updateMessages((prev) => prev.map((m) => m.id === inputId ? { ...m, content: cleanInput } : m));
         streamingInputMsgIdRef.current = null;
         currentInputTranscriptRef.current = "";
       }
       if (!streamingMsgIdRef.current) {
         const id = `${Date.now()}-${Math.random()}`;
         streamingMsgIdRef.current = id;
-        setMessages((prev) => [...prev, { id, content: transcript, role: "model", ts: Date.now() }]);
+        updateMessages((prev) => [...prev, { id, content: limitText(transcript), role: "model", ts: Date.now() }]);
       } else {
         const id = streamingMsgIdRef.current;
-        setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: m.content + transcript } : m));
+        updateMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: appendWithLimit(m.content, transcript) } : m));
       }
-      currentTranscriptRef.current += transcript;
+      currentTranscriptRef.current = appendWithLimit(currentTranscriptRef.current, transcript);
     }
     if (msg.serverContent?.turnComplete && config.replyAsAudio) {
       setIsLoading(false);
       if (streamingInputMsgIdRef.current && currentInputTranscriptRef.current.trim()) {
-        const cleanInput = currentInputTranscriptRef.current.replace(/\s+/g, " ").trim();
+        const cleanInput = limitText(currentInputTranscriptRef.current.replace(/\s+/g, " ").trim());
         const inputId = streamingInputMsgIdRef.current;
-        setMessages((prev) => prev.map((m) => m.id === inputId ? { ...m, content: cleanInput } : m));
+        updateMessages((prev) => prev.map((m) => m.id === inputId ? { ...m, content: cleanInput } : m));
         streamingInputMsgIdRef.current = null;
         currentInputTranscriptRef.current = "";
       }
       if (streamingMsgIdRef.current && currentTranscriptRef.current.trim()) {
-        const cleanTranscript = currentTranscriptRef.current.replace(/\s+/g, " ").trim();
+        const cleanTranscript = limitText(currentTranscriptRef.current.replace(/\s+/g, " ").trim());
         const id = streamingMsgIdRef.current;
-        setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: cleanTranscript } : m));
+        updateMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: cleanTranscript } : m));
       }
       currentTranscriptRef.current = "";
       streamingMsgIdRef.current = null;
-      if (!sawAudioRef.current) {
+      if (!sawAudioRef.current || isSpeakerPausedRef.current) {
         resumeMicIfAllowed();
       }
     }
-  }, [config.replyAsAudio, pushMsg, resumeMicIfAllowed]);
+  }, [config.replyAsAudio, pushMsg, resumeMicIfAllowed, appendWithLimit, updateMessages, limitText, emitEvent, pauseMicForModelReply]);
   const session = useLiveSession({
     config: userConfig,
     apiKey,
@@ -919,6 +1261,9 @@ function useVoiceChat(options) {
     playbackContext: session.playbackContext,
     isPaused: isSpeakerPaused,
     startBufferMs: config.playbackStartDelayMs,
+    maxQueueMs: config.maxOutputQueueMs,
+    maxQueueChunks: config.maxOutputQueueChunks,
+    onEvent: config.onEvent,
     onPlaybackStart: () => {
       setIsAISpeaking(true);
       pendingMicResumeRef.current = true;
@@ -932,6 +1277,9 @@ function useVoiceChat(options) {
   const voiceInput = useVoiceInput({
     session: session.session,
     isEnabled: session.isConnected && !isMuted && isMicEnabled,
+    maxConsecutiveErrors: config.maxConsecutiveInputErrors,
+    errorCooldownMs: config.inputErrorCooldownMs,
+    onEvent: config.onEvent,
     onVoiceStart: () => {
       voiceOutputRef.current?.stopPlayback();
       setIsAISpeaking(false);
@@ -946,6 +1294,65 @@ function useVoiceChat(options) {
   useEffect(() => {
     voiceInputRef.current = voiceInput;
   }, [voiceInput]);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        wasListeningBeforeHideRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
+        voiceInputRef.current?.stopMic();
+        voiceOutputRef.current?.stopPlayback();
+        pendingMicResumeRef.current = false;
+        if (micResumeTimerRef.current) {
+          clearTimeout(micResumeTimerRef.current);
+          micResumeTimerRef.current = null;
+        }
+        emitEvent("visibility_hidden");
+      } else {
+        emitEvent("visibility_visible");
+        if (wasListeningBeforeHideRef.current) {
+          wasListeningBeforeHideRef.current = false;
+          scheduleMicResume("visibility");
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [emitEvent, scheduleMicResume]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleOffline = () => {
+      wasListeningBeforeOfflineRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
+      voiceInputRef.current?.stopMic();
+      voiceOutputRef.current?.stopPlayback();
+      pendingMicResumeRef.current = false;
+      if (micResumeTimerRef.current) {
+        clearTimeout(micResumeTimerRef.current);
+        micResumeTimerRef.current = null;
+      }
+    };
+    const handleOnline = () => {
+      if (wasListeningBeforeOfflineRef.current) {
+        wasListeningBeforeOfflineRef.current = false;
+        scheduleMicResume("online");
+      }
+    };
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [scheduleMicResume]);
+  useEffect(() => {
+    return () => {
+      if (micResumeTimerRef.current) {
+        clearTimeout(micResumeTimerRef.current);
+        micResumeTimerRef.current = null;
+      }
+    };
+  }, []);
   const startMicRef = useRef(voiceInput.startMic);
   useEffect(() => {
     startMicRef.current = voiceInput.startMic;
@@ -975,6 +1382,10 @@ function useVoiceChat(options) {
       voiceInputRef.current?.stopMic();
       voiceOutputRef.current?.stopPlayback();
       pendingMicResumeRef.current = false;
+      if (micResumeTimerRef.current) {
+        clearTimeout(micResumeTimerRef.current);
+        micResumeTimerRef.current = null;
+      }
     }
   }, [session.isConnected]);
   const toggleMute = useCallback(() => {
@@ -1102,7 +1513,7 @@ function ChatBot({ config: userConfig, apiKey }) {
     isAISpeaking,
     micLevel,
     isMuted,
-    isMicEnabled,
+    isMicEnabled: _isMicEnabled,
     isSpeakerPaused,
     messages,
     isLoading,
@@ -1482,6 +1893,6 @@ function ChatBot({ config: userConfig, apiKey }) {
   ] });
 }
 
-export { AUDIO_CONFIG, ChatBot, ChatMessage, DEFAULT_CONFIG, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };
+export { AUDIO_CONFIG, ChatBot, ChatMessage, DEFAULT_CONFIG, STABLE_PRESET, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };
 //# sourceMappingURL=index.mjs.map
 //# sourceMappingURL=index.mjs.map

@@ -35,6 +35,14 @@ interface LiveSession {
  */
 type MessageHandler = (msg: LiveServerMessage) => void;
 /**
+ * Debug/telemetry event emitted by the voice chat hooks
+ */
+interface VoiceChatEvent {
+    type: string;
+    ts: number;
+    data?: Record<string, unknown>;
+}
+/**
  * Theme configuration for the chat component
  */
 interface ChatTheme {
@@ -59,6 +67,8 @@ interface VoiceChatConfig {
     suggestedQuestions?: string[];
     /** localStorage key for session resumption */
     sessionStorageKey?: string;
+    /** Max age for stored session handle (ms); 0 disables TTL */
+    sessionHandleTtlMs?: number;
     /** Whether to reply with audio (default: true) */
     replyAsAudio?: boolean;
     /** Whether to use client-side VAD (default: false, uses server VAD) */
@@ -79,6 +89,18 @@ interface VoiceChatConfig {
     playbackStartDelayMs?: number;
     /** Playback AudioContext sample rate (default: 24000) */
     playbackSampleRate?: number;
+    /** Max number of messages to keep in memory (0 disables cap) */
+    maxMessages?: number;
+    /** Max characters to keep per transcript/message (0 disables cap) */
+    maxTranscriptChars?: number;
+    /** Max queued playback audio in ms before dropping (0 disables cap) */
+    maxOutputQueueMs?: number;
+    /** Max queued playback chunks before dropping (0 disables cap) */
+    maxOutputQueueChunks?: number;
+    /** Max consecutive input send errors before stopping mic */
+    maxConsecutiveInputErrors?: number;
+    /** Cooldown after an input send error (ms) */
+    inputErrorCooldownMs?: number;
     /** Clear stored session handle on mount (default: true) */
     clearSessionOnMount?: boolean;
     /** Voice configuration for native audio output */
@@ -106,6 +128,8 @@ interface VoiceChatConfig {
     theme?: ChatTheme;
     /** Title shown in the chat header */
     chatTitle?: string;
+    /** Optional debug/event hook */
+    onEvent?: (event: VoiceChatEvent) => void;
 }
 /**
  * API handler configuration
@@ -119,4 +143,4 @@ interface ChatHandlerConfig {
     modelAcknowledgment?: string;
 }
 
-export type { ChatMessage as C, LiveSession as L, MessageHandler as M, VoiceChatConfig as V, ChatRole as a, ChatTheme as b, ChatHandlerConfig as c };
+export type { ChatMessage as C, LiveSession as L, MessageHandler as M, VoiceChatConfig as V, VoiceChatEvent as a, ChatRole as b, ChatTheme as c, ChatHandlerConfig as d };

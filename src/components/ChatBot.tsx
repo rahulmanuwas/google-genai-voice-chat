@@ -1,6 +1,6 @@
 // src/components/ChatBot.tsx
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import type { VoiceChatConfig } from '../lib/types';
 import { mergeConfig } from '../lib/constants';
 import { useVoiceChat } from '../hooks/useVoiceChat';
@@ -24,7 +24,7 @@ export function ChatBot({ config: userConfig, apiKey }: ChatBotProps) {
         isAISpeaking,
         micLevel,
         isMuted,
-        isMicEnabled,
+        isMicEnabled: _isMicEnabled,
         isSpeakerPaused,
         messages,
         isLoading,

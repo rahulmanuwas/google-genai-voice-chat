@@ -6,7 +6,7 @@ import { StartSensitivity, EndSensitivity } from '@google/genai';
 /**
  * Default configuration values
  */
-export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId'>> & { theme: NonNullable<VoiceChatConfig['theme']> } = {
+export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId' | 'onEvent'>> & { theme: NonNullable<VoiceChatConfig['theme']> } = {
     welcomeMessage: 'Hello! How can I help you today?',
     suggestedQuestions: [],
     sessionStorageKey: 'genai-voice-chat-session',
@@ -37,7 +37,6 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     welcomeAudioPrompt: '',
     autoStartMicOnConnect: true,
     chatTitle: 'AI Assistant',
-    onEvent: undefined,
     theme: {
         primaryColor: '#2563eb',
         position: 'bottom-right',
@@ -73,7 +72,7 @@ export const STABLE_PRESET: Partial<VoiceChatConfig> = {
 /**
  * Merge user config with defaults
  */
-export function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceChatConfig, 'theme'>> & { theme: NonNullable<VoiceChatConfig['theme']> } {
+export function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceChatConfig, 'theme' | 'onEvent'>> & { theme: NonNullable<VoiceChatConfig['theme']>; onEvent?: VoiceChatConfig['onEvent'] } {
     return {
         ...DEFAULT_CONFIG,
         ...userConfig,
