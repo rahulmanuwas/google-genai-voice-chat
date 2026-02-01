@@ -4,7 +4,7 @@
  * Unified hook for voice chat that orchestrates session, input, and output
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import type { LiveServerMessage } from '@google/genai';
 import type { ChatMessage, ChatRole, VoiceChatConfig, VoiceChatStats } from '../lib/types';
 import { mergeConfig } from '../lib/constants';
@@ -49,7 +49,7 @@ interface UseVoiceChatReturn {
 
 export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     const { config: userConfig, apiKey, getApiKey } = options;
-    const config = mergeConfig(userConfig);
+    const config = useMemo(() => mergeConfig(userConfig), [userConfig]);
 
     // Message state
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -102,6 +102,40 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     // Input transcription handling (user's speech)
     const currentInputTranscriptRef = useRef('');
     const streamingInputMsgIdRef = useRef<string | null>(null);
+    const pendingUpdatesRef = useRef(false);
+    
+    // Throttled UI updates for streaming text
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (pendingUpdatesRef.current) {
+                pendingUpdatesRef.current = false;
+                
+                updateMessages(prev => {
+                    let next = prev;
+                    
+                    // Update model streaming message
+                    if (streamingMsgIdRef.current) {
+                        const id = streamingMsgIdRef.current;
+                        const content = limitText(currentTranscriptRef.current);
+                        // Only update if content changed or it's a new message not yet in state
+                        // Actually, just mapping is safer to ensure sync
+                        next = next.map(m => m.id === id ? { ...m, content } : m);
+                    }
+                    
+                    // Update user streaming message
+                    if (streamingInputMsgIdRef.current) {
+                        const id = streamingInputMsgIdRef.current;
+                        const content = limitText(currentInputTranscriptRef.current);
+                        next = next.map(m => m.id === id ? { ...m, content } : m);
+                    }
+                    
+                    return next;
+                });
+            }
+        }, 50);
+        return () => clearInterval(interval);
+    }, [updateMessages, limitText]);
+
     const pendingMicResumeRef = useRef(false);
     const sessionConnectedRef = useRef(false);
     const welcomeSentRef = useRef(false);
@@ -517,7 +551,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             }, config.sessionInitDelayMs);
             return () => clearTimeout(timer);
         }
-    }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs]);
+    }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs, config.autoStartMicOnConnect]);
 
     useEffect(() => {
         if (
@@ -579,7 +613,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             setIsMicEnabled(true);
             void voiceInput.startMic();
         }
-    }, [voiceInput, session.isConnected, isMuted]);
+    }, [voiceInput, session.isConnected, isMuted, session.playbackContext]);
 
     // Toggle speaker
     const toggleSpeaker = useCallback(() => {
@@ -639,7 +673,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
                 contextState: outputStats.contextState,
             },
         };
-    }, [session.isConnected, session.isReconnecting, session.getStats, voiceInput.isListening, voiceInput.getStats, voiceOutput.isPlaying, voiceOutput.getStats]);
+    }, [session, voiceInput, voiceOutput]);
 
     return {
         // Connection

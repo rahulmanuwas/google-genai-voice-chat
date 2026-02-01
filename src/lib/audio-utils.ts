@@ -19,8 +19,13 @@ export const PLAYBACK_COMPLETE_DELAY_MS = 200;
 export function float32ToPCM16(float32: Float32Array): Int16Array {
     const out = new Int16Array(float32.length);
     for (let i = 0; i < float32.length; i++) {
-        const s = Math.max(-1, Math.min(1, float32[i]));
-        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        const s = float32[i];
+        if (isNaN(s)) {
+            out[i] = 0;
+            continue;
+        }
+        const clamped = s < -1 ? -1 : s > 1 ? 1 : s;
+        out[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
     }
     return out;
 }
@@ -40,11 +45,17 @@ export function pcm16ToFloat32(pcm16: Int16Array): Float32Array {
  * Convert Uint8Array to base64 string
  */
 export function uint8ToBase64(u8: Uint8Array): string {
-    let s = '';
-    for (let i = 0; i < u8.length; i++) {
-        s += String.fromCharCode(u8[i]);
+    const CHUNK_SIZE = 0x8000; // 32KB chunks
+    let index = 0;
+    const length = u8.length;
+    let result = '';
+
+    while (index < length) {
+        const slice = u8.subarray(index, Math.min(index + CHUNK_SIZE, length));
+        result += String.fromCharCode.apply(null, Array.from(slice));
+        index += CHUNK_SIZE;
     }
-    return btoa(s);
+    return btoa(result);
 }
 
 /**

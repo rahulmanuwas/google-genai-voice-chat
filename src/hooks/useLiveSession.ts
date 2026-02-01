@@ -4,7 +4,7 @@
  * Hook for managing Gemini Live API session lifecycle
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
     GoogleGenAI,
     Modality,
@@ -46,7 +46,7 @@ interface UseLiveSessionReturn {
 
 export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionReturn {
     const { config: userConfig, apiKey, getApiKey, onMessage, onConnected, onDisconnected, onError, onSystemMessage } = options;
-    const config = mergeConfig(userConfig);
+    const config = useMemo(() => mergeConfig(userConfig), [userConfig]);
 
     const [isConnected, setIsConnected] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
@@ -266,6 +266,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         try {
             resolvedKey = await resolveApiKey();
         } catch (e) {
+            void e;
             onErrorRef.current?.('AI Assistant unavailable. Please check configuration.');
             emitEvent('session_connect_error', { reason: 'token_provider_failed' });
             return false;
@@ -694,7 +695,14 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         }
     }, []);
 
-    return {
+    const getStats = useCallback(() => ({
+        reconnectAttempts: reconnectAttemptsRef.current,
+        lastConnectAttemptAt: lastConnectAttemptAtRef.current,
+        lastDisconnectCode: lastDisconnectRef.current?.code ?? null,
+        lastDisconnectReason: lastDisconnectRef.current?.reason ?? null,
+    }), []);
+
+    return useMemo(() => ({
         session: sessionRef.current,
         isConnected,
         isReconnecting,
@@ -703,11 +711,6 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         disconnect,
         sendText,
         playbackContext: playCtxRef.current,
-        getStats: () => ({
-            reconnectAttempts: reconnectAttemptsRef.current,
-            lastConnectAttemptAt: lastConnectAttemptAtRef.current,
-            lastDisconnectCode: lastDisconnectRef.current?.code ?? null,
-            lastDisconnectReason: lastDisconnectRef.current?.reason ?? null,
-        }),
-    };
+        getStats,
+    }), [isConnected, isReconnecting, sessionHandle, connect, disconnect, sendText, getStats]);
 }
