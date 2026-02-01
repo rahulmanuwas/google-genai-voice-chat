@@ -10,6 +10,7 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     welcomeMessage: 'Hello! How can I help you today?',
     suggestedQuestions: [],
     sessionStorageKey: 'genai-voice-chat-session',
+    sessionHandleTtlMs: 6 * 60 * 60 * 1000,
     replyAsAudio: true,
     useClientVAD: false,
     serverVADPrefixPaddingMs: 500,
@@ -17,9 +18,15 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     serverVADStartSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
     serverVADEndSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
     sessionInitDelayMs: 300,
-    micResumeDelayMs: 200,
-    playbackStartDelayMs: 0,
+    micResumeDelayMs: 600,
+    playbackStartDelayMs: 120,
     playbackSampleRate: 24000,
+    maxMessages: 200,
+    maxTranscriptChars: 6000,
+    maxOutputQueueMs: 15000,
+    maxOutputQueueChunks: 200,
+    maxConsecutiveInputErrors: 3,
+    inputErrorCooldownMs: 750,
     clearSessionOnMount: true,
     speechConfig: {},
     thinkingConfig: {},
@@ -30,6 +37,7 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     welcomeAudioPrompt: '',
     autoStartMicOnConnect: true,
     chatTitle: 'AI Assistant',
+    onEvent: undefined,
     theme: {
         primaryColor: '#2563eb',
         position: 'bottom-right',
@@ -52,6 +60,15 @@ export const AUDIO_CONFIG = {
     /** Audio MIME type for playback */
     OUTPUT_MIME_TYPE: 'audio/pcm;rate=24000',
 } as const;
+
+/**
+ * Stable preset tuned for smoother playback and mic transitions.
+ * Use as: mergeConfig({ ...STABLE_PRESET, ...yourConfig })
+ */
+export const STABLE_PRESET: Partial<VoiceChatConfig> = {
+    micResumeDelayMs: 600,
+    playbackStartDelayMs: 120,
+};
 
 /**
  * Merge user config with defaults

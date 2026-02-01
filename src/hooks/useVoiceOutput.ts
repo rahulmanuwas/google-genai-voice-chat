@@ -7,11 +7,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { OUTPUT_SAMPLE_RATE, PLAYBACK_COMPLETE_DELAY_MS, base64ToPCM16, pcm16ToFloat32 } from '../lib/audio-utils';
+import type { VoiceChatEvent } from '../lib/types';
 
 interface UseVoiceOutputOptions {
     playbackContext: AudioContext | null;
     isPaused: boolean;
     startBufferMs?: number;
+    maxQueueMs?: number;
+    maxQueueChunks?: number;
+    onEvent?: (event: VoiceChatEvent) => void;
     onPlaybackStart?: () => void;
     onPlaybackComplete?: () => void;
 }
@@ -24,15 +28,18 @@ interface UseVoiceOutputReturn {
 }
 
 export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputReturn {
-    const { playbackContext, isPaused, startBufferMs, onPlaybackStart, onPlaybackComplete } = options;
+    const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, onEvent, onPlaybackStart, onPlaybackComplete } = options;
 
     const [isPlaying, setIsPlaying] = useState(false);
 
     // Audio queue and state refs
-    const playQueueRef = useRef<Array<{ pcm: Int16Array; sampleRate: number }>>([]);
+    const playQueueRef = useRef<Array<{ pcm: Int16Array; sampleRate: number; durationMs: number }>>([]);
     const isDrainingRef = useRef(false);
     const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const scheduledEndTimeRef = useRef(0);
+    const completeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const queuedMsRef = useRef(0);
+    const queuedChunksRef = useRef(0);
 
     // Callback refs
     const onPlaybackStartRef = useRef(onPlaybackStart);
@@ -41,6 +48,9 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     const isPausedRef = useRef(isPaused);
     const isPlayingRef = useRef(isPlaying);
     const startBufferMsRef = useRef(startBufferMs ?? 0);
+    const maxQueueMsRef = useRef(maxQueueMs ?? 0);
+    const maxQueueChunksRef = useRef(maxQueueChunks ?? 0);
+    const onEventRef = useRef(onEvent);
 
     // Keep refs updated
     useEffect(() => { onPlaybackStartRef.current = onPlaybackStart; }, [onPlaybackStart]);
@@ -49,9 +59,23 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
     useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
     useEffect(() => { startBufferMsRef.current = startBufferMs ?? 0; }, [startBufferMs]);
+    useEffect(() => { maxQueueMsRef.current = maxQueueMs ?? 0; }, [maxQueueMs]);
+    useEffect(() => { maxQueueChunksRef.current = maxQueueChunks ?? 0; }, [maxQueueChunks]);
+    useEffect(() => { onEventRef.current = onEvent; }, [onEvent]);
+
+    const emitEvent = useCallback((type: string, data?: Record<string, unknown>) => {
+        onEventRef.current?.({ type, ts: Date.now(), data });
+    }, []);
 
     // Use a ref for recursive scheduling to avoid circular dependency
     const scheduleChunksRef = useRef<() => void>(() => { });
+
+    const clearCompleteTimer = useCallback(() => {
+        if (completeTimerRef.current) {
+            clearTimeout(completeTimerRef.current);
+            completeTimerRef.current = null;
+        }
+    }, []);
 
     // Define scheduleChunks implementation
     useEffect(() => {
@@ -69,7 +93,8 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
                 scheduledEndTimeRef.current = 0;
 
                 // Delay callback to allow for more chunks
-                setTimeout(() => {
+                clearCompleteTimer();
+                completeTimerRef.current = setTimeout(() => {
                     if (playQueueRef.current.length === 0) {
                         setIsPlaying(false);
                         onPlaybackCompleteRef.current?.();
@@ -86,10 +111,14 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
             }
             const targetRate = first.sampleRate;
             const chunks = [first.pcm];
+            queuedMsRef.current = Math.max(0, queuedMsRef.current - first.durationMs);
+            queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
             while (playQueueRef.current.length > 0 && playQueueRef.current[0].sampleRate === targetRate) {
                 const next = playQueueRef.current.shift();
                 if (!next) break;
                 chunks.push(next.pcm);
+                queuedMsRef.current = Math.max(0, queuedMsRef.current - next.durationMs);
+                queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
             }
             let totalLength = 0;
             for (const chunk of chunks) {
@@ -130,7 +159,8 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
                     scheduleChunksRef.current();
                 } else {
                     // Wait a bit for more chunks
-                    setTimeout(() => {
+                    clearCompleteTimer();
+                    completeTimerRef.current = setTimeout(() => {
                         if (playQueueRef.current.length > 0) {
                             scheduleChunksRef.current();
                         } else {
@@ -147,7 +177,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         };
 
         scheduleChunksRef.current = scheduleChunks;
-    }, []);
+    }, [clearCompleteTimer]);
 
     const drainQueue = useCallback(() => {
         const ctx = playCtxRef.current;
@@ -179,6 +209,9 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         playQueueRef.current = [];
         isDrainingRef.current = false;
         scheduledEndTimeRef.current = 0;
+        clearCompleteTimer();
+        queuedMsRef.current = 0;
+        queuedChunksRef.current = 0;
         setIsPlaying(false);
 
         // Note: Don't call onPlaybackComplete here - that's for natural completion only
@@ -187,24 +220,61 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         if (playCtxRef.current && playCtxRef.current.state === 'running') {
             playCtxRef.current.suspend().catch(console.warn);
         }
-    }, []);
+    }, [clearCompleteTimer]);
 
     const clearQueue = useCallback(() => {
         playQueueRef.current = [];
-    }, []);
+        queuedMsRef.current = 0;
+        queuedChunksRef.current = 0;
+        clearCompleteTimer();
+    }, [clearCompleteTimer]);
 
     const enqueueAudio = useCallback((base64Data: string, sampleRate?: number) => {
-        if (isPausedRef.current) return;
+        if (isPausedRef.current) {
+            emitEvent('audio_output_dropped', { reason: 'speaker_paused' });
+            return;
+        }
 
         try {
             const pcm16 = base64ToPCM16(base64Data);
 
             if (pcm16.length > 0) {
-                const targetRate = sampleRate ?? OUTPUT_SAMPLE_RATE;
+                const targetRate = Number.isFinite(sampleRate) && (sampleRate ?? 0) > 0 ? (sampleRate as number) : OUTPUT_SAMPLE_RATE;
                 // Clone to avoid buffer reuse issues
                 const chunk = new Int16Array(pcm16.length);
                 chunk.set(pcm16);
-                playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate });
+                const durationMs = (chunk.length / targetRate) * 1000;
+                playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate, durationMs });
+                queuedMsRef.current += durationMs;
+                queuedChunksRef.current += 1;
+
+                const maxMs = maxQueueMsRef.current;
+                const maxChunks = maxQueueChunksRef.current;
+                let droppedChunks = 0;
+                let droppedMs = 0;
+
+                while (
+                    (maxMs > 0 && queuedMsRef.current > maxMs) ||
+                    (maxChunks > 0 && queuedChunksRef.current > maxChunks)
+                ) {
+                    const dropped = playQueueRef.current.shift();
+                    if (!dropped) break;
+                    queuedMsRef.current = Math.max(0, queuedMsRef.current - dropped.durationMs);
+                    queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
+                    droppedChunks += 1;
+                    droppedMs += dropped.durationMs;
+                }
+
+                if (droppedChunks > 0) {
+                    emitEvent('audio_output_queue_overflow', {
+                        droppedChunks,
+                        droppedMs,
+                        queueMs: queuedMsRef.current,
+                        queueChunks: queuedChunksRef.current,
+                    });
+                }
+
+                clearCompleteTimer();
 
                 // Signal playback started
                 if (!isPlayingRef.current) {
@@ -220,7 +290,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         } catch (e) {
             console.error('Failed to enqueue audio:', e);
         }
-    }, [drainQueue]);
+    }, [drainQueue, clearCompleteTimer, emitEvent]);
 
     // Handle pause state changes
     const stopPlaybackRef = useRef(stopPlayback);
@@ -244,8 +314,11 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
             }
             playQueueRef.current = [];
             isDrainingRef.current = false;
+            queuedMsRef.current = 0;
+            queuedChunksRef.current = 0;
+            clearCompleteTimer();
         };
-    }, []);
+    }, [clearCompleteTimer]);
 
     return {
         isPlaying,

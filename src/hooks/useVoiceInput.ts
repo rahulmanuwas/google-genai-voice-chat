@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LiveSession } from '../lib/types';
+import type { LiveSession, VoiceChatEvent } from '../lib/types';
 import { INPUT_SAMPLE_RATE, encodeAudioToBase64, calculateRMSLevel } from '../lib/audio-utils';
 
 // Microphone settings
@@ -16,6 +16,9 @@ const MIC_CHANNELS = 1;
 interface UseVoiceInputOptions {
     session: LiveSession | null;
     isEnabled: boolean;
+    maxConsecutiveErrors?: number;
+    errorCooldownMs?: number;
+    onEvent?: (event: VoiceChatEvent) => void;
     onVoiceStart?: () => void;
     onVoiceEnd?: () => void;
     onError?: (error: string) => void;
@@ -29,7 +32,7 @@ interface UseVoiceInputReturn {
 }
 
 export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputReturn {
-    const { session, isEnabled, onVoiceStart, onVoiceEnd, onError } = options;
+    const { session, isEnabled, maxConsecutiveErrors, errorCooldownMs, onEvent, onVoiceStart, onVoiceEnd, onError } = options;
 
     const [isListening, setIsListening] = useState(false);
     const [micLevel, setMicLevel] = useState(0);
@@ -41,6 +44,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     const micStreamRef = useRef<MediaStream | null>(null);
     const micSilenceGainRef = useRef<GainNode | null>(null);
     const lastMicLevelUpdateRef = useRef(0);
+    const sendErrorStreakRef = useRef(0);
+    const sendBlockedUntilRef = useRef(0);
+    const maxConsecutiveErrorsRef = useRef(maxConsecutiveErrors ?? 3);
+    const errorCooldownMsRef = useRef(errorCooldownMs ?? 750);
+    const onEventRef = useRef(onEvent);
 
     // Refs for state that needs to be accessed in callbacks
     const isListeningRef = useRef(false);
@@ -56,6 +64,13 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     useEffect(() => { onVoiceStartRef.current = onVoiceStart; }, [onVoiceStart]);
     useEffect(() => { onVoiceEndRef.current = onVoiceEnd; }, [onVoiceEnd]);
     useEffect(() => { onErrorRef.current = onError; }, [onError]);
+    useEffect(() => { maxConsecutiveErrorsRef.current = maxConsecutiveErrors ?? 3; }, [maxConsecutiveErrors]);
+    useEffect(() => { errorCooldownMsRef.current = errorCooldownMs ?? 750; }, [errorCooldownMs]);
+    useEffect(() => { onEventRef.current = onEvent; }, [onEvent]);
+
+    const emitEvent = useCallback((type: string, data?: Record<string, unknown>) => {
+        onEventRef.current?.({ type, ts: Date.now(), data });
+    }, []);
 
     const cleanup = useCallback(() => {
         try { micProcRef.current?.disconnect(); } catch (e) { void e; }
@@ -74,6 +89,8 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
         isListeningRef.current = false;
         setIsListening(false);
         setMicLevel(0);
+        sendErrorStreakRef.current = 0;
+        sendBlockedUntilRef.current = 0;
     }, []);
 
     const stopMic = useCallback((): void => {
@@ -89,8 +106,9 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
         }
 
         cleanup();
+        emitEvent('mic_stopped');
         onVoiceEndRef.current?.();
-    }, [cleanup]);
+    }, [cleanup, emitEvent]);
 
     const startMic = useCallback(async (): Promise<void> => {
         if (!sessionRef.current || isListeningRef.current) {
@@ -133,9 +151,13 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
                 if (!micCtxRef.current || !isListeningRef.current) return;
 
                 const inputData = event.inputBuffer.getChannelData(0);
+                const now = performance.now();
+
+                if (now < sendBlockedUntilRef.current) {
+                    return;
+                }
 
                 // Calculate and smooth mic level for visual feedback
-                const now = performance.now();
                 if (now - lastMicLevelUpdateRef.current > 50) {
                     lastMicLevelUpdateRef.current = now;
                     const rms = calculateRMSLevel(inputData);
@@ -150,9 +172,20 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
 
                 try {
                     sessionRef.current?.sendRealtimeInput({ audio: { data, mimeType } });
+                    sendErrorStreakRef.current = 0;
                 } catch (err) {
                     console.error('sendRealtimeInput error:', err);
-                    onErrorRef.current?.('Audio streaming error');
+                    sendErrorStreakRef.current += 1;
+                    sendBlockedUntilRef.current = now + errorCooldownMsRef.current;
+                    emitEvent('audio_input_send_error', {
+                        streak: sendErrorStreakRef.current,
+                        error: (err as Error).message,
+                    });
+                    if (sendErrorStreakRef.current >= maxConsecutiveErrorsRef.current) {
+                        emitEvent('audio_input_stream_halted', { reason: 'too_many_errors' });
+                        onErrorRef.current?.('Audio streaming unstable. Please reconnect.');
+                        setTimeout(() => stopMicRef.current(), 0);
+                    }
                 }
             };
 
@@ -166,15 +199,19 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
 
             isListeningRef.current = true;
             setIsListening(true);
+            sendErrorStreakRef.current = 0;
+            sendBlockedUntilRef.current = 0;
+            emitEvent('mic_started');
 
             console.log(`Microphone started at ${micCtxRef.current.sampleRate}Hz`);
             onVoiceStartRef.current?.();
         } catch (err) {
             console.error('Mic start failed:', err);
             cleanup();
+            emitEvent('mic_error', { error: (err as Error).message });
             onErrorRef.current?.(`Microphone error: ${(err as Error).message}`);
         }
-    }, [cleanup]);
+    }, [cleanup, emitEvent]);
 
     // Stop mic when disabled - use ref to avoid effect dependency warning
     const stopMicRef = useRef(stopMic);

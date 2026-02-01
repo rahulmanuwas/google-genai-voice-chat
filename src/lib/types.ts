@@ -33,6 +33,15 @@ export interface LiveSession {
 export type MessageHandler = (msg: LiveServerMessage) => void;
 
 /**
+ * Debug/telemetry event emitted by the voice chat hooks
+ */
+export interface VoiceChatEvent {
+    type: string;
+    ts: number;
+    data?: Record<string, unknown>;
+}
+
+/**
  * Theme configuration for the chat component
  */
 export interface ChatTheme {
@@ -61,6 +70,9 @@ export interface VoiceChatConfig {
 
     /** localStorage key for session resumption */
     sessionStorageKey?: string;
+
+    /** Max age for stored session handle (ms); 0 disables TTL */
+    sessionHandleTtlMs?: number;
 
     /** Whether to reply with audio (default: true) */
     replyAsAudio?: boolean;
@@ -91,6 +103,24 @@ export interface VoiceChatConfig {
 
     /** Playback AudioContext sample rate (default: 24000) */
     playbackSampleRate?: number;
+
+    /** Max number of messages to keep in memory (0 disables cap) */
+    maxMessages?: number;
+
+    /** Max characters to keep per transcript/message (0 disables cap) */
+    maxTranscriptChars?: number;
+
+    /** Max queued playback audio in ms before dropping (0 disables cap) */
+    maxOutputQueueMs?: number;
+
+    /** Max queued playback chunks before dropping (0 disables cap) */
+    maxOutputQueueChunks?: number;
+
+    /** Max consecutive input send errors before stopping mic */
+    maxConsecutiveInputErrors?: number;
+
+    /** Cooldown after an input send error (ms) */
+    inputErrorCooldownMs?: number;
 
     /** Clear stored session handle on mount (default: true) */
     clearSessionOnMount?: boolean;
@@ -130,6 +160,9 @@ export interface VoiceChatConfig {
 
     /** Title shown in the chat header */
     chatTitle?: string;
+
+    /** Optional debug/event hook */
+    onEvent?: (event: VoiceChatEvent) => void;
 }
 
 /**

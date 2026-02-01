@@ -15,6 +15,7 @@ export type {
     ChatMessage as ChatMessageType,
     ChatRole,
     VoiceChatConfig,
+    VoiceChatEvent,
     ChatTheme,
     ChatHandlerConfig,
     LiveSession,
@@ -22,4 +23,4 @@ export type {
 } from './lib/types';
 
 // Utilities
-export { mergeConfig, DEFAULT_CONFIG, AUDIO_CONFIG } from './lib/constants';
+export { mergeConfig, DEFAULT_CONFIG, AUDIO_CONFIG, STABLE_PRESET } from './lib/constants';

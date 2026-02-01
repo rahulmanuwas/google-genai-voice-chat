@@ -48,6 +48,13 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     const sessionRef = useRef<LiveSession | null>(null);
     const playCtxRef = useRef<AudioContext | null>(null);
     const isReconnectingRef = useRef(false);
+    const sessionHandleRef = useRef<string | null>(null);
+    const isConnectedRef = useRef(false);
+    const connectPromiseRef = useRef<Promise<void> | null>(null);
+    const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const closeReasonRef = useRef<'none' | 'intentional' | 'offline'>('none');
+    const offlineRef = useRef(false);
+    const shouldReconnectRef = useRef(false);
 
     // Keep callbacks in refs to avoid stale closures
     const onMessageRef = useRef(onMessage);
@@ -61,12 +68,19 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     useEffect(() => { onDisconnectedRef.current = onDisconnected; }, [onDisconnected]);
     useEffect(() => { onErrorRef.current = onError; }, [onError]);
     useEffect(() => { onSystemMessageRef.current = onSystemMessage; }, [onSystemMessage]);
+    useEffect(() => { sessionHandleRef.current = sessionHandle; }, [sessionHandle]);
+    useEffect(() => { isConnectedRef.current = isConnected; }, [isConnected]);
+
+    const emitEvent = useCallback((type: string, data?: Record<string, unknown>) => {
+        config.onEvent?.({ type, ts: Date.now(), data });
+    }, [config.onEvent]);
 
     // Session handle lifecycle on mount
     useEffect(() => {
+        const storageKey = config.sessionStorageKey;
         if (config.clearSessionOnMount !== false) {
             try {
-                localStorage.removeItem(config.sessionStorageKey);
+                localStorage.removeItem(storageKey);
                 console.log('Cleared stored session handle on mount');
             } catch (e) {
                 console.warn('Failed to clear stored session handle:', e);
@@ -75,38 +89,86 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         }
 
         try {
-            const stored = localStorage.getItem(config.sessionStorageKey);
-            if (stored) {
-                setSessionHandle(stored);
-                console.log('Loaded stored session handle');
+            const stored = localStorage.getItem(storageKey);
+            if (!stored) return;
+
+            let handle: string | null = null;
+            let ts = 0;
+
+            try {
+                const parsed = JSON.parse(stored) as { handle?: unknown; ts?: unknown };
+                if (parsed && typeof parsed.handle === 'string') {
+                    handle = parsed.handle;
+                    ts = typeof parsed.ts === 'number' ? parsed.ts : Date.now();
+                }
+            } catch {
+                handle = stored;
+                ts = Date.now();
             }
+
+            if (!handle) return;
+
+            const ttl = config.sessionHandleTtlMs ?? 0;
+            if (ttl > 0 && Date.now() - ts > ttl) {
+                localStorage.removeItem(storageKey);
+                emitEvent('session_handle_expired', { ttlMs: ttl });
+                console.log('Stored session handle expired');
+                return;
+            }
+
+            setSessionHandle(handle);
+            console.log('Loaded stored session handle');
         } catch (e) {
             console.warn('Failed to load stored session handle:', e);
         }
-    }, [config.sessionStorageKey, config.clearSessionOnMount]);
+    }, [config.sessionStorageKey, config.clearSessionOnMount, config.sessionHandleTtlMs, emitEvent]);
 
     const storeSessionHandle = useCallback((handle: string) => {
         setSessionHandle(handle);
         try {
-            localStorage.setItem(config.sessionStorageKey, handle);
+            const payload = JSON.stringify({ handle, ts: Date.now() });
+            localStorage.setItem(config.sessionStorageKey, payload);
             console.log('Session handle stored for resumption');
+            emitEvent('session_handle_stored');
         } catch (e) {
             console.warn('Failed to store session handle:', e);
         }
-    }, [config.sessionStorageKey]);
+    }, [config.sessionStorageKey, emitEvent]);
 
     const clearSessionHandle = useCallback(() => {
         setSessionHandle(null);
         try {
             localStorage.removeItem(config.sessionStorageKey);
             console.log('Session handle cleared');
+            emitEvent('session_handle_cleared');
         } catch (e) {
             console.warn('Failed to clear session handle:', e);
         }
-    }, [config.sessionStorageKey]);
+    }, [config.sessionStorageKey, emitEvent]);
 
     // Ref for attemptReconnection to avoid circular dependency
     const attemptReconnectionRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
+
+    const clearReconnectTimer = useCallback(() => {
+        if (reconnectTimerRef.current) {
+            clearTimeout(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+        }
+    }, []);
+
+    const scheduleReconnect = useCallback((reason: string, delayMs: number) => {
+        if (isReconnectingRef.current) return;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+
+        clearReconnectTimer();
+        isReconnectingRef.current = true;
+        setIsReconnecting(true);
+        emitEvent('session_reconnect_scheduled', { reason, delayMs });
+
+        reconnectTimerRef.current = setTimeout(() => {
+            void attemptReconnectionRef.current();
+        }, Math.max(0, delayMs));
+    }, [clearReconnectTimer, emitEvent]);
 
     const handleInternalMessage = useCallback((msg: LiveServerMessage) => {
         // Handle session resumption updates
@@ -121,20 +183,13 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             console.warn('GoAway received, connection will terminate in:', msg.goAway.timeLeft);
             onSystemMessageRef.current?.(`Connection will terminate in ${msg.goAway.timeLeft}`);
 
-            if (!isReconnectingRef.current) {
-                isReconnectingRef.current = true;
-                setIsReconnecting(true);
-
-                const delay = Math.max(1000, parseInt(msg.goAway.timeLeft?.replace(/[^0-9]/g, '') || '5000') - 2000);
-                setTimeout(() => {
-                    void attemptReconnectionRef.current();
-                }, delay);
-            }
+            const delay = Math.max(1000, parseInt(msg.goAway.timeLeft?.replace(/[^0-9]/g, '') || '5000') - 2000);
+            scheduleReconnect('goaway', delay);
         }
 
         // Forward to external handler
         onMessageRef.current?.(msg);
-    }, [storeSessionHandle]);
+    }, [storeSessionHandle, scheduleReconnect]);
 
     const ensurePlaybackContext = useCallback(() => {
         if (!playCtxRef.current || playCtxRef.current.state === 'closed') {
@@ -150,10 +205,11 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         }
     }, [config.playbackSampleRate]);
 
-    const initializeSession = useCallback(async (resumptionHandle?: string): Promise<void> => {
+    const initializeSession = useCallback(async (resumptionHandle?: string | null): Promise<boolean> => {
         if (!apiKey) {
             onErrorRef.current?.('AI Assistant unavailable. Please check configuration.');
-            return;
+            emitEvent('session_connect_error', { reason: 'missing_api_key' });
+            return false;
         }
 
         try {
@@ -163,6 +219,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             ensurePlaybackContext();
 
             console.log('Connecting to Google GenAI Live...', { model: config.modelId, hasResumption: !!resumptionHandle });
+            emitEvent('session_connect_start', { hasResumption: !!resumptionHandle });
 
             const hasKeys = (obj?: Record<string, unknown>) => !!obj && Object.keys(obj).length > 0;
             const session = await ai.live.connect({
@@ -201,31 +258,64 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                         setIsConnected(true);
                         setIsReconnecting(false);
                         isReconnectingRef.current = false;
+                        clearReconnectTimer();
+                        shouldReconnectRef.current = true;
+                        offlineRef.current = false;
+                        emitEvent('session_connected');
                         onConnectedRef.current?.();
                     },
                     onmessage: handleInternalMessage,
                     onerror: (err: Event | string) => {
                         console.error('Google GenAI Live error:', err);
                         setIsConnected(false);
+                        emitEvent('session_error', { error: typeof err === 'string' ? err : 'Connection error' });
                         onErrorRef.current?.(typeof err === 'string' ? err : 'Connection error');
                     },
                     onclose: (event) => {
                         const code = event?.code || 0;
                         const reason = event?.reason || '';
+                        const closeReason = closeReasonRef.current;
+                        closeReasonRef.current = 'none';
                         console.log('Connection closed - Code:', code, 'Reason:', reason);
+                        emitEvent('session_closed', { code, reason, closeReason });
                         setIsConnected(false);
 
-                        if (code !== 1000) {
-                            let errorMsg = 'AI Assistant disconnected';
-                            if (code === 1008 && reason.includes('session not found')) {
-                                errorMsg = 'Session could not be established. Please refresh.';
-                                clearSessionHandle();
-                            } else if (code === 1008 || reason.includes('API key')) {
-                                errorMsg = 'API key may not have Live API access.';
-                            } else if (code === 1013 || reason.includes('quota')) {
-                                errorMsg = 'Usage limits reached.';
-                            }
+                        if (closeReason === 'intentional') {
+                            onDisconnectedRef.current?.();
+                            return;
+                        }
+
+                        if (closeReason === 'offline') {
+                            onDisconnectedRef.current?.();
+                            return;
+                        }
+
+                        let errorMsg: string | null = null;
+                        let shouldReconnect = code !== 1000;
+
+                        if (code === 1008 && reason.includes('session not found')) {
+                            errorMsg = 'Session expired. Reconnecting...';
+                            clearSessionHandle();
+                        } else if (code === 1008 || reason.includes('API key')) {
+                            errorMsg = 'API key may not have Live API access.';
+                            shouldReconnect = false;
+                        } else if (code === 1013 || reason.includes('quota')) {
+                            errorMsg = 'Usage limits reached.';
+                            shouldReconnect = false;
+                        } else if (code !== 1000) {
+                            errorMsg = 'AI Assistant disconnected';
+                        }
+
+                        if (errorMsg) {
                             onErrorRef.current?.(errorMsg);
+                        }
+
+                        if (!shouldReconnect) {
+                            shouldReconnectRef.current = false;
+                        }
+
+                        if (shouldReconnect && !isReconnectingRef.current) {
+                            scheduleReconnect('close', 1500);
                         }
 
                         onDisconnectedRef.current?.();
@@ -235,18 +325,51 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
 
             sessionRef.current = session as unknown as LiveSession;
             console.log('Google GenAI Live session initialized successfully');
+            emitEvent('session_initialized');
+            return true;
         } catch (err) {
             console.error('Failed to initialize Google GenAI Live:', err);
             setIsConnected(false);
+            emitEvent('session_connect_error', { reason: (err as Error).message });
             onErrorRef.current?.(`Failed to initialize: ${(err as Error).message}`);
+            return false;
         }
-    }, [apiKey, config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext]);
+    }, [apiKey, config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext, emitEvent, scheduleReconnect, clearReconnectTimer]);
+
+    const initializeSessionWithFallback = useCallback(async (resumptionHandle?: string | null): Promise<boolean> => {
+        const hadHandle = !!resumptionHandle;
+        const success = await initializeSession(resumptionHandle || undefined);
+        if (!success && hadHandle) {
+            clearSessionHandle();
+            return initializeSession(undefined);
+        }
+        return success;
+    }, [initializeSession, clearSessionHandle]);
 
     const attemptReconnection = useCallback(async (maxRetries = 3): Promise<boolean> => {
+        if (connectPromiseRef.current) {
+            try {
+                await connectPromiseRef.current;
+            } catch {
+                // Ignore - we'll continue with reconnection attempts
+            }
+        }
+
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            emitEvent('session_reconnect_skipped', { reason: 'offline' });
+            return false;
+        }
+
+        if (!isReconnectingRef.current) {
+            isReconnectingRef.current = true;
+            setIsReconnecting(true);
+        }
+
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 console.log(`Reconnection attempt ${attempt}/${maxRetries}`);
                 onSystemMessageRef.current?.(`Reconnecting... (${attempt}/${maxRetries})`);
+                emitEvent('session_reconnect_attempt', { attempt, maxRetries });
 
                 // Close existing session gracefully
                 if (sessionRef.current) {
@@ -261,15 +384,17 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                     sessionRef.current = null;
                 }
 
-                await initializeSession(sessionHandle || undefined);
+                await initializeSessionWithFallback(sessionHandleRef.current);
 
                 if (sessionRef.current) {
                     console.log('Reconnection successful');
                     onSystemMessageRef.current?.('Reconnected successfully');
+                    emitEvent('session_reconnect_success', { attempt });
                     return true;
                 }
             } catch (error) {
                 console.warn(`Reconnection attempt ${attempt} failed:`, error);
+                emitEvent('session_reconnect_error', { attempt, error: (error as Error).message });
                 if (attempt < maxRetries) {
                     await new Promise(r => setTimeout(r, 2000 * Math.pow(1.5, attempt - 1)));
                 }
@@ -279,22 +404,96 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         setIsReconnecting(false);
         isReconnectingRef.current = false;
         onSystemMessageRef.current?.('Reconnection failed. Please refresh the page.');
+        emitEvent('session_reconnect_failed', { maxRetries });
         return false;
-    }, [initializeSession, sessionHandle, config.useClientVAD]);
+    }, [initializeSessionWithFallback, config.useClientVAD, emitEvent]);
 
     // Keep attemptReconnection ref updated
     useEffect(() => {
         attemptReconnectionRef.current = attemptReconnection;
     }, [attemptReconnection]);
 
+    useEffect(() => {
+        return () => {
+            clearReconnectTimer();
+        };
+    }, [clearReconnectTimer]);
+
+    // Network status handling
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const handleOnline = () => {
+            offlineRef.current = false;
+            emitEvent('network_online');
+            if (!isConnectedRef.current && shouldReconnectRef.current && !isReconnectingRef.current) {
+                scheduleReconnect('online', 500);
+            }
+        };
+
+        const handleOffline = () => {
+            offlineRef.current = true;
+            emitEvent('network_offline');
+            clearReconnectTimer();
+
+            if (sessionRef.current) {
+                closeReasonRef.current = 'offline';
+                try {
+                    sessionRef.current.close();
+                } catch (e) {
+                    console.warn('Session close failed during offline:', e);
+                }
+                sessionRef.current = null;
+            }
+
+            setIsConnected(false);
+            setIsReconnecting(false);
+            isReconnectingRef.current = false;
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [emitEvent, scheduleReconnect, clearReconnectTimer]);
+
     const connect = useCallback(async (): Promise<void> => {
-        // Try to unlock audio on a user gesture
-        ensurePlaybackContext();
-        await initializeSession(sessionHandle || undefined);
-    }, [initializeSession, sessionHandle, ensurePlaybackContext]);
+        if (connectPromiseRef.current) {
+            await connectPromiseRef.current;
+            return;
+        }
+        if (isConnectedRef.current) return;
+
+        const connectTask = (async () => {
+            // Try to unlock audio on a user gesture
+            ensurePlaybackContext();
+            await initializeSessionWithFallback(sessionHandleRef.current);
+        })();
+
+        connectPromiseRef.current = connectTask;
+        try {
+            await connectTask;
+        } finally {
+            connectPromiseRef.current = null;
+        }
+    }, [ensurePlaybackContext, initializeSessionWithFallback]);
 
     const disconnect = useCallback(async (): Promise<void> => {
         console.log('Disconnecting session...');
+        closeReasonRef.current = 'intentional';
+        shouldReconnectRef.current = false;
+        clearReconnectTimer();
+
+        if (connectPromiseRef.current) {
+            try {
+                await connectPromiseRef.current;
+            } catch {
+                // Ignore connection errors when explicitly disconnecting
+            }
+        }
 
         if (sessionRef.current) {
             try {
@@ -320,7 +519,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         setIsConnected(false);
         setIsReconnecting(false);
         isReconnectingRef.current = false;
-    }, [config.useClientVAD]);
+    }, [config.useClientVAD, clearReconnectTimer]);
 
     const sendText = useCallback((text: string): void => {
         if (!sessionRef.current || !text.trim()) return;
