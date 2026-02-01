@@ -16,6 +16,8 @@ export type {
     ChatRole,
     VoiceChatConfig,
     VoiceChatEvent,
+    AudioDropPolicy,
+    VoiceChatStats,
     ChatTheme,
     ChatHandlerConfig,
     LiveSession,

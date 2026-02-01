@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LiveServerMessage } from '@google/genai';
-import type { ChatMessage, ChatRole, VoiceChatConfig } from '../lib/types';
+import type { ChatMessage, ChatRole, VoiceChatConfig, VoiceChatStats } from '../lib/types';
 import { mergeConfig } from '../lib/constants';
 import { useLiveSession } from './useLiveSession';
 import { useVoiceInput } from './useVoiceInput';
@@ -14,7 +14,8 @@ import { useVoiceOutput } from './useVoiceOutput';
 
 interface UseVoiceChatOptions {
     config: VoiceChatConfig;
-    apiKey: string;
+    apiKey?: string;
+    getApiKey?: () => Promise<string>;
 }
 
 interface UseVoiceChatReturn {
@@ -43,10 +44,11 @@ interface UseVoiceChatReturn {
     toggleMute: () => void;
     toggleMic: () => void;
     toggleSpeaker: () => void;
+    getStats: () => VoiceChatStats;
 }
 
 export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
-    const { config: userConfig, apiKey } = options;
+    const { config: userConfig, apiKey, getApiKey } = options;
     const config = mergeConfig(userConfig);
 
     // Message state
@@ -318,6 +320,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     const session = useLiveSession({
         config: userConfig,
         apiKey,
+        getApiKey,
         onMessage: handleMessage,
         onConnected: () => {
             if (config.welcomeMessage) {
@@ -349,6 +352,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         startBufferMs: config.playbackStartDelayMs,
         maxQueueMs: config.maxOutputQueueMs,
         maxQueueChunks: config.maxOutputQueueChunks,
+        dropPolicy: config.outputDropPolicy,
         onEvent: config.onEvent,
         onPlaybackStart: () => {
             setIsAISpeaking(true);
@@ -367,6 +371,13 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         isEnabled: session.isConnected && !isMuted && isMicEnabled,
         maxConsecutiveErrors: config.maxConsecutiveInputErrors,
         errorCooldownMs: config.inputErrorCooldownMs,
+        inputMinSendIntervalMs: config.inputMinSendIntervalMs,
+        inputMaxQueueMs: config.inputMaxQueueMs,
+        inputMaxQueueChunks: config.inputMaxQueueChunks,
+        inputDropPolicy: config.inputDropPolicy,
+        preferAudioWorklet: config.preferAudioWorklet,
+        audioWorkletBufferSize: config.audioWorkletBufferSize,
+        restartMicOnDeviceChange: config.restartMicOnDeviceChange,
         onEvent: config.onEvent,
         onVoiceStart: () => {
             // Barge-in: stop AI playback when user speaks
@@ -413,6 +424,37 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         document.addEventListener('visibilitychange', handleVisibility);
         return () => {
             document.removeEventListener('visibilitychange', handleVisibility);
+        };
+    }, [emitEvent, scheduleMicResume]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const handlePageHide = (event: PageTransitionEvent) => {
+            wasListeningBeforeHideRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
+            voiceInputRef.current?.stopMic();
+            voiceOutputRef.current?.stopPlayback();
+            pendingMicResumeRef.current = false;
+            if (micResumeTimerRef.current) {
+                clearTimeout(micResumeTimerRef.current);
+                micResumeTimerRef.current = null;
+            }
+            emitEvent('page_hide', { persisted: event.persisted });
+        };
+
+        const handlePageShow = (event: PageTransitionEvent) => {
+            emitEvent('page_show', { persisted: event.persisted });
+            if (wasListeningBeforeHideRef.current) {
+                wasListeningBeforeHideRef.current = false;
+                scheduleMicResume('pageshow');
+            }
+        };
+
+        window.addEventListener('pagehide', handlePageHide);
+        window.addEventListener('pageshow', handlePageShow);
+        return () => {
+            window.removeEventListener('pagehide', handlePageHide);
+            window.removeEventListener('pageshow', handlePageShow);
         };
     }, [emitEvent, scheduleMicResume]);
 
@@ -563,6 +605,42 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         session.sendText(text);
     }, [session, pushMsg, config.replyAsAudio, config.autoPauseMicOnSendText, pauseMicForModelReply]);
 
+    const getStats = useCallback((): VoiceChatStats => {
+        const sessionStats = session.getStats();
+        const inputStats = voiceInput.getStats();
+        const outputStats = voiceOutput.getStats();
+        return {
+            ts: Date.now(),
+            session: {
+                isConnected: session.isConnected,
+                isReconnecting: session.isReconnecting,
+                reconnectAttempts: sessionStats.reconnectAttempts,
+                lastConnectAttemptAt: sessionStats.lastConnectAttemptAt,
+                lastDisconnectCode: sessionStats.lastDisconnectCode,
+                lastDisconnectReason: sessionStats.lastDisconnectReason,
+            },
+            input: {
+                isListening: voiceInput.isListening,
+                queueMs: inputStats.queueMs,
+                queueChunks: inputStats.queueChunks,
+                droppedChunks: inputStats.droppedChunks,
+                droppedMs: inputStats.droppedMs,
+                sendErrorStreak: inputStats.sendErrorStreak,
+                blockedUntil: inputStats.blockedUntil,
+                lastSendAt: inputStats.lastSendAt,
+                usingWorklet: inputStats.usingWorklet,
+            },
+            output: {
+                isPlaying: voiceOutput.isPlaying,
+                queueMs: outputStats.queueMs,
+                queueChunks: outputStats.queueChunks,
+                droppedChunks: outputStats.droppedChunks,
+                droppedMs: outputStats.droppedMs,
+                contextState: outputStats.contextState,
+            },
+        };
+    }, [session.isConnected, session.isReconnecting, session.getStats, voiceInput.isListening, voiceInput.getStats, voiceOutput.isPlaying, voiceOutput.getStats]);
+
     return {
         // Connection
         isConnected: session.isConnected,
@@ -589,5 +667,6 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         toggleMute,
         toggleMic,
         toggleSpeaker,
+        getStats,
     };
 }

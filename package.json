@@ -1,6 +1,6 @@
 {
   "name": "google-genai-voice-chat",
-  "version": "0.3.0-beta.1",
+  "version": "0.3.27",
   "description": "Real-time voice and text chat component for Google Gemini Live API",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -25,8 +25,10 @@
     "dev": "tsup --watch",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
+    "test": "node ./scripts/run-tests.mjs",
+    "version:auto": "node ./scripts/set-version.mjs",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm run version:auto && npm run build",
     "prepare": "npm run build"
   },
   "keywords": [
@@ -47,6 +49,14 @@
     "type": "git",
     "url": "https://github.com/rahulmanuwas/google-genai-voice-chat.git"
   },
+  "bugs": {
+    "url": "https://github.com/rahulmanuwas/google-genai-voice-chat/issues"
+  },
+  "homepage": "https://github.com/rahulmanuwas/google-genai-voice-chat#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "sideEffects": false,
   "peerDependencies": {
     "@google/genai": ">=0.10.0",
     "react": ">=18.0.0",
@@ -62,6 +72,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tsx": "^4.19.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.54.0"

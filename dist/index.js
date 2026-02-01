@@ -92,6 +92,12 @@ var DEFAULT_CONFIG = {
   serverVADStartSensitivity: genai.StartSensitivity.START_SENSITIVITY_LOW,
   serverVADEndSensitivity: genai.EndSensitivity.END_SENSITIVITY_HIGH,
   sessionInitDelayMs: 300,
+  connectTimeoutMs: 12e3,
+  reconnectMaxRetries: 3,
+  reconnectBaseDelayMs: 1500,
+  reconnectBackoffFactor: 1.5,
+  reconnectMaxDelayMs: 15e3,
+  reconnectJitterPct: 0.2,
   micResumeDelayMs: 600,
   playbackStartDelayMs: 120,
   playbackSampleRate: 24e3,
@@ -99,9 +105,17 @@ var DEFAULT_CONFIG = {
   maxTranscriptChars: 6e3,
   maxOutputQueueMs: 15e3,
   maxOutputQueueChunks: 200,
+  outputDropPolicy: "drop-oldest",
   maxConsecutiveInputErrors: 3,
   inputErrorCooldownMs: 750,
+  inputMinSendIntervalMs: 0,
+  inputMaxQueueMs: 0,
+  inputMaxQueueChunks: 0,
+  inputDropPolicy: "drop-oldest",
   clearSessionOnMount: true,
+  preferAudioWorklet: true,
+  audioWorkletBufferSize: 2048,
+  restartMicOnDeviceChange: true,
   speechConfig: {},
   thinkingConfig: {},
   enableAffectiveDialog: false,
@@ -141,7 +155,7 @@ function mergeConfig(userConfig) {
   };
 }
 function useLiveSession(options) {
-  const { config: userConfig, apiKey, onMessage, onConnected, onDisconnected, onError, onSystemMessage } = options;
+  const { config: userConfig, apiKey, getApiKey, onMessage, onConnected, onDisconnected, onError, onSystemMessage } = options;
   const config = mergeConfig(userConfig);
   const [isConnected, setIsConnected] = react.useState(false);
   const [isReconnecting, setIsReconnecting] = react.useState(false);
@@ -156,6 +170,13 @@ function useLiveSession(options) {
   const closeReasonRef = react.useRef("none");
   const offlineRef = react.useRef(false);
   const shouldReconnectRef = react.useRef(false);
+  const connectAttemptRef = react.useRef(0);
+  const activeAttemptRef = react.useRef(0);
+  const reconnectAttemptsRef = react.useRef(0);
+  const lastConnectAttemptAtRef = react.useRef(null);
+  const lastDisconnectRef = react.useRef(null);
+  const apiKeyRef = react.useRef(apiKey);
+  const getApiKeyRef = react.useRef(getApiKey);
   const onMessageRef = react.useRef(onMessage);
   const onConnectedRef = react.useRef(onConnected);
   const onDisconnectedRef = react.useRef(onDisconnected);
@@ -182,9 +203,28 @@ function useLiveSession(options) {
   react.useEffect(() => {
     isConnectedRef.current = isConnected;
   }, [isConnected]);
+  react.useEffect(() => {
+    apiKeyRef.current = apiKey;
+  }, [apiKey]);
+  react.useEffect(() => {
+    getApiKeyRef.current = getApiKey;
+  }, [getApiKey]);
   const emitEvent = react.useCallback((type, data) => {
     config.onEvent?.({ type, ts: Date.now(), data });
   }, [config.onEvent]);
+  const getJitteredDelay = react.useCallback((delayMs) => {
+    const jitterPct = Math.max(0, Math.min(1, config.reconnectJitterPct ?? 0));
+    if (!jitterPct) return Math.max(0, delayMs);
+    const jitter = delayMs * jitterPct * (Math.random() * 2 - 1);
+    return Math.max(0, delayMs + jitter);
+  }, [config.reconnectJitterPct]);
+  const getBackoffDelay = react.useCallback((attempt) => {
+    const base = Math.max(0, config.reconnectBaseDelayMs ?? 1500);
+    const factor = Math.max(1, config.reconnectBackoffFactor ?? 1.5);
+    const maxDelay = Math.max(base, config.reconnectMaxDelayMs ?? 15e3);
+    const raw = Math.min(maxDelay, base * Math.pow(factor, Math.max(0, attempt - 1)));
+    return getJitteredDelay(raw);
+  }, [config.reconnectBaseDelayMs, config.reconnectBackoffFactor, config.reconnectMaxDelayMs, getJitteredDelay]);
   react.useEffect(() => {
     const storageKey = config.sessionStorageKey;
     if (config.clearSessionOnMount !== false) {
@@ -259,11 +299,12 @@ function useLiveSession(options) {
     clearReconnectTimer();
     isReconnectingRef.current = true;
     setIsReconnecting(true);
-    emitEvent("session_reconnect_scheduled", { reason, delayMs });
+    const finalDelay = getJitteredDelay(delayMs);
+    emitEvent("session_reconnect_scheduled", { reason, delayMs: finalDelay });
     reconnectTimerRef.current = setTimeout(() => {
       void attemptReconnectionRef.current();
-    }, Math.max(0, delayMs));
-  }, [clearReconnectTimer, emitEvent]);
+    }, Math.max(0, finalDelay));
+  }, [clearReconnectTimer, emitEvent, getJitteredDelay]);
   const handleInternalMessage = react.useCallback((msg) => {
     if (msg.sessionResumptionUpdate) {
       if (msg.sessionResumptionUpdate.resumable && msg.sessionResumptionUpdate.newHandle) {
@@ -283,26 +324,58 @@ function useLiveSession(options) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24e3 });
       console.log("Created playback context at", playCtxRef.current.sampleRate, "Hz");
+      playCtxRef.current.onstatechange = () => {
+        emitEvent("playback_context_state", { state: playCtxRef.current?.state });
+      };
     }
     if (playCtxRef.current.state === "suspended") {
       playCtxRef.current.resume().catch((e) => {
         console.warn("Playback context resume failed:", e);
       });
     }
-  }, [config.playbackSampleRate]);
+  }, [config.playbackSampleRate, emitEvent]);
+  const resolveApiKey = react.useCallback(async () => {
+    if (apiKeyRef.current) return apiKeyRef.current;
+    if (getApiKeyRef.current) {
+      try {
+        const key = await getApiKeyRef.current();
+        return key;
+      } catch (e) {
+        emitEvent("session_connect_error", { reason: "token_provider_failed" });
+        throw e;
+      }
+    }
+    return "";
+  }, [emitEvent]);
   const initializeSession = react.useCallback(async (resumptionHandle) => {
-    if (!apiKey) {
+    const attemptId = ++connectAttemptRef.current;
+    activeAttemptRef.current = attemptId;
+    lastConnectAttemptAtRef.current = Date.now();
+    emitEvent("session_connect_attempt", { attemptId });
+    const isStale = () => attemptId !== activeAttemptRef.current;
+    let resolvedKey = "";
+    try {
+      resolvedKey = await resolveApiKey();
+    } catch (e) {
+      onErrorRef.current?.("AI Assistant unavailable. Please check configuration.");
+      emitEvent("session_connect_error", { reason: "token_provider_failed" });
+      return false;
+    }
+    if (!resolvedKey) {
       onErrorRef.current?.("AI Assistant unavailable. Please check configuration.");
       emitEvent("session_connect_error", { reason: "missing_api_key" });
       return false;
     }
     try {
-      const ai = new genai.GoogleGenAI({ apiKey });
+      const ai = new genai.GoogleGenAI({ apiKey: resolvedKey });
       ensurePlaybackContext();
       console.log("Connecting to Google GenAI Live...", { model: config.modelId, hasResumption: !!resumptionHandle });
       emitEvent("session_connect_start", { hasResumption: !!resumptionHandle });
       const hasKeys = (obj) => !!obj && Object.keys(obj).length > 0;
-      const session = await ai.live.connect({
+      const connectTimeoutMs = Math.max(1e3, config.connectTimeoutMs ?? 12e3);
+      let timeoutId = null;
+      let timedOut = false;
+      const connectPromise = ai.live.connect({
         model: config.modelId,
         config: {
           responseModalities: [config.replyAsAudio ? genai.Modality.AUDIO : genai.Modality.TEXT],
@@ -332,36 +405,43 @@ function useLiveSession(options) {
         },
         callbacks: {
           onopen: () => {
+            if (isStale()) {
+              emitEvent("session_open_stale", { attemptId });
+              return;
+            }
             console.log("Google GenAI Live connection opened");
             setIsConnected(true);
             setIsReconnecting(false);
             isReconnectingRef.current = false;
+            reconnectAttemptsRef.current = 0;
             clearReconnectTimer();
             shouldReconnectRef.current = true;
             offlineRef.current = false;
             emitEvent("session_connected");
             onConnectedRef.current?.();
           },
-          onmessage: handleInternalMessage,
+          onmessage: (msg) => {
+            if (isStale()) return;
+            handleInternalMessage(msg);
+          },
           onerror: (err) => {
+            if (isStale()) return;
             console.error("Google GenAI Live error:", err);
             setIsConnected(false);
             emitEvent("session_error", { error: typeof err === "string" ? err : "Connection error" });
             onErrorRef.current?.(typeof err === "string" ? err : "Connection error");
           },
           onclose: (event) => {
+            if (isStale()) return;
             const code = event?.code || 0;
             const reason = event?.reason || "";
             const closeReason = closeReasonRef.current;
             closeReasonRef.current = "none";
+            lastDisconnectRef.current = { code, reason };
             console.log("Connection closed - Code:", code, "Reason:", reason);
             emitEvent("session_closed", { code, reason, closeReason });
             setIsConnected(false);
-            if (closeReason === "intentional") {
-              onDisconnectedRef.current?.();
-              return;
-            }
-            if (closeReason === "offline") {
+            if (closeReason === "intentional" || closeReason === "offline" || closeReason === "pagehide") {
               onDisconnectedRef.current?.();
               return;
             }
@@ -386,12 +466,46 @@ function useLiveSession(options) {
               shouldReconnectRef.current = false;
             }
             if (shouldReconnect && !isReconnectingRef.current) {
-              scheduleReconnect("close", 1500);
+              scheduleReconnect("close", getBackoffDelay(1));
             }
             onDisconnectedRef.current?.();
           }
         }
       });
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("Connection timeout"));
+        }, connectTimeoutMs);
+      });
+      let session;
+      try {
+        session = await Promise.race([connectPromise, timeoutPromise]);
+      } catch (err) {
+        if (timedOut) {
+          emitEvent("session_connect_timeout", { timeoutMs: connectTimeoutMs });
+          connectPromise.then((lateSession) => {
+            try {
+              lateSession.close();
+            } catch {
+            }
+          }).catch(() => {
+          });
+        }
+        throw err;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+      if (isStale()) {
+        emitEvent("session_connect_stale", { attemptId });
+        try {
+          session.close();
+        } catch {
+        }
+        return false;
+      }
       sessionRef.current = session;
       console.log("Google GenAI Live session initialized successfully");
       emitEvent("session_initialized");
@@ -403,7 +517,7 @@ function useLiveSession(options) {
       onErrorRef.current?.(`Failed to initialize: ${err.message}`);
       return false;
     }
-  }, [apiKey, config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext, emitEvent, scheduleReconnect, clearReconnectTimer]);
+  }, [config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext, emitEvent, scheduleReconnect, clearReconnectTimer, resolveApiKey, getBackoffDelay]);
   const initializeSessionWithFallback = react.useCallback(async (resumptionHandle) => {
     const hadHandle = !!resumptionHandle;
     const success = await initializeSession(resumptionHandle || void 0);
@@ -413,7 +527,7 @@ function useLiveSession(options) {
     }
     return success;
   }, [initializeSession, clearSessionHandle]);
-  const attemptReconnection = react.useCallback(async (maxRetries = 3) => {
+  const attemptReconnection = react.useCallback(async (maxRetriesOverride) => {
     if (connectPromiseRef.current) {
       try {
         await connectPromiseRef.current;
@@ -428,8 +542,10 @@ function useLiveSession(options) {
       isReconnectingRef.current = true;
       setIsReconnecting(true);
     }
+    const maxRetries = Math.max(1, maxRetriesOverride ?? config.reconnectMaxRetries ?? 3);
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        reconnectAttemptsRef.current = attempt;
         console.log(`Reconnection attempt ${attempt}/${maxRetries}`);
         onSystemMessageRef.current?.(`Reconnecting... (${attempt}/${maxRetries})`);
         emitEvent("session_reconnect_attempt", { attempt, maxRetries });
@@ -455,7 +571,9 @@ function useLiveSession(options) {
         console.warn(`Reconnection attempt ${attempt} failed:`, error);
         emitEvent("session_reconnect_error", { attempt, error: error.message });
         if (attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, 2e3 * Math.pow(1.5, attempt - 1)));
+          const delayMs = getBackoffDelay(attempt + 1);
+          emitEvent("session_reconnect_delay", { attempt: attempt + 1, delayMs });
+          await new Promise((r) => setTimeout(r, delayMs));
         }
       }
     }
@@ -464,7 +582,7 @@ function useLiveSession(options) {
     onSystemMessageRef.current?.("Reconnection failed. Please refresh the page.");
     emitEvent("session_reconnect_failed", { maxRetries });
     return false;
-  }, [initializeSessionWithFallback, config.useClientVAD, emitEvent]);
+  }, [initializeSessionWithFallback, config.useClientVAD, config.reconnectMaxRetries, emitEvent, getBackoffDelay]);
   react.useEffect(() => {
     attemptReconnectionRef.current = attemptReconnection;
   }, [attemptReconnection]);
@@ -506,6 +624,38 @@ function useLiveSession(options) {
       window.removeEventListener("offline", handleOffline);
     };
   }, [emitEvent, scheduleReconnect, clearReconnectTimer]);
+  react.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePageHide = (event) => {
+      emitEvent("page_hide", { persisted: event.persisted });
+      clearReconnectTimer();
+      shouldReconnectRef.current = true;
+      if (sessionRef.current) {
+        closeReasonRef.current = "pagehide";
+        try {
+          sessionRef.current.close();
+        } catch (e) {
+          console.warn("Session close failed during pagehide:", e);
+        }
+        sessionRef.current = null;
+      }
+      setIsConnected(false);
+      setIsReconnecting(false);
+      isReconnectingRef.current = false;
+    };
+    const handlePageShow = (event) => {
+      emitEvent("page_show", { persisted: event.persisted });
+      if (!isConnectedRef.current && shouldReconnectRef.current && !isReconnectingRef.current) {
+        scheduleReconnect("pageshow", getBackoffDelay(1));
+      }
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [emitEvent, scheduleReconnect, clearReconnectTimer, getBackoffDelay]);
   const connect = react.useCallback(async () => {
     if (connectPromiseRef.current) {
       await connectPromiseRef.current;
@@ -528,6 +678,8 @@ function useLiveSession(options) {
     closeReasonRef.current = "intentional";
     shouldReconnectRef.current = false;
     clearReconnectTimer();
+    activeAttemptRef.current += 1;
+    reconnectAttemptsRef.current = 0;
     if (connectPromiseRef.current) {
       try {
         await connectPromiseRef.current;
@@ -575,34 +727,80 @@ function useLiveSession(options) {
     connect,
     disconnect,
     sendText,
-    playbackContext: playCtxRef.current
+    playbackContext: playCtxRef.current,
+    getStats: () => ({
+      reconnectAttempts: reconnectAttemptsRef.current,
+      lastConnectAttemptAt: lastConnectAttemptAtRef.current,
+      lastDisconnectCode: lastDisconnectRef.current?.code ?? null,
+      lastDisconnectReason: lastDisconnectRef.current?.reason ?? null
+    })
   };
 }
 var MIC_BUFFER_SIZE = 2048;
 var MIC_CHANNELS = 1;
 function useVoiceInput(options) {
-  const { session, isEnabled, maxConsecutiveErrors, errorCooldownMs, onEvent, onVoiceStart, onVoiceEnd, onError } = options;
+  const {
+    session,
+    isEnabled,
+    maxConsecutiveErrors,
+    errorCooldownMs,
+    inputMinSendIntervalMs,
+    inputMaxQueueMs,
+    inputMaxQueueChunks,
+    inputDropPolicy,
+    preferAudioWorklet,
+    audioWorkletBufferSize,
+    restartMicOnDeviceChange,
+    onEvent,
+    onVoiceStart,
+    onVoiceEnd,
+    onError
+  } = options;
   const [isListening, setIsListening] = react.useState(false);
   const [micLevel, setMicLevel] = react.useState(0);
   const micCtxRef = react.useRef(null);
   const micSourceRef = react.useRef(null);
   const micProcRef = react.useRef(null);
+  const micWorkletRef = react.useRef(null);
+  const micWorkletUrlRef = react.useRef(null);
   const micStreamRef = react.useRef(null);
   const micSilenceGainRef = react.useRef(null);
   const lastMicLevelUpdateRef = react.useRef(0);
   const sendErrorStreakRef = react.useRef(0);
   const sendBlockedUntilRef = react.useRef(0);
+  const lastSendAtRef = react.useRef(0);
   const maxConsecutiveErrorsRef = react.useRef(maxConsecutiveErrors ?? 3);
   const errorCooldownMsRef = react.useRef(errorCooldownMs ?? 750);
+  const inputMinSendIntervalMsRef = react.useRef(inputMinSendIntervalMs ?? 0);
+  const inputMaxQueueMsRef = react.useRef(inputMaxQueueMs ?? 0);
+  const inputMaxQueueChunksRef = react.useRef(inputMaxQueueChunks ?? 0);
+  const inputDropPolicyRef = react.useRef(inputDropPolicy ?? "drop-oldest");
+  const preferAudioWorkletRef = react.useRef(preferAudioWorklet ?? true);
+  const audioWorkletBufferSizeRef = react.useRef(audioWorkletBufferSize ?? MIC_BUFFER_SIZE);
+  const restartMicOnDeviceChangeRef = react.useRef(restartMicOnDeviceChange ?? true);
   const onEventRef = react.useRef(onEvent);
   const isListeningRef = react.useRef(false);
+  const isEnabledRef = react.useRef(isEnabled);
   const sessionRef = react.useRef(session);
+  const usingWorkletRef = react.useRef(false);
+  const sendQueueRef = react.useRef([]);
+  const queuedMsRef = react.useRef(0);
+  const queuedChunksRef = react.useRef(0);
+  const droppedChunksRef = react.useRef(0);
+  const droppedMsRef = react.useRef(0);
+  const flushTimerRef = react.useRef(null);
+  const stopMicRef = react.useRef(() => {
+  });
+  const startMicRef = react.useRef(() => Promise.resolve());
   const onVoiceStartRef = react.useRef(onVoiceStart);
   const onVoiceEndRef = react.useRef(onVoiceEnd);
   const onErrorRef = react.useRef(onError);
   react.useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+  react.useEffect(() => {
+    isEnabledRef.current = isEnabled;
+  }, [isEnabled]);
   react.useEffect(() => {
     onVoiceStartRef.current = onVoiceStart;
   }, [onVoiceStart]);
@@ -619,14 +817,57 @@ function useVoiceInput(options) {
     errorCooldownMsRef.current = errorCooldownMs ?? 750;
   }, [errorCooldownMs]);
   react.useEffect(() => {
+    inputMinSendIntervalMsRef.current = inputMinSendIntervalMs ?? 0;
+  }, [inputMinSendIntervalMs]);
+  react.useEffect(() => {
+    inputMaxQueueMsRef.current = inputMaxQueueMs ?? 0;
+  }, [inputMaxQueueMs]);
+  react.useEffect(() => {
+    inputMaxQueueChunksRef.current = inputMaxQueueChunks ?? 0;
+  }, [inputMaxQueueChunks]);
+  react.useEffect(() => {
+    inputDropPolicyRef.current = inputDropPolicy ?? "drop-oldest";
+  }, [inputDropPolicy]);
+  react.useEffect(() => {
+    preferAudioWorkletRef.current = preferAudioWorklet ?? true;
+  }, [preferAudioWorklet]);
+  react.useEffect(() => {
+    audioWorkletBufferSizeRef.current = audioWorkletBufferSize ?? MIC_BUFFER_SIZE;
+  }, [audioWorkletBufferSize]);
+  react.useEffect(() => {
+    restartMicOnDeviceChangeRef.current = restartMicOnDeviceChange ?? true;
+  }, [restartMicOnDeviceChange]);
+  react.useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
   const emitEvent = react.useCallback((type, data) => {
     onEventRef.current?.({ type, ts: Date.now(), data });
   }, []);
+  const flushQueueRef = react.useRef(() => {
+  });
+  const clearFlushTimer = react.useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }, []);
+  const scheduleFlush = react.useCallback((delayMs) => {
+    clearFlushTimer();
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      flushQueueRef.current();
+    }, Math.max(0, delayMs));
+  }, [clearFlushTimer]);
   const cleanup = react.useCallback(() => {
     try {
       micProcRef.current?.disconnect();
+    } catch (e) {
+    }
+    try {
+      if (micWorkletRef.current) {
+        micWorkletRef.current.port.onmessage = null;
+        micWorkletRef.current.disconnect();
+      }
     } catch (e) {
     }
     try {
@@ -642,9 +883,17 @@ function useVoiceInput(options) {
     } catch (e) {
     }
     micProcRef.current = null;
+    micWorkletRef.current = null;
     micSourceRef.current = null;
     micSilenceGainRef.current = null;
     micCtxRef.current = null;
+    if (micWorkletUrlRef.current) {
+      try {
+        URL.revokeObjectURL(micWorkletUrlRef.current);
+      } catch (e) {
+      }
+      micWorkletUrlRef.current = null;
+    }
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     isListeningRef.current = false;
@@ -652,7 +901,127 @@ function useVoiceInput(options) {
     setMicLevel(0);
     sendErrorStreakRef.current = 0;
     sendBlockedUntilRef.current = 0;
-  }, []);
+    lastSendAtRef.current = 0;
+    sendQueueRef.current = [];
+    queuedMsRef.current = 0;
+    queuedChunksRef.current = 0;
+    droppedChunksRef.current = 0;
+    droppedMsRef.current = 0;
+    usingWorkletRef.current = false;
+    clearFlushTimer();
+  }, [clearFlushTimer]);
+  react.useEffect(() => {
+    const flushQueue = () => {
+      if (!sessionRef.current) return;
+      if (sendQueueRef.current.length === 0) return;
+      const now = performance.now();
+      if (now < sendBlockedUntilRef.current) {
+        scheduleFlush(sendBlockedUntilRef.current - now);
+        return;
+      }
+      const minInterval = inputMinSendIntervalMsRef.current;
+      if (minInterval > 0 && now - lastSendAtRef.current < minInterval) {
+        scheduleFlush(minInterval - (now - lastSendAtRef.current));
+        return;
+      }
+      while (sendQueueRef.current.length > 0) {
+        const item = sendQueueRef.current.shift();
+        if (!item) break;
+        queuedMsRef.current = Math.max(0, queuedMsRef.current - item.durationMs);
+        queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
+        try {
+          sessionRef.current?.sendRealtimeInput({ audio: { data: item.data, mimeType: item.mimeType } });
+          sendErrorStreakRef.current = 0;
+          lastSendAtRef.current = performance.now();
+        } catch (err) {
+          console.error("sendRealtimeInput error:", err);
+          sendErrorStreakRef.current += 1;
+          sendBlockedUntilRef.current = performance.now() + errorCooldownMsRef.current;
+          emitEvent("audio_input_send_error", {
+            streak: sendErrorStreakRef.current,
+            error: err.message
+          });
+          if (sendErrorStreakRef.current >= maxConsecutiveErrorsRef.current) {
+            emitEvent("audio_input_stream_halted", { reason: "too_many_errors" });
+            onErrorRef.current?.("Audio streaming unstable. Please reconnect.");
+            setTimeout(() => stopMicRef.current(), 0);
+          }
+          scheduleFlush(errorCooldownMsRef.current);
+          return;
+        }
+        if (minInterval > 0 && sendQueueRef.current.length > 0) {
+          scheduleFlush(minInterval);
+          return;
+        }
+      }
+    };
+    flushQueueRef.current = flushQueue;
+  }, [emitEvent, scheduleFlush]);
+  const enqueueInputChunk = react.useCallback((data, mimeType, durationMs) => {
+    const maxMs = inputMaxQueueMsRef.current;
+    const maxChunks = inputMaxQueueChunksRef.current;
+    const policy = inputDropPolicyRef.current;
+    const wouldOverflow = (extraMs, extraChunks) => maxMs > 0 && queuedMsRef.current + extraMs > maxMs || maxChunks > 0 && queuedChunksRef.current + extraChunks > maxChunks;
+    let droppedChunks = 0;
+    let droppedMs = 0;
+    if (policy === "drop-newest" && wouldOverflow(durationMs, 1)) {
+      droppedChunks = 1;
+      droppedMs = durationMs;
+    } else {
+      if (policy === "drop-all" && wouldOverflow(durationMs, 1)) {
+        droppedChunks = sendQueueRef.current.length;
+        droppedMs = queuedMsRef.current;
+        sendQueueRef.current = [];
+        queuedMsRef.current = 0;
+        queuedChunksRef.current = 0;
+      }
+      sendQueueRef.current.push({ data, mimeType, durationMs });
+      queuedMsRef.current += durationMs;
+      queuedChunksRef.current += 1;
+      if (policy === "drop-oldest") {
+        while (maxMs > 0 && queuedMsRef.current > maxMs || maxChunks > 0 && queuedChunksRef.current > maxChunks) {
+          const dropped = sendQueueRef.current.shift();
+          if (!dropped) break;
+          queuedMsRef.current = Math.max(0, queuedMsRef.current - dropped.durationMs);
+          queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
+          droppedChunks += 1;
+          droppedMs += dropped.durationMs;
+        }
+      }
+    }
+    if (droppedChunks > 0) {
+      droppedChunksRef.current += droppedChunks;
+      droppedMsRef.current += droppedMs;
+      emitEvent("audio_input_queue_overflow", {
+        droppedChunks,
+        droppedMs,
+        queueMs: queuedMsRef.current,
+        queueChunks: queuedChunksRef.current,
+        policy
+      });
+      if (policy === "drop-newest") {
+        emitEvent("audio_input_dropped", { reason: "queue_overflow", policy });
+        return;
+      }
+    }
+    flushQueueRef.current();
+  }, [emitEvent]);
+  const processInputChunk = react.useCallback((inputData) => {
+    if (!micCtxRef.current || !isListeningRef.current || !sessionRef.current) return;
+    const now = performance.now();
+    if (now - lastMicLevelUpdateRef.current > 50) {
+      lastMicLevelUpdateRef.current = now;
+      const rms = calculateRMSLevel(inputData);
+      const visualLevel = Math.min(1, rms * 10);
+      setMicLevel((prev) => prev * 0.8 + visualLevel * 0.2);
+    }
+    const sourceSampleRate = micCtxRef.current.sampleRate || 48e3;
+    const { data, mimeType } = encodeAudioToBase64(inputData, sourceSampleRate, INPUT_SAMPLE_RATE);
+    const ratio = sourceSampleRate / INPUT_SAMPLE_RATE;
+    const processedLength = Math.floor(inputData.length / (ratio || 1));
+    const durationMs = processedLength / INPUT_SAMPLE_RATE * 1e3;
+    enqueueInputChunk(data, mimeType, durationMs);
+  }, [enqueueInputChunk]);
   const stopMic = react.useCallback(() => {
     if (!isListeningRef.current) return;
     console.log("Stopping microphone...");
@@ -672,6 +1041,12 @@ function useVoiceInput(options) {
     }
     try {
       console.log("Starting microphone...");
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        const message = "Microphone access is not supported in this browser.";
+        emitEvent("mic_error", { error: message });
+        onErrorRef.current?.(message);
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -689,87 +1064,175 @@ function useVoiceInput(options) {
         await micCtxRef.current.resume();
       }
       micSourceRef.current = micCtxRef.current.createMediaStreamSource(stream);
-      let previousLevel = 0;
-      const audioProcessor = micCtxRef.current.createScriptProcessor(MIC_BUFFER_SIZE, MIC_CHANNELS, MIC_CHANNELS);
-      audioProcessor.onaudioprocess = (event) => {
-        if (!micCtxRef.current || !isListeningRef.current) return;
-        const inputData = event.inputBuffer.getChannelData(0);
-        const now = performance.now();
-        if (now < sendBlockedUntilRef.current) {
-          return;
-        }
-        if (now - lastMicLevelUpdateRef.current > 50) {
-          lastMicLevelUpdateRef.current = now;
-          const rms = calculateRMSLevel(inputData);
-          const visualLevel = Math.min(1, rms * 10);
-          previousLevel = previousLevel * 0.8 + visualLevel * 0.2;
-          setMicLevel(previousLevel);
-        }
-        const sourceSampleRate = micCtxRef.current.sampleRate;
-        const { data, mimeType } = encodeAudioToBase64(inputData, sourceSampleRate, INPUT_SAMPLE_RATE);
-        try {
-          sessionRef.current?.sendRealtimeInput({ audio: { data, mimeType } });
-          sendErrorStreakRef.current = 0;
-        } catch (err) {
-          console.error("sendRealtimeInput error:", err);
-          sendErrorStreakRef.current += 1;
-          sendBlockedUntilRef.current = now + errorCooldownMsRef.current;
-          emitEvent("audio_input_send_error", {
-            streak: sendErrorStreakRef.current,
-            error: err.message
-          });
-          if (sendErrorStreakRef.current >= maxConsecutiveErrorsRef.current) {
-            emitEvent("audio_input_stream_halted", { reason: "too_many_errors" });
-            onErrorRef.current?.("Audio streaming unstable. Please reconnect.");
-            setTimeout(() => stopMicRef.current(), 0);
-          }
-        }
-      };
       micSilenceGainRef.current = micCtxRef.current.createGain();
       micSilenceGainRef.current.gain.value = 0;
-      micSourceRef.current.connect(audioProcessor);
-      audioProcessor.connect(micSilenceGainRef.current);
+      const bufferSize = Math.max(256, Math.min(16384, audioWorkletBufferSizeRef.current || MIC_BUFFER_SIZE));
+      const canUseWorklet = preferAudioWorkletRef.current && !!micCtxRef.current.audioWorklet && typeof AudioWorkletNode !== "undefined";
+      let usingWorklet = false;
+      if (canUseWorklet) {
+        try {
+          const workletCode = `
+class PCMProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufferSize = ${bufferSize};
+    this.buffer = new Float32Array(this.bufferSize);
+    this.offset = 0;
+  }
+  process(inputs) {
+    const input = inputs[0];
+    if (!input || input.length === 0) return true;
+    const channel = input[0];
+    if (!channel) return true;
+    let i = 0;
+    while (i < channel.length) {
+      const space = this.bufferSize - this.offset;
+      const toCopy = Math.min(space, channel.length - i);
+      this.buffer.set(channel.subarray(i, i + toCopy), this.offset);
+      this.offset += toCopy;
+      i += toCopy;
+      if (this.offset >= this.bufferSize) {
+        const out = new Float32Array(this.bufferSize);
+        out.set(this.buffer);
+        this.port.postMessage(out, [out.buffer]);
+        this.offset = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-processor', PCMProcessor);
+`;
+          const blob = new Blob([workletCode], { type: "application/javascript" });
+          const url = URL.createObjectURL(blob);
+          micWorkletUrlRef.current = url;
+          await micCtxRef.current.audioWorklet.addModule(url);
+          const workletNode = new AudioWorkletNode(micCtxRef.current, "pcm-processor", {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            channelCount: MIC_CHANNELS
+          });
+          workletNode.port.onmessage = (event) => {
+            const inputData = event.data;
+            if (!inputData || !isListeningRef.current) return;
+            processInputChunk(inputData);
+          };
+          micWorkletRef.current = workletNode;
+          micProcRef.current = workletNode;
+          micSourceRef.current.connect(workletNode);
+          workletNode.connect(micSilenceGainRef.current);
+          usingWorklet = true;
+        } catch (err) {
+          if (micWorkletUrlRef.current) {
+            try {
+              URL.revokeObjectURL(micWorkletUrlRef.current);
+            } catch (e) {
+              void e;
+            }
+            micWorkletUrlRef.current = null;
+          }
+          emitEvent("mic_worklet_error", { error: err.message });
+        }
+      }
+      if (!usingWorklet) {
+        const audioProcessor = micCtxRef.current.createScriptProcessor(bufferSize, MIC_CHANNELS, MIC_CHANNELS);
+        audioProcessor.onaudioprocess = (event) => {
+          const inputData = event.inputBuffer.getChannelData(0);
+          processInputChunk(inputData);
+        };
+        micProcRef.current = audioProcessor;
+        micSourceRef.current.connect(audioProcessor);
+        audioProcessor.connect(micSilenceGainRef.current);
+      }
       micSilenceGainRef.current.connect(micCtxRef.current.destination);
-      micProcRef.current = audioProcessor;
+      usingWorkletRef.current = usingWorklet;
       isListeningRef.current = true;
       setIsListening(true);
       sendErrorStreakRef.current = 0;
       sendBlockedUntilRef.current = 0;
-      emitEvent("mic_started");
+      lastSendAtRef.current = 0;
+      emitEvent("mic_started", { usingWorklet });
       console.log(`Microphone started at ${micCtxRef.current.sampleRate}Hz`);
       onVoiceStartRef.current?.();
     } catch (err) {
       console.error("Mic start failed:", err);
       cleanup();
-      emitEvent("mic_error", { error: err.message });
-      onErrorRef.current?.(`Microphone error: ${err.message}`);
+      const error = err;
+      let message = `Microphone error: ${error.message}`;
+      if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+        message = "Microphone permission denied. Please allow access and try again.";
+        emitEvent("mic_permission_blocked");
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        message = "No microphone device found.";
+      } else if (error.name === "NotReadableError") {
+        message = "Microphone is in use by another application.";
+      } else if (error.name === "OverconstrainedError") {
+        message = "Requested microphone settings are not supported.";
+      }
+      emitEvent("mic_error", { error: message, code: error.name });
+      onErrorRef.current?.(message);
     }
-  }, [cleanup, emitEvent]);
-  const stopMicRef = react.useRef(stopMic);
+  }, [cleanup, emitEvent, processInputChunk]);
   react.useEffect(() => {
     stopMicRef.current = stopMic;
   }, [stopMic]);
+  react.useEffect(() => {
+    startMicRef.current = startMic;
+  }, [startMic]);
   react.useEffect(() => {
     if (!isEnabled && isListeningRef.current) {
       stopMicRef.current();
     }
   }, [isEnabled]);
   react.useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    const mediaDevices = navigator.mediaDevices;
+    if (!mediaDevices?.addEventListener) return;
+    const handleDeviceChange = () => {
+      if (!restartMicOnDeviceChangeRef.current) return;
+      if (!isEnabledRef.current) return;
+      if (!isListeningRef.current) return;
+      emitEvent("mic_device_change");
+      stopMicRef.current();
+      setTimeout(() => {
+        if (isEnabledRef.current) {
+          void startMicRef.current();
+        }
+      }, 250);
+    };
+    mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    return () => {
+      mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+    };
+  }, [emitEvent]);
+  react.useEffect(() => {
     return () => {
       if (isListeningRef.current) {
         cleanup();
+      } else {
+        clearFlushTimer();
       }
     };
-  }, [cleanup]);
+  }, [cleanup, clearFlushTimer]);
   return {
     isListening,
     micLevel,
     startMic,
-    stopMic
+    stopMic,
+    getStats: () => ({
+      queueMs: queuedMsRef.current,
+      queueChunks: queuedChunksRef.current,
+      droppedChunks: droppedChunksRef.current,
+      droppedMs: droppedMsRef.current,
+      sendErrorStreak: sendErrorStreakRef.current,
+      blockedUntil: sendBlockedUntilRef.current,
+      lastSendAt: lastSendAtRef.current,
+      usingWorklet: usingWorkletRef.current
+    })
   };
 }
 function useVoiceOutput(options) {
-  const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, onEvent, onPlaybackStart, onPlaybackComplete } = options;
+  const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, dropPolicy, onEvent, onPlaybackStart, onPlaybackComplete } = options;
   const [isPlaying, setIsPlaying] = react.useState(false);
   const playQueueRef = react.useRef([]);
   const isDrainingRef = react.useRef(false);
@@ -778,6 +1241,8 @@ function useVoiceOutput(options) {
   const completeTimerRef = react.useRef(null);
   const queuedMsRef = react.useRef(0);
   const queuedChunksRef = react.useRef(0);
+  const droppedChunksRef = react.useRef(0);
+  const droppedMsRef = react.useRef(0);
   const onPlaybackStartRef = react.useRef(onPlaybackStart);
   const onPlaybackCompleteRef = react.useRef(onPlaybackComplete);
   const playCtxRef = react.useRef(playbackContext);
@@ -786,6 +1251,7 @@ function useVoiceOutput(options) {
   const startBufferMsRef = react.useRef(startBufferMs ?? 0);
   const maxQueueMsRef = react.useRef(maxQueueMs ?? 0);
   const maxQueueChunksRef = react.useRef(maxQueueChunks ?? 0);
+  const dropPolicyRef = react.useRef(dropPolicy ?? "drop-oldest");
   const onEventRef = react.useRef(onEvent);
   react.useEffect(() => {
     onPlaybackStartRef.current = onPlaybackStart;
@@ -811,6 +1277,9 @@ function useVoiceOutput(options) {
   react.useEffect(() => {
     maxQueueChunksRef.current = maxQueueChunks ?? 0;
   }, [maxQueueChunks]);
+  react.useEffect(() => {
+    dropPolicyRef.current = dropPolicy ?? "drop-oldest";
+  }, [dropPolicy]);
   react.useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
@@ -948,34 +1417,62 @@ function useVoiceOutput(options) {
       return;
     }
     try {
+      const ctx = playCtxRef.current;
+      if (!ctx || ctx.state === "closed") {
+        emitEvent("audio_output_dropped", { reason: "playback_context_missing" });
+        return;
+      }
       const pcm16 = base64ToPCM16(base64Data);
       if (pcm16.length > 0) {
         const targetRate = Number.isFinite(sampleRate) && (sampleRate ?? 0) > 0 ? sampleRate : OUTPUT_SAMPLE_RATE;
         const chunk = new Int16Array(pcm16.length);
         chunk.set(pcm16);
         const durationMs = chunk.length / targetRate * 1e3;
-        playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate, durationMs });
-        queuedMsRef.current += durationMs;
-        queuedChunksRef.current += 1;
         const maxMs = maxQueueMsRef.current;
         const maxChunks = maxQueueChunksRef.current;
+        const policy = dropPolicyRef.current;
+        const wouldOverflow = (extraMs, extraChunks) => maxMs > 0 && queuedMsRef.current + extraMs > maxMs || maxChunks > 0 && queuedChunksRef.current + extraChunks > maxChunks;
         let droppedChunks = 0;
         let droppedMs = 0;
-        while (maxMs > 0 && queuedMsRef.current > maxMs || maxChunks > 0 && queuedChunksRef.current > maxChunks) {
-          const dropped = playQueueRef.current.shift();
-          if (!dropped) break;
-          queuedMsRef.current = Math.max(0, queuedMsRef.current - dropped.durationMs);
-          queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
-          droppedChunks += 1;
-          droppedMs += dropped.durationMs;
+        if (policy === "drop-newest" && wouldOverflow(durationMs, 1)) {
+          droppedChunks = 1;
+          droppedMs = durationMs;
+        } else {
+          if (policy === "drop-all" && wouldOverflow(durationMs, 1)) {
+            droppedChunks = playQueueRef.current.length;
+            droppedMs = queuedMsRef.current;
+            playQueueRef.current = [];
+            queuedMsRef.current = 0;
+            queuedChunksRef.current = 0;
+          }
+          playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate, durationMs });
+          queuedMsRef.current += durationMs;
+          queuedChunksRef.current += 1;
+          if (policy === "drop-oldest") {
+            while (maxMs > 0 && queuedMsRef.current > maxMs || maxChunks > 0 && queuedChunksRef.current > maxChunks) {
+              const dropped = playQueueRef.current.shift();
+              if (!dropped) break;
+              queuedMsRef.current = Math.max(0, queuedMsRef.current - dropped.durationMs);
+              queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
+              droppedChunks += 1;
+              droppedMs += dropped.durationMs;
+            }
+          }
         }
         if (droppedChunks > 0) {
+          droppedChunksRef.current += droppedChunks;
+          droppedMsRef.current += droppedMs;
           emitEvent("audio_output_queue_overflow", {
             droppedChunks,
             droppedMs,
             queueMs: queuedMsRef.current,
-            queueChunks: queuedChunksRef.current
+            queueChunks: queuedChunksRef.current,
+            policy
           });
+          if (policy === "drop-newest") {
+            emitEvent("audio_output_dropped", { reason: "queue_overflow", policy });
+            return;
+          }
         }
         clearCompleteTimer();
         if (!isPlayingRef.current) {
@@ -1019,13 +1516,20 @@ function useVoiceOutput(options) {
     isPlaying,
     enqueueAudio,
     stopPlayback,
-    clearQueue
+    clearQueue,
+    getStats: () => ({
+      queueMs: queuedMsRef.current,
+      queueChunks: queuedChunksRef.current,
+      droppedChunks: droppedChunksRef.current,
+      droppedMs: droppedMsRef.current,
+      contextState: playCtxRef.current?.state ?? "none"
+    })
   };
 }
 
 // src/hooks/useVoiceChat.ts
 function useVoiceChat(options) {
-  const { config: userConfig, apiKey } = options;
+  const { config: userConfig, apiKey, getApiKey } = options;
   const config = mergeConfig(userConfig);
   const [messages, setMessages] = react.useState([]);
   const [isLoading, setIsLoading] = react.useState(false);
@@ -1237,6 +1741,7 @@ function useVoiceChat(options) {
   const session = useLiveSession({
     config: userConfig,
     apiKey,
+    getApiKey,
     onMessage: handleMessage,
     onConnected: () => {
       if (config.welcomeMessage) {
@@ -1265,6 +1770,7 @@ function useVoiceChat(options) {
     startBufferMs: config.playbackStartDelayMs,
     maxQueueMs: config.maxOutputQueueMs,
     maxQueueChunks: config.maxOutputQueueChunks,
+    dropPolicy: config.outputDropPolicy,
     onEvent: config.onEvent,
     onPlaybackStart: () => {
       setIsAISpeaking(true);
@@ -1281,6 +1787,13 @@ function useVoiceChat(options) {
     isEnabled: session.isConnected && !isMuted && isMicEnabled,
     maxConsecutiveErrors: config.maxConsecutiveInputErrors,
     errorCooldownMs: config.inputErrorCooldownMs,
+    inputMinSendIntervalMs: config.inputMinSendIntervalMs,
+    inputMaxQueueMs: config.inputMaxQueueMs,
+    inputMaxQueueChunks: config.inputMaxQueueChunks,
+    inputDropPolicy: config.inputDropPolicy,
+    preferAudioWorklet: config.preferAudioWorklet,
+    audioWorkletBufferSize: config.audioWorkletBufferSize,
+    restartMicOnDeviceChange: config.restartMicOnDeviceChange,
     onEvent: config.onEvent,
     onVoiceStart: () => {
       voiceOutputRef.current?.stopPlayback();
@@ -1320,6 +1833,33 @@ function useVoiceChat(options) {
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [emitEvent, scheduleMicResume]);
+  react.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePageHide = (event) => {
+      wasListeningBeforeHideRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
+      voiceInputRef.current?.stopMic();
+      voiceOutputRef.current?.stopPlayback();
+      pendingMicResumeRef.current = false;
+      if (micResumeTimerRef.current) {
+        clearTimeout(micResumeTimerRef.current);
+        micResumeTimerRef.current = null;
+      }
+      emitEvent("page_hide", { persisted: event.persisted });
+    };
+    const handlePageShow = (event) => {
+      emitEvent("page_show", { persisted: event.persisted });
+      if (wasListeningBeforeHideRef.current) {
+        wasListeningBeforeHideRef.current = false;
+        scheduleMicResume("pageshow");
+      }
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
     };
   }, [emitEvent, scheduleMicResume]);
   react.useEffect(() => {
@@ -1439,6 +1979,41 @@ function useVoiceChat(options) {
     setIsLoading(true);
     session.sendText(text);
   }, [session, pushMsg, config.replyAsAudio, config.autoPauseMicOnSendText, pauseMicForModelReply]);
+  const getStats = react.useCallback(() => {
+    const sessionStats = session.getStats();
+    const inputStats = voiceInput.getStats();
+    const outputStats = voiceOutput.getStats();
+    return {
+      ts: Date.now(),
+      session: {
+        isConnected: session.isConnected,
+        isReconnecting: session.isReconnecting,
+        reconnectAttempts: sessionStats.reconnectAttempts,
+        lastConnectAttemptAt: sessionStats.lastConnectAttemptAt,
+        lastDisconnectCode: sessionStats.lastDisconnectCode,
+        lastDisconnectReason: sessionStats.lastDisconnectReason
+      },
+      input: {
+        isListening: voiceInput.isListening,
+        queueMs: inputStats.queueMs,
+        queueChunks: inputStats.queueChunks,
+        droppedChunks: inputStats.droppedChunks,
+        droppedMs: inputStats.droppedMs,
+        sendErrorStreak: inputStats.sendErrorStreak,
+        blockedUntil: inputStats.blockedUntil,
+        lastSendAt: inputStats.lastSendAt,
+        usingWorklet: inputStats.usingWorklet
+      },
+      output: {
+        isPlaying: voiceOutput.isPlaying,
+        queueMs: outputStats.queueMs,
+        queueChunks: outputStats.queueChunks,
+        droppedChunks: outputStats.droppedChunks,
+        droppedMs: outputStats.droppedMs,
+        contextState: outputStats.contextState
+      }
+    };
+  }, [session.isConnected, session.isReconnecting, session.getStats, voiceInput.isListening, voiceInput.getStats, voiceOutput.isPlaying, voiceOutput.getStats]);
   return {
     // Connection
     isConnected: session.isConnected,
@@ -1460,7 +2035,8 @@ function useVoiceChat(options) {
     sendText: sendTextMessage,
     toggleMute,
     toggleMic,
-    toggleSpeaker
+    toggleSpeaker,
+    getStats
   };
 }
 function ChatMessage({ message, primaryColor = "#2563eb" }) {
@@ -1503,7 +2079,7 @@ function ChatMessage({ message, primaryColor = "#2563eb" }) {
     }
   );
 }
-function ChatBot({ config: userConfig, apiKey }) {
+function ChatBot({ config: userConfig, apiKey, getApiKey }) {
   const config = mergeConfig(userConfig);
   const [isOpen, setIsOpen] = react.useState(false);
   const [inputText, setInputText] = react.useState("");
@@ -1525,7 +2101,7 @@ function ChatBot({ config: userConfig, apiKey }) {
     toggleMute,
     toggleMic,
     toggleSpeaker
-  } = useVoiceChat({ config: userConfig, apiKey });
+  } = useVoiceChat({ config: userConfig, apiKey, getApiKey });
   react.useEffect(() => {
     if (isOpen && !isConnected) {
       void connect();

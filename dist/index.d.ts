@@ -1,13 +1,14 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { V as VoiceChatConfig, C as ChatMessage$1, M as MessageHandler, L as LiveSession, a as VoiceChatEvent } from './types-ZoP0AQBP.js';
-export { d as ChatHandlerConfig, b as ChatRole, c as ChatTheme } from './types-ZoP0AQBP.js';
+import { V as VoiceChatConfig, C as ChatMessage$1, a as VoiceChatStats, M as MessageHandler, L as LiveSession, A as AudioDropPolicy, b as VoiceChatEvent } from './types-Bt86lhtR.js';
+export { e as ChatHandlerConfig, c as ChatRole, d as ChatTheme } from './types-Bt86lhtR.js';
 import '@google/genai';
 
 interface ChatBotProps {
     config: VoiceChatConfig;
-    apiKey: string;
+    apiKey?: string;
+    getApiKey?: () => Promise<string>;
 }
-declare function ChatBot({ config: userConfig, apiKey }: ChatBotProps): react_jsx_runtime.JSX.Element;
+declare function ChatBot({ config: userConfig, apiKey, getApiKey }: ChatBotProps): react_jsx_runtime.JSX.Element;
 
 interface ChatMessageProps {
     message: ChatMessage$1;
@@ -17,7 +18,8 @@ declare function ChatMessage({ message, primaryColor }: ChatMessageProps): react
 
 interface UseVoiceChatOptions {
     config: VoiceChatConfig;
-    apiKey: string;
+    apiKey?: string;
+    getApiKey?: () => Promise<string>;
 }
 interface UseVoiceChatReturn {
     isConnected: boolean;
@@ -36,12 +38,14 @@ interface UseVoiceChatReturn {
     toggleMute: () => void;
     toggleMic: () => void;
     toggleSpeaker: () => void;
+    getStats: () => VoiceChatStats;
 }
 declare function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn;
 
 interface UseLiveSessionOptions {
     config: VoiceChatConfig;
-    apiKey: string;
+    apiKey?: string;
+    getApiKey?: () => Promise<string>;
     onMessage?: MessageHandler;
     onConnected?: () => void;
     onDisconnected?: () => void;
@@ -57,6 +61,12 @@ interface UseLiveSessionReturn {
     disconnect: () => Promise<void>;
     sendText: (text: string) => void;
     playbackContext: AudioContext | null;
+    getStats: () => {
+        reconnectAttempts: number;
+        lastConnectAttemptAt: number | null;
+        lastDisconnectCode: number | null;
+        lastDisconnectReason: string | null;
+    };
 }
 declare function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionReturn;
 
@@ -65,6 +75,13 @@ interface UseVoiceInputOptions {
     isEnabled: boolean;
     maxConsecutiveErrors?: number;
     errorCooldownMs?: number;
+    inputMinSendIntervalMs?: number;
+    inputMaxQueueMs?: number;
+    inputMaxQueueChunks?: number;
+    inputDropPolicy?: AudioDropPolicy;
+    preferAudioWorklet?: boolean;
+    audioWorkletBufferSize?: number;
+    restartMicOnDeviceChange?: boolean;
     onEvent?: (event: VoiceChatEvent) => void;
     onVoiceStart?: () => void;
     onVoiceEnd?: () => void;
@@ -75,6 +92,16 @@ interface UseVoiceInputReturn {
     micLevel: number;
     startMic: () => Promise<void>;
     stopMic: () => void;
+    getStats: () => {
+        queueMs: number;
+        queueChunks: number;
+        droppedChunks: number;
+        droppedMs: number;
+        sendErrorStreak: number;
+        blockedUntil: number;
+        lastSendAt: number;
+        usingWorklet: boolean;
+    };
 }
 declare function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputReturn;
 
@@ -84,6 +111,7 @@ interface UseVoiceOutputOptions {
     startBufferMs?: number;
     maxQueueMs?: number;
     maxQueueChunks?: number;
+    dropPolicy?: AudioDropPolicy;
     onEvent?: (event: VoiceChatEvent) => void;
     onPlaybackStart?: () => void;
     onPlaybackComplete?: () => void;
@@ -93,6 +121,13 @@ interface UseVoiceOutputReturn {
     enqueueAudio: (base64Data: string, sampleRate?: number) => void;
     stopPlayback: () => void;
     clearQueue: () => void;
+    getStats: () => {
+        queueMs: number;
+        queueChunks: number;
+        droppedChunks: number;
+        droppedMs: number;
+        contextState: AudioContextState | 'none';
+    };
 }
 declare function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputReturn;
 
@@ -126,4 +161,4 @@ declare function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceCh
     onEvent?: VoiceChatConfig['onEvent'];
 };
 
-export { AUDIO_CONFIG, ChatBot, ChatMessage, ChatMessage$1 as ChatMessageType, DEFAULT_CONFIG, LiveSession, MessageHandler, STABLE_PRESET, VoiceChatConfig, VoiceChatEvent, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };
+export { AUDIO_CONFIG, AudioDropPolicy, ChatBot, ChatMessage, ChatMessage$1 as ChatMessageType, DEFAULT_CONFIG, LiveSession, MessageHandler, STABLE_PRESET, VoiceChatConfig, VoiceChatEvent, VoiceChatStats, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };

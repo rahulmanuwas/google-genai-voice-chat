@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { OUTPUT_SAMPLE_RATE, PLAYBACK_COMPLETE_DELAY_MS, base64ToPCM16, pcm16ToFloat32 } from '../lib/audio-utils';
-import type { VoiceChatEvent } from '../lib/types';
+import type { AudioDropPolicy, VoiceChatEvent } from '../lib/types';
 
 interface UseVoiceOutputOptions {
     playbackContext: AudioContext | null;
@@ -15,6 +15,7 @@ interface UseVoiceOutputOptions {
     startBufferMs?: number;
     maxQueueMs?: number;
     maxQueueChunks?: number;
+    dropPolicy?: AudioDropPolicy;
     onEvent?: (event: VoiceChatEvent) => void;
     onPlaybackStart?: () => void;
     onPlaybackComplete?: () => void;
@@ -25,10 +26,17 @@ interface UseVoiceOutputReturn {
     enqueueAudio: (base64Data: string, sampleRate?: number) => void;
     stopPlayback: () => void;
     clearQueue: () => void;
+    getStats: () => {
+        queueMs: number;
+        queueChunks: number;
+        droppedChunks: number;
+        droppedMs: number;
+        contextState: AudioContextState | 'none';
+    };
 }
 
 export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputReturn {
-    const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, onEvent, onPlaybackStart, onPlaybackComplete } = options;
+    const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, dropPolicy, onEvent, onPlaybackStart, onPlaybackComplete } = options;
 
     const [isPlaying, setIsPlaying] = useState(false);
 
@@ -40,6 +48,8 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     const completeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const queuedMsRef = useRef(0);
     const queuedChunksRef = useRef(0);
+    const droppedChunksRef = useRef(0);
+    const droppedMsRef = useRef(0);
 
     // Callback refs
     const onPlaybackStartRef = useRef(onPlaybackStart);
@@ -50,6 +60,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     const startBufferMsRef = useRef(startBufferMs ?? 0);
     const maxQueueMsRef = useRef(maxQueueMs ?? 0);
     const maxQueueChunksRef = useRef(maxQueueChunks ?? 0);
+    const dropPolicyRef = useRef<AudioDropPolicy>(dropPolicy ?? 'drop-oldest');
     const onEventRef = useRef(onEvent);
 
     // Keep refs updated
@@ -61,6 +72,7 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
     useEffect(() => { startBufferMsRef.current = startBufferMs ?? 0; }, [startBufferMs]);
     useEffect(() => { maxQueueMsRef.current = maxQueueMs ?? 0; }, [maxQueueMs]);
     useEffect(() => { maxQueueChunksRef.current = maxQueueChunks ?? 0; }, [maxQueueChunks]);
+    useEffect(() => { dropPolicyRef.current = dropPolicy ?? 'drop-oldest'; }, [dropPolicy]);
     useEffect(() => { onEventRef.current = onEvent; }, [onEvent]);
 
     const emitEvent = useCallback((type: string, data?: Record<string, unknown>) => {
@@ -236,6 +248,11 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         }
 
         try {
+            const ctx = playCtxRef.current;
+            if (!ctx || ctx.state === 'closed') {
+                emitEvent('audio_output_dropped', { reason: 'playback_context_missing' });
+                return;
+            }
             const pcm16 = base64ToPCM16(base64Data);
 
             if (pcm16.length > 0) {
@@ -244,34 +261,62 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
                 const chunk = new Int16Array(pcm16.length);
                 chunk.set(pcm16);
                 const durationMs = (chunk.length / targetRate) * 1000;
-                playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate, durationMs });
-                queuedMsRef.current += durationMs;
-                queuedChunksRef.current += 1;
-
                 const maxMs = maxQueueMsRef.current;
                 const maxChunks = maxQueueChunksRef.current;
+                const policy = dropPolicyRef.current;
+
+                const wouldOverflow = (extraMs: number, extraChunks: number) =>
+                    (maxMs > 0 && queuedMsRef.current + extraMs > maxMs) ||
+                    (maxChunks > 0 && queuedChunksRef.current + extraChunks > maxChunks);
+
                 let droppedChunks = 0;
                 let droppedMs = 0;
 
-                while (
-                    (maxMs > 0 && queuedMsRef.current > maxMs) ||
-                    (maxChunks > 0 && queuedChunksRef.current > maxChunks)
-                ) {
-                    const dropped = playQueueRef.current.shift();
-                    if (!dropped) break;
-                    queuedMsRef.current = Math.max(0, queuedMsRef.current - dropped.durationMs);
-                    queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
-                    droppedChunks += 1;
-                    droppedMs += dropped.durationMs;
+                if (policy === 'drop-newest' && wouldOverflow(durationMs, 1)) {
+                    droppedChunks = 1;
+                    droppedMs = durationMs;
+                } else {
+                    if (policy === 'drop-all' && wouldOverflow(durationMs, 1)) {
+                        droppedChunks = playQueueRef.current.length;
+                        droppedMs = queuedMsRef.current;
+                        playQueueRef.current = [];
+                        queuedMsRef.current = 0;
+                        queuedChunksRef.current = 0;
+                    }
+
+                    playQueueRef.current.push({ pcm: chunk, sampleRate: targetRate, durationMs });
+                    queuedMsRef.current += durationMs;
+                    queuedChunksRef.current += 1;
+
+                    if (policy === 'drop-oldest') {
+                        while (
+                            (maxMs > 0 && queuedMsRef.current > maxMs) ||
+                            (maxChunks > 0 && queuedChunksRef.current > maxChunks)
+                        ) {
+                            const dropped = playQueueRef.current.shift();
+                            if (!dropped) break;
+                            queuedMsRef.current = Math.max(0, queuedMsRef.current - dropped.durationMs);
+                            queuedChunksRef.current = Math.max(0, queuedChunksRef.current - 1);
+                            droppedChunks += 1;
+                            droppedMs += dropped.durationMs;
+                        }
+                    }
                 }
 
                 if (droppedChunks > 0) {
+                    droppedChunksRef.current += droppedChunks;
+                    droppedMsRef.current += droppedMs;
                     emitEvent('audio_output_queue_overflow', {
                         droppedChunks,
                         droppedMs,
                         queueMs: queuedMsRef.current,
                         queueChunks: queuedChunksRef.current,
+                        policy,
                     });
+                    if (policy === 'drop-newest') {
+                        emitEvent('audio_output_dropped', { reason: 'queue_overflow', policy });
+                        return;
+                    }
                 }
 
                 clearCompleteTimer();
@@ -325,5 +370,12 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         enqueueAudio,
         stopPlayback,
         clearQueue,
+        getStats: () => ({
+            queueMs: queuedMsRef.current,
+            queueChunks: queuedChunksRef.current,
+            droppedChunks: droppedChunksRef.current,
+            droppedMs: droppedMsRef.current,
+            contextState: playCtxRef.current?.state ?? 'none',
+        }),
     };
 }

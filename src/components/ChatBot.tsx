@@ -8,10 +8,11 @@ import { ChatMessage } from './ChatMessage';
 
 interface ChatBotProps {
     config: VoiceChatConfig;
-    apiKey: string;
+    apiKey?: string;
+    getApiKey?: () => Promise<string>;
 }
 
-export function ChatBot({ config: userConfig, apiKey }: ChatBotProps) {
+export function ChatBot({ config: userConfig, apiKey, getApiKey }: ChatBotProps) {
     const config = mergeConfig(userConfig);
     const [isOpen, setIsOpen] = useState(false);
     const [inputText, setInputText] = useState('');
@@ -34,7 +35,7 @@ export function ChatBot({ config: userConfig, apiKey }: ChatBotProps) {
         toggleMute,
         toggleMic,
         toggleSpeaker,
-    } = useVoiceChat({ config: userConfig, apiKey });
+    } = useVoiceChat({ config: userConfig, apiKey, getApiKey });
 
     // Connect when chat opens
     useEffect(() => {

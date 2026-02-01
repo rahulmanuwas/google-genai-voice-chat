@@ -12,6 +12,7 @@ Real-time voice and text chat UI + hooks for Google Gemini Live API.
 - Session resumption (handle storage)
 - Configurable server VAD (sensitivity + silence window)
 - Playback buffering and mic resume delays
+- AudioWorklet mic capture + input/output backpressure controls
 - Optional welcome audio prompt
 - Theme + placement customization
 
@@ -49,6 +50,7 @@ function App() {
 ```
 
 Note: Browsers require a user gesture to start audio. Wire `connect()` to a button click or set `autoStartMicOnConnect: false` and prompt the user to enable mic.
+You can also pass `getApiKey` to `ChatBot`/`useVoiceChat` to fetch ephemeral tokens at connect time.
 
 ## Using Individual Hooks
 
@@ -61,6 +63,7 @@ function CustomChat() {
     isConnected,
     isListening,
     isAISpeaking,
+    getStats,
     connect,
     disconnect,
     sendText,
@@ -68,6 +71,8 @@ function CustomChat() {
     toggleMic,
   } = useVoiceChat({
     apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY!,
+    // or fetch ephemeral tokens:
+    // getApiKey: async () => (await fetch('/api/genai-token')).text(),
     config: {
       systemPrompt: 'You are a helpful assistant...',
       modelId: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -77,6 +82,8 @@ function CustomChat() {
   // Build your own UI...
 }
 ```
+
+Tip: call `getStats()` for a lightweight snapshot of queue and reconnect metrics.
 
 ## Configuration
 
@@ -118,6 +125,25 @@ Note: Live API supports only one response modality per session. Use `replyAsAudi
 | `autoWelcomeAudio` | `boolean` | `false` | Speak a welcome prompt on connect |
 | `welcomeAudioPrompt` | `string` | `""` | Prompt used to generate welcome audio |
 | `clearSessionOnMount` | `boolean` | `true` | Clear stored session handle on mount |
+
+### Reliability & Backpressure
+
+| Option | Type | Default | Notes |
+|---|---|---|---|
+| `connectTimeoutMs` | `number` | `12000` | Timeout for initial Live API connection |
+| `reconnectMaxRetries` | `number` | `3` | Max reconnection attempts |
+| `reconnectBaseDelayMs` | `number` | `1500` | Base delay for reconnection backoff |
+| `reconnectBackoffFactor` | `number` | `1.5` | Backoff multiplier |
+| `reconnectMaxDelayMs` | `number` | `15000` | Max backoff delay |
+| `reconnectJitterPct` | `number` | `0.2` | Jitter percentage (0–1) |
+| `outputDropPolicy` | `"drop-oldest" \| "drop-newest" \| "drop-all"` | `drop-oldest` | Behavior when output queue overflows |
+| `inputMinSendIntervalMs` | `number` | `0` | Throttle input send rate (0 disables) |
+| `inputMaxQueueMs` | `number` | `0` | Cap input queue duration (0 disables) |
+| `inputMaxQueueChunks` | `number` | `0` | Cap input queue chunks (0 disables) |
+| `inputDropPolicy` | `"drop-oldest" \| "drop-newest" \| "drop-all"` | `drop-oldest` | Behavior when input queue overflows |
+| `preferAudioWorklet` | `boolean` | `true` | Use AudioWorklet for mic capture when available |
+| `audioWorkletBufferSize` | `number` | `2048` | Worklet/ScriptProcessor chunk size |
+| `restartMicOnDeviceChange` | `boolean` | `true` | Auto-restart mic when device changes |
 
 To use VAD sensitivities:
 
@@ -168,6 +194,7 @@ GEMINI_API_KEY=your-api-key
 - No audio output: ensure a user gesture created the AudioContext. Call `connect()` on a click and set `autoStartMicOnConnect: false` if needed. Also confirm `replyAsAudio: true`.
 - Audio response skips words: increase `playbackStartDelayMs` (100-200ms) and `micResumeDelayMs` (400-800ms), and raise `serverVADSilenceDurationMs` (1200-2000ms).
 - 1008 referer blocked: check Google Cloud referrer restrictions or use ephemeral tokens for production.
+- Mic blocked: grant microphone permissions in the browser address bar/site settings.
 
 ## Requirements
 

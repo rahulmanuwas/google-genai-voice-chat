@@ -33,6 +33,11 @@ export interface LiveSession {
 export type MessageHandler = (msg: LiveServerMessage) => void;
 
 /**
+ * Audio drop policy when queues overflow
+ */
+export type AudioDropPolicy = 'drop-oldest' | 'drop-newest' | 'drop-all';
+
+/**
  * Debug/telemetry event emitted by the voice chat hooks
  */
 export interface VoiceChatEvent {
@@ -95,6 +100,24 @@ export interface VoiceChatConfig {
     /** Session initialization delay in ms (default: 300) */
     sessionInitDelayMs?: number;
 
+    /** Timeout for initial connection (ms) */
+    connectTimeoutMs?: number;
+
+    /** Max reconnection attempts before giving up */
+    reconnectMaxRetries?: number;
+
+    /** Base delay for reconnection backoff (ms) */
+    reconnectBaseDelayMs?: number;
+
+    /** Backoff multiplier for reconnection attempts */
+    reconnectBackoffFactor?: number;
+
+    /** Max delay cap for reconnection backoff (ms) */
+    reconnectMaxDelayMs?: number;
+
+    /** Jitter percentage applied to reconnect delays (0-1) */
+    reconnectJitterPct?: number;
+
     /** Delay before starting mic after AI playback completes (ms) */
     micResumeDelayMs?: number;
 
@@ -116,14 +139,38 @@ export interface VoiceChatConfig {
     /** Max queued playback chunks before dropping (0 disables cap) */
     maxOutputQueueChunks?: number;
 
+    /** Drop policy when output queue overflows */
+    outputDropPolicy?: AudioDropPolicy;
+
     /** Max consecutive input send errors before stopping mic */
     maxConsecutiveInputErrors?: number;
 
     /** Cooldown after an input send error (ms) */
     inputErrorCooldownMs?: number;
 
+    /** Minimum interval between audio input sends (ms) */
+    inputMinSendIntervalMs?: number;
+
+    /** Max queued input audio in ms before dropping (0 disables cap) */
+    inputMaxQueueMs?: number;
+
+    /** Max queued input chunks before dropping (0 disables cap) */
+    inputMaxQueueChunks?: number;
+
+    /** Drop policy when input queue overflows */
+    inputDropPolicy?: AudioDropPolicy;
+
     /** Clear stored session handle on mount (default: true) */
     clearSessionOnMount?: boolean;
+
+    /** Prefer AudioWorklet for mic capture when available */
+    preferAudioWorklet?: boolean;
+
+    /** AudioWorklet/ScriptProcessor buffer size (samples) */
+    audioWorkletBufferSize?: number;
+
+    /** Restart mic automatically on device change */
+    restartMicOnDeviceChange?: boolean;
 
     /** Voice configuration for native audio output */
     speechConfig?: Record<string, unknown>;
@@ -163,6 +210,40 @@ export interface VoiceChatConfig {
 
     /** Optional debug/event hook */
     onEvent?: (event: VoiceChatEvent) => void;
+}
+
+/**
+ * Runtime stats snapshot
+ */
+export interface VoiceChatStats {
+    ts: number;
+    session: {
+        isConnected: boolean;
+        isReconnecting: boolean;
+        reconnectAttempts: number;
+        lastConnectAttemptAt: number | null;
+        lastDisconnectCode: number | null;
+        lastDisconnectReason: string | null;
+    };
+    input: {
+        isListening: boolean;
+        queueMs: number;
+        queueChunks: number;
+        droppedChunks: number;
+        droppedMs: number;
+        sendErrorStreak: number;
+        blockedUntil: number;
+        lastSendAt: number;
+        usingWorklet: boolean;
+    };
+    output: {
+        isPlaying: boolean;
+        queueMs: number;
+        queueChunks: number;
+        droppedChunks: number;
+        droppedMs: number;
+        contextState: AudioContextState | 'none';
+    };
 }
 
 /**
