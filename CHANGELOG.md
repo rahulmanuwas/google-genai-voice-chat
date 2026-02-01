@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.27] - 2026-02-01
+
 ### Added
 - **Ephemeral token support**: New `getApiKey` async callback for secure production deployments
 - **Connection timeout**: `connectTimeoutMs` config (default: 12s) with proper cleanup
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `apiKey` prop is now optional when `getApiKey` is provided
 - Improved reconnection logic with stale connection detection
+- Versioning now uses `major.minor.commitCount` (auto-generated on publish)
 
 ## [0.3.0-beta.1] - 2026-01-15
 
@@ -76,7 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Text chat fallback
 - Theme customization
 
-[Unreleased]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.3.0-beta.1...HEAD
+[Unreleased]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.3.27...HEAD
+[0.3.27]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.3.0-beta.1...v0.3.27
 [0.3.0-beta.1]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.2.3...v0.3.0-beta.1
 [0.2.3]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.2.1...v0.2.2
