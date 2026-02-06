@@ -1,8 +1,12 @@
 'use strict';
 
-var react = require('react');
+var React = require('react');
 var genai = require('@google/genai');
 var jsxRuntime = require('react/jsx-runtime');
+
+function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
+
+var React__default = /*#__PURE__*/_interopDefault(React);
 
 // src/components/ChatBot.tsx
 
@@ -13,8 +17,13 @@ var PLAYBACK_COMPLETE_DELAY_MS = 200;
 function float32ToPCM16(float32) {
   const out = new Int16Array(float32.length);
   for (let i = 0; i < float32.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32[i]));
-    out[i] = s < 0 ? s * 32768 : s * 32767;
+    const s = float32[i];
+    if (isNaN(s)) {
+      out[i] = 0;
+      continue;
+    }
+    const clamped = s < -1 ? -1 : s > 1 ? 1 : s;
+    out[i] = clamped < 0 ? clamped * 32768 : clamped * 32767;
   }
   return out;
 }
@@ -26,11 +35,16 @@ function pcm16ToFloat32(pcm16) {
   return float32;
 }
 function uint8ToBase64(u8) {
-  let s = "";
-  for (let i = 0; i < u8.length; i++) {
-    s += String.fromCharCode(u8[i]);
+  const CHUNK_SIZE = 32768;
+  let index = 0;
+  const length = u8.length;
+  let result = "";
+  while (index < length) {
+    const slice = u8.subarray(index, Math.min(index + CHUNK_SIZE, length));
+    result += String.fromCharCode.apply(null, Array.from(slice));
+    index += CHUNK_SIZE;
   }
-  return btoa(s);
+  return btoa(result);
 }
 function base64ToPCM16(base64) {
   const bin = atob(base64);
@@ -156,76 +170,76 @@ function mergeConfig(userConfig) {
 }
 function useLiveSession(options) {
   const { config: userConfig, apiKey, getApiKey, onMessage, onConnected, onDisconnected, onError, onSystemMessage } = options;
-  const config = mergeConfig(userConfig);
-  const [isConnected, setIsConnected] = react.useState(false);
-  const [isReconnecting, setIsReconnecting] = react.useState(false);
-  const [sessionHandle, setSessionHandle] = react.useState(null);
-  const sessionRef = react.useRef(null);
-  const playCtxRef = react.useRef(null);
-  const isReconnectingRef = react.useRef(false);
-  const sessionHandleRef = react.useRef(null);
-  const isConnectedRef = react.useRef(false);
-  const connectPromiseRef = react.useRef(null);
-  const reconnectTimerRef = react.useRef(null);
-  const closeReasonRef = react.useRef("none");
-  const offlineRef = react.useRef(false);
-  const shouldReconnectRef = react.useRef(false);
-  const connectAttemptRef = react.useRef(0);
-  const activeAttemptRef = react.useRef(0);
-  const reconnectAttemptsRef = react.useRef(0);
-  const lastConnectAttemptAtRef = react.useRef(null);
-  const lastDisconnectRef = react.useRef(null);
-  const apiKeyRef = react.useRef(apiKey);
-  const getApiKeyRef = react.useRef(getApiKey);
-  const onMessageRef = react.useRef(onMessage);
-  const onConnectedRef = react.useRef(onConnected);
-  const onDisconnectedRef = react.useRef(onDisconnected);
-  const onErrorRef = react.useRef(onError);
-  const onSystemMessageRef = react.useRef(onSystemMessage);
-  react.useEffect(() => {
+  const config = React.useMemo(() => mergeConfig(userConfig), [userConfig]);
+  const [isConnected, setIsConnected] = React.useState(false);
+  const [isReconnecting, setIsReconnecting] = React.useState(false);
+  const [sessionHandle, setSessionHandle] = React.useState(null);
+  const sessionRef = React.useRef(null);
+  const playCtxRef = React.useRef(null);
+  const isReconnectingRef = React.useRef(false);
+  const sessionHandleRef = React.useRef(null);
+  const isConnectedRef = React.useRef(false);
+  const connectPromiseRef = React.useRef(null);
+  const reconnectTimerRef = React.useRef(null);
+  const closeReasonRef = React.useRef("none");
+  const offlineRef = React.useRef(false);
+  const shouldReconnectRef = React.useRef(false);
+  const connectAttemptRef = React.useRef(0);
+  const activeAttemptRef = React.useRef(0);
+  const reconnectAttemptsRef = React.useRef(0);
+  const lastConnectAttemptAtRef = React.useRef(null);
+  const lastDisconnectRef = React.useRef(null);
+  const apiKeyRef = React.useRef(apiKey);
+  const getApiKeyRef = React.useRef(getApiKey);
+  const onMessageRef = React.useRef(onMessage);
+  const onConnectedRef = React.useRef(onConnected);
+  const onDisconnectedRef = React.useRef(onDisconnected);
+  const onErrorRef = React.useRef(onError);
+  const onSystemMessageRef = React.useRef(onSystemMessage);
+  React.useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onConnectedRef.current = onConnected;
   }, [onConnected]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onDisconnectedRef.current = onDisconnected;
   }, [onDisconnected]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onSystemMessageRef.current = onSystemMessage;
   }, [onSystemMessage]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     sessionHandleRef.current = sessionHandle;
   }, [sessionHandle]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     isConnectedRef.current = isConnected;
   }, [isConnected]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     apiKeyRef.current = apiKey;
   }, [apiKey]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     getApiKeyRef.current = getApiKey;
   }, [getApiKey]);
-  const emitEvent = react.useCallback((type, data) => {
+  const emitEvent = React.useCallback((type, data) => {
     config.onEvent?.({ type, ts: Date.now(), data });
   }, [config.onEvent]);
-  const getJitteredDelay = react.useCallback((delayMs) => {
+  const getJitteredDelay = React.useCallback((delayMs) => {
     const jitterPct = Math.max(0, Math.min(1, config.reconnectJitterPct ?? 0));
     if (!jitterPct) return Math.max(0, delayMs);
     const jitter = delayMs * jitterPct * (Math.random() * 2 - 1);
     return Math.max(0, delayMs + jitter);
   }, [config.reconnectJitterPct]);
-  const getBackoffDelay = react.useCallback((attempt) => {
+  const getBackoffDelay = React.useCallback((attempt) => {
     const base = Math.max(0, config.reconnectBaseDelayMs ?? 1500);
     const factor = Math.max(1, config.reconnectBackoffFactor ?? 1.5);
     const maxDelay = Math.max(base, config.reconnectMaxDelayMs ?? 15e3);
     const raw = Math.min(maxDelay, base * Math.pow(factor, Math.max(0, attempt - 1)));
     return getJitteredDelay(raw);
   }, [config.reconnectBaseDelayMs, config.reconnectBackoffFactor, config.reconnectMaxDelayMs, getJitteredDelay]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     const storageKey = config.sessionStorageKey;
     if (config.clearSessionOnMount !== false) {
       try {
@@ -265,7 +279,7 @@ function useLiveSession(options) {
       console.warn("Failed to load stored session handle:", e);
     }
   }, [config.sessionStorageKey, config.clearSessionOnMount, config.sessionHandleTtlMs, emitEvent]);
-  const storeSessionHandle = react.useCallback((handle) => {
+  const storeSessionHandle = React.useCallback((handle) => {
     setSessionHandle(handle);
     try {
       const payload = JSON.stringify({ handle, ts: Date.now() });
@@ -276,7 +290,7 @@ function useLiveSession(options) {
       console.warn("Failed to store session handle:", e);
     }
   }, [config.sessionStorageKey, emitEvent]);
-  const clearSessionHandle = react.useCallback(() => {
+  const clearSessionHandle = React.useCallback(() => {
     setSessionHandle(null);
     try {
       localStorage.removeItem(config.sessionStorageKey);
@@ -286,14 +300,14 @@ function useLiveSession(options) {
       console.warn("Failed to clear session handle:", e);
     }
   }, [config.sessionStorageKey, emitEvent]);
-  const attemptReconnectionRef = react.useRef(() => Promise.resolve(false));
-  const clearReconnectTimer = react.useCallback(() => {
+  const attemptReconnectionRef = React.useRef(() => Promise.resolve(false));
+  const clearReconnectTimer = React.useCallback(() => {
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
   }, []);
-  const scheduleReconnect = react.useCallback((reason, delayMs) => {
+  const scheduleReconnect = React.useCallback((reason, delayMs) => {
     if (isReconnectingRef.current) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     clearReconnectTimer();
@@ -305,7 +319,7 @@ function useLiveSession(options) {
       void attemptReconnectionRef.current();
     }, Math.max(0, finalDelay));
   }, [clearReconnectTimer, emitEvent, getJitteredDelay]);
-  const handleInternalMessage = react.useCallback((msg) => {
+  const handleInternalMessage = React.useCallback((msg) => {
     if (msg.sessionResumptionUpdate) {
       if (msg.sessionResumptionUpdate.resumable && msg.sessionResumptionUpdate.newHandle) {
         storeSessionHandle(msg.sessionResumptionUpdate.newHandle);
@@ -319,7 +333,7 @@ function useLiveSession(options) {
     }
     onMessageRef.current?.(msg);
   }, [storeSessionHandle, scheduleReconnect]);
-  const ensurePlaybackContext = react.useCallback(() => {
+  const ensurePlaybackContext = React.useCallback(() => {
     if (!playCtxRef.current || playCtxRef.current.state === "closed") {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       playCtxRef.current = new Ctx({ sampleRate: config.playbackSampleRate ?? 24e3 });
@@ -334,7 +348,7 @@ function useLiveSession(options) {
       });
     }
   }, [config.playbackSampleRate, emitEvent]);
-  const resolveApiKey = react.useCallback(async () => {
+  const resolveApiKey = React.useCallback(async () => {
     if (apiKeyRef.current) return apiKeyRef.current;
     if (getApiKeyRef.current) {
       try {
@@ -347,7 +361,7 @@ function useLiveSession(options) {
     }
     return "";
   }, [emitEvent]);
-  const initializeSession = react.useCallback(async (resumptionHandle) => {
+  const initializeSession = React.useCallback(async (resumptionHandle) => {
     const attemptId = ++connectAttemptRef.current;
     activeAttemptRef.current = attemptId;
     lastConnectAttemptAtRef.current = Date.now();
@@ -367,7 +381,10 @@ function useLiveSession(options) {
       return false;
     }
     try {
-      const ai = new genai.GoogleGenAI({ apiKey: resolvedKey });
+      const ai = new genai.GoogleGenAI({
+        apiKey: resolvedKey,
+        ...config.httpOptions ? { httpOptions: config.httpOptions } : {}
+      });
       ensurePlaybackContext();
       console.log("Connecting to Google GenAI Live...", { model: config.modelId, hasResumption: !!resumptionHandle });
       emitEvent("session_connect_start", { hasResumption: !!resumptionHandle });
@@ -518,7 +535,7 @@ function useLiveSession(options) {
       return false;
     }
   }, [config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext, emitEvent, scheduleReconnect, clearReconnectTimer, resolveApiKey, getBackoffDelay]);
-  const initializeSessionWithFallback = react.useCallback(async (resumptionHandle) => {
+  const initializeSessionWithFallback = React.useCallback(async (resumptionHandle) => {
     const hadHandle = !!resumptionHandle;
     const success = await initializeSession(resumptionHandle || void 0);
     if (!success && hadHandle) {
@@ -527,7 +544,7 @@ function useLiveSession(options) {
     }
     return success;
   }, [initializeSession, clearSessionHandle]);
-  const attemptReconnection = react.useCallback(async (maxRetriesOverride) => {
+  const attemptReconnection = React.useCallback(async (maxRetriesOverride) => {
     if (connectPromiseRef.current) {
       try {
         await connectPromiseRef.current;
@@ -583,15 +600,15 @@ function useLiveSession(options) {
     emitEvent("session_reconnect_failed", { maxRetries });
     return false;
   }, [initializeSessionWithFallback, config.useClientVAD, config.reconnectMaxRetries, emitEvent, getBackoffDelay]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     attemptReconnectionRef.current = attemptReconnection;
   }, [attemptReconnection]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     return () => {
       clearReconnectTimer();
     };
   }, [clearReconnectTimer]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (typeof window === "undefined") return;
     const handleOnline = () => {
       offlineRef.current = false;
@@ -624,7 +641,7 @@ function useLiveSession(options) {
       window.removeEventListener("offline", handleOffline);
     };
   }, [emitEvent, scheduleReconnect, clearReconnectTimer]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePageHide = (event) => {
       emitEvent("page_hide", { persisted: event.persisted });
@@ -656,7 +673,7 @@ function useLiveSession(options) {
       window.removeEventListener("pageshow", handlePageShow);
     };
   }, [emitEvent, scheduleReconnect, clearReconnectTimer, getBackoffDelay]);
-  const connect = react.useCallback(async () => {
+  const connect = React.useCallback(async () => {
     if (connectPromiseRef.current) {
       await connectPromiseRef.current;
       return;
@@ -673,7 +690,7 @@ function useLiveSession(options) {
       connectPromiseRef.current = null;
     }
   }, [ensurePlaybackContext, initializeSessionWithFallback]);
-  const disconnect = react.useCallback(async () => {
+  const disconnect = React.useCallback(async () => {
     console.log("Disconnecting session...");
     closeReasonRef.current = "intentional";
     shouldReconnectRef.current = false;
@@ -709,7 +726,7 @@ function useLiveSession(options) {
     setIsReconnecting(false);
     isReconnectingRef.current = false;
   }, [config.useClientVAD, clearReconnectTimer]);
-  const sendText = react.useCallback((text) => {
+  const sendText = React.useCallback((text) => {
     if (!sessionRef.current || !text.trim()) return;
     try {
       console.log("Sending text message:", text);
@@ -719,7 +736,13 @@ function useLiveSession(options) {
       onErrorRef.current?.(`Send failed: ${e.message}`);
     }
   }, []);
-  return {
+  const getStats = React.useCallback(() => ({
+    reconnectAttempts: reconnectAttemptsRef.current,
+    lastConnectAttemptAt: lastConnectAttemptAtRef.current,
+    lastDisconnectCode: lastDisconnectRef.current?.code ?? null,
+    lastDisconnectReason: lastDisconnectRef.current?.reason ?? null
+  }), []);
+  return React.useMemo(() => ({
     session: sessionRef.current,
     isConnected,
     isReconnecting,
@@ -728,13 +751,8 @@ function useLiveSession(options) {
     disconnect,
     sendText,
     playbackContext: playCtxRef.current,
-    getStats: () => ({
-      reconnectAttempts: reconnectAttemptsRef.current,
-      lastConnectAttemptAt: lastConnectAttemptAtRef.current,
-      lastDisconnectCode: lastDisconnectRef.current?.code ?? null,
-      lastDisconnectReason: lastDisconnectRef.current?.reason ?? null
-    })
-  };
+    getStats
+  }), [isConnected, isReconnecting, sessionHandle, connect, disconnect, sendText, getStats]);
 }
 var MIC_BUFFER_SIZE = 2048;
 var MIC_CHANNELS = 1;
@@ -756,109 +774,109 @@ function useVoiceInput(options) {
     onVoiceEnd,
     onError
   } = options;
-  const [isListening, setIsListening] = react.useState(false);
-  const [micLevel, setMicLevel] = react.useState(0);
-  const micCtxRef = react.useRef(null);
-  const micSourceRef = react.useRef(null);
-  const micProcRef = react.useRef(null);
-  const micWorkletRef = react.useRef(null);
-  const micWorkletUrlRef = react.useRef(null);
-  const micStreamRef = react.useRef(null);
-  const micSilenceGainRef = react.useRef(null);
-  const lastMicLevelUpdateRef = react.useRef(0);
-  const sendErrorStreakRef = react.useRef(0);
-  const sendBlockedUntilRef = react.useRef(0);
-  const lastSendAtRef = react.useRef(0);
-  const maxConsecutiveErrorsRef = react.useRef(maxConsecutiveErrors ?? 3);
-  const errorCooldownMsRef = react.useRef(errorCooldownMs ?? 750);
-  const inputMinSendIntervalMsRef = react.useRef(inputMinSendIntervalMs ?? 0);
-  const inputMaxQueueMsRef = react.useRef(inputMaxQueueMs ?? 0);
-  const inputMaxQueueChunksRef = react.useRef(inputMaxQueueChunks ?? 0);
-  const inputDropPolicyRef = react.useRef(inputDropPolicy ?? "drop-oldest");
-  const preferAudioWorkletRef = react.useRef(preferAudioWorklet ?? true);
-  const audioWorkletBufferSizeRef = react.useRef(audioWorkletBufferSize ?? MIC_BUFFER_SIZE);
-  const restartMicOnDeviceChangeRef = react.useRef(restartMicOnDeviceChange ?? true);
-  const onEventRef = react.useRef(onEvent);
-  const isListeningRef = react.useRef(false);
-  const isEnabledRef = react.useRef(isEnabled);
-  const sessionRef = react.useRef(session);
-  const usingWorkletRef = react.useRef(false);
-  const sendQueueRef = react.useRef([]);
-  const queuedMsRef = react.useRef(0);
-  const queuedChunksRef = react.useRef(0);
-  const droppedChunksRef = react.useRef(0);
-  const droppedMsRef = react.useRef(0);
-  const flushTimerRef = react.useRef(null);
-  const stopMicRef = react.useRef(() => {
+  const [isListening, setIsListening] = React.useState(false);
+  const [micLevel, setMicLevel] = React.useState(0);
+  const micCtxRef = React.useRef(null);
+  const micSourceRef = React.useRef(null);
+  const micProcRef = React.useRef(null);
+  const micWorkletRef = React.useRef(null);
+  const micWorkletUrlRef = React.useRef(null);
+  const micStreamRef = React.useRef(null);
+  const micSilenceGainRef = React.useRef(null);
+  const lastMicLevelUpdateRef = React.useRef(0);
+  const sendErrorStreakRef = React.useRef(0);
+  const sendBlockedUntilRef = React.useRef(0);
+  const lastSendAtRef = React.useRef(0);
+  const maxConsecutiveErrorsRef = React.useRef(maxConsecutiveErrors ?? 3);
+  const errorCooldownMsRef = React.useRef(errorCooldownMs ?? 750);
+  const inputMinSendIntervalMsRef = React.useRef(inputMinSendIntervalMs ?? 0);
+  const inputMaxQueueMsRef = React.useRef(inputMaxQueueMs ?? 0);
+  const inputMaxQueueChunksRef = React.useRef(inputMaxQueueChunks ?? 0);
+  const inputDropPolicyRef = React.useRef(inputDropPolicy ?? "drop-oldest");
+  const preferAudioWorkletRef = React.useRef(preferAudioWorklet ?? true);
+  const audioWorkletBufferSizeRef = React.useRef(audioWorkletBufferSize ?? MIC_BUFFER_SIZE);
+  const restartMicOnDeviceChangeRef = React.useRef(restartMicOnDeviceChange ?? true);
+  const onEventRef = React.useRef(onEvent);
+  const isListeningRef = React.useRef(false);
+  const isEnabledRef = React.useRef(isEnabled);
+  const sessionRef = React.useRef(session);
+  const usingWorkletRef = React.useRef(false);
+  const sendQueueRef = React.useRef([]);
+  const queuedMsRef = React.useRef(0);
+  const queuedChunksRef = React.useRef(0);
+  const droppedChunksRef = React.useRef(0);
+  const droppedMsRef = React.useRef(0);
+  const flushTimerRef = React.useRef(null);
+  const stopMicRef = React.useRef(() => {
   });
-  const startMicRef = react.useRef(() => Promise.resolve());
-  const onVoiceStartRef = react.useRef(onVoiceStart);
-  const onVoiceEndRef = react.useRef(onVoiceEnd);
-  const onErrorRef = react.useRef(onError);
-  react.useEffect(() => {
+  const startMicRef = React.useRef(() => Promise.resolve());
+  const onVoiceStartRef = React.useRef(onVoiceStart);
+  const onVoiceEndRef = React.useRef(onVoiceEnd);
+  const onErrorRef = React.useRef(onError);
+  React.useEffect(() => {
     sessionRef.current = session;
   }, [session]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     isEnabledRef.current = isEnabled;
   }, [isEnabled]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onVoiceStartRef.current = onVoiceStart;
   }, [onVoiceStart]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onVoiceEndRef.current = onVoiceEnd;
   }, [onVoiceEnd]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     maxConsecutiveErrorsRef.current = maxConsecutiveErrors ?? 3;
   }, [maxConsecutiveErrors]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     errorCooldownMsRef.current = errorCooldownMs ?? 750;
   }, [errorCooldownMs]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     inputMinSendIntervalMsRef.current = inputMinSendIntervalMs ?? 0;
   }, [inputMinSendIntervalMs]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     inputMaxQueueMsRef.current = inputMaxQueueMs ?? 0;
   }, [inputMaxQueueMs]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     inputMaxQueueChunksRef.current = inputMaxQueueChunks ?? 0;
   }, [inputMaxQueueChunks]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     inputDropPolicyRef.current = inputDropPolicy ?? "drop-oldest";
   }, [inputDropPolicy]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     preferAudioWorkletRef.current = preferAudioWorklet ?? true;
   }, [preferAudioWorklet]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     audioWorkletBufferSizeRef.current = audioWorkletBufferSize ?? MIC_BUFFER_SIZE;
   }, [audioWorkletBufferSize]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     restartMicOnDeviceChangeRef.current = restartMicOnDeviceChange ?? true;
   }, [restartMicOnDeviceChange]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
-  const emitEvent = react.useCallback((type, data) => {
+  const emitEvent = React.useCallback((type, data) => {
     onEventRef.current?.({ type, ts: Date.now(), data });
   }, []);
-  const flushQueueRef = react.useRef(() => {
+  const flushQueueRef = React.useRef(() => {
   });
-  const clearFlushTimer = react.useCallback(() => {
+  const clearFlushTimer = React.useCallback(() => {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
   }, []);
-  const scheduleFlush = react.useCallback((delayMs) => {
+  const scheduleFlush = React.useCallback((delayMs) => {
     clearFlushTimer();
     flushTimerRef.current = setTimeout(() => {
       flushTimerRef.current = null;
       flushQueueRef.current();
     }, Math.max(0, delayMs));
   }, [clearFlushTimer]);
-  const cleanup = react.useCallback(() => {
+  const cleanup = React.useCallback(() => {
     try {
       micProcRef.current?.disconnect();
     } catch (e) {
@@ -910,7 +928,7 @@ function useVoiceInput(options) {
     usingWorkletRef.current = false;
     clearFlushTimer();
   }, [clearFlushTimer]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     const flushQueue = () => {
       if (!sessionRef.current) return;
       if (sendQueueRef.current.length === 0) return;
@@ -957,7 +975,7 @@ function useVoiceInput(options) {
     };
     flushQueueRef.current = flushQueue;
   }, [emitEvent, scheduleFlush]);
-  const enqueueInputChunk = react.useCallback((data, mimeType, durationMs) => {
+  const enqueueInputChunk = React.useCallback((data, mimeType, durationMs) => {
     const maxMs = inputMaxQueueMsRef.current;
     const maxChunks = inputMaxQueueChunksRef.current;
     const policy = inputDropPolicyRef.current;
@@ -1006,7 +1024,7 @@ function useVoiceInput(options) {
     }
     flushQueueRef.current();
   }, [emitEvent]);
-  const processInputChunk = react.useCallback((inputData) => {
+  const processInputChunk = React.useCallback((inputData) => {
     if (!micCtxRef.current || !isListeningRef.current || !sessionRef.current) return;
     const now = performance.now();
     if (now - lastMicLevelUpdateRef.current > 50) {
@@ -1022,7 +1040,7 @@ function useVoiceInput(options) {
     const durationMs = processedLength / INPUT_SAMPLE_RATE * 1e3;
     enqueueInputChunk(data, mimeType, durationMs);
   }, [enqueueInputChunk]);
-  const stopMic = react.useCallback(() => {
+  const stopMic = React.useCallback(() => {
     if (!isListeningRef.current) return;
     console.log("Stopping microphone...");
     try {
@@ -1034,7 +1052,7 @@ function useVoiceInput(options) {
     emitEvent("mic_stopped");
     onVoiceEndRef.current?.();
   }, [cleanup, emitEvent]);
-  const startMic = react.useCallback(async () => {
+  const startMic = React.useCallback(async () => {
     if (!sessionRef.current || isListeningRef.current) {
       console.log("Cannot start mic: session missing or already listening");
       return;
@@ -1173,18 +1191,18 @@ registerProcessor('pcm-processor', PCMProcessor);
       onErrorRef.current?.(message);
     }
   }, [cleanup, emitEvent, processInputChunk]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     stopMicRef.current = stopMic;
   }, [stopMic]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     startMicRef.current = startMic;
   }, [startMic]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (!isEnabled && isListeningRef.current) {
       stopMicRef.current();
     }
   }, [isEnabled]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (typeof navigator === "undefined") return;
     const mediaDevices = navigator.mediaDevices;
     if (!mediaDevices?.addEventListener) return;
@@ -1205,7 +1223,7 @@ registerProcessor('pcm-processor', PCMProcessor);
       mediaDevices.removeEventListener("devicechange", handleDeviceChange);
     };
   }, [emitEvent]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     return () => {
       if (isListeningRef.current) {
         cleanup();
@@ -1214,87 +1232,88 @@ registerProcessor('pcm-processor', PCMProcessor);
       }
     };
   }, [cleanup, clearFlushTimer]);
-  return {
+  const getStats = React.useCallback(() => ({
+    queueMs: queuedMsRef.current,
+    queueChunks: queuedChunksRef.current,
+    droppedChunks: droppedChunksRef.current,
+    droppedMs: droppedMsRef.current,
+    sendErrorStreak: sendErrorStreakRef.current,
+    blockedUntil: sendBlockedUntilRef.current,
+    lastSendAt: lastSendAtRef.current,
+    usingWorklet: usingWorkletRef.current
+  }), []);
+  return React.useMemo(() => ({
     isListening,
     micLevel,
     startMic,
     stopMic,
-    getStats: () => ({
-      queueMs: queuedMsRef.current,
-      queueChunks: queuedChunksRef.current,
-      droppedChunks: droppedChunksRef.current,
-      droppedMs: droppedMsRef.current,
-      sendErrorStreak: sendErrorStreakRef.current,
-      blockedUntil: sendBlockedUntilRef.current,
-      lastSendAt: lastSendAtRef.current,
-      usingWorklet: usingWorkletRef.current
-    })
-  };
+    getStats
+  }), [isListening, micLevel, startMic, stopMic, getStats]);
 }
 function useVoiceOutput(options) {
   const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, dropPolicy, onEvent, onPlaybackStart, onPlaybackComplete } = options;
-  const [isPlaying, setIsPlaying] = react.useState(false);
-  const playQueueRef = react.useRef([]);
-  const isDrainingRef = react.useRef(false);
-  const currentSourceRef = react.useRef(null);
-  const scheduledEndTimeRef = react.useRef(0);
-  const completeTimerRef = react.useRef(null);
-  const queuedMsRef = react.useRef(0);
-  const queuedChunksRef = react.useRef(0);
-  const droppedChunksRef = react.useRef(0);
-  const droppedMsRef = react.useRef(0);
-  const onPlaybackStartRef = react.useRef(onPlaybackStart);
-  const onPlaybackCompleteRef = react.useRef(onPlaybackComplete);
-  const playCtxRef = react.useRef(playbackContext);
-  const isPausedRef = react.useRef(isPaused);
-  const isPlayingRef = react.useRef(isPlaying);
-  const startBufferMsRef = react.useRef(startBufferMs ?? 0);
-  const maxQueueMsRef = react.useRef(maxQueueMs ?? 0);
-  const maxQueueChunksRef = react.useRef(maxQueueChunks ?? 0);
-  const dropPolicyRef = react.useRef(dropPolicy ?? "drop-oldest");
-  const onEventRef = react.useRef(onEvent);
-  react.useEffect(() => {
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const playQueueRef = React.useRef([]);
+  const isDrainingRef = React.useRef(false);
+  const currentSourceRef = React.useRef(null);
+  const scheduledEndTimeRef = React.useRef(0);
+  const completeTimerRef = React.useRef(null);
+  const queuedMsRef = React.useRef(0);
+  const queuedChunksRef = React.useRef(0);
+  const droppedChunksRef = React.useRef(0);
+  const droppedMsRef = React.useRef(0);
+  const onPlaybackStartRef = React.useRef(onPlaybackStart);
+  const onPlaybackCompleteRef = React.useRef(onPlaybackComplete);
+  const playCtxRef = React.useRef(playbackContext);
+  const isPausedRef = React.useRef(isPaused);
+  const isPlayingRef = React.useRef(isPlaying);
+  const startBufferMsRef = React.useRef(startBufferMs ?? 0);
+  const maxQueueMsRef = React.useRef(maxQueueMs ?? 0);
+  const maxQueueChunksRef = React.useRef(maxQueueChunks ?? 0);
+  const dropPolicyRef = React.useRef(dropPolicy ?? "drop-oldest");
+  const onEventRef = React.useRef(onEvent);
+  React.useEffect(() => {
     onPlaybackStartRef.current = onPlaybackStart;
   }, [onPlaybackStart]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onPlaybackCompleteRef.current = onPlaybackComplete;
   }, [onPlaybackComplete]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     playCtxRef.current = playbackContext;
   }, [playbackContext]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     startBufferMsRef.current = startBufferMs ?? 0;
   }, [startBufferMs]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     maxQueueMsRef.current = maxQueueMs ?? 0;
   }, [maxQueueMs]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     maxQueueChunksRef.current = maxQueueChunks ?? 0;
   }, [maxQueueChunks]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     dropPolicyRef.current = dropPolicy ?? "drop-oldest";
   }, [dropPolicy]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     onEventRef.current = onEvent;
   }, [onEvent]);
-  const emitEvent = react.useCallback((type, data) => {
+  const emitEvent = React.useCallback((type, data) => {
     onEventRef.current?.({ type, ts: Date.now(), data });
   }, []);
-  const scheduleChunksRef = react.useRef(() => {
+  const scheduleChunksRef = React.useRef(() => {
   });
-  const clearCompleteTimer = react.useCallback(() => {
+  const clearCompleteTimer = React.useCallback(() => {
     if (completeTimerRef.current) {
       clearTimeout(completeTimerRef.current);
       completeTimerRef.current = null;
     }
   }, []);
-  react.useEffect(() => {
+  React.useEffect(() => {
     const scheduleChunks = () => {
       const ctx = playCtxRef.current;
       if (!ctx) {
@@ -1374,7 +1393,7 @@ function useVoiceOutput(options) {
     };
     scheduleChunksRef.current = scheduleChunks;
   }, [clearCompleteTimer]);
-  const drainQueue = react.useCallback(() => {
+  const drainQueue = React.useCallback(() => {
     const ctx = playCtxRef.current;
     if (!ctx || isDrainingRef.current) return;
     isDrainingRef.current = true;
@@ -1384,7 +1403,7 @@ function useVoiceOutput(options) {
       scheduleChunksRef.current();
     }
   }, []);
-  const stopPlayback = react.useCallback(() => {
+  const stopPlayback = React.useCallback(() => {
     if (currentSourceRef.current) {
       try {
         currentSourceRef.current.onended = null;
@@ -1405,13 +1424,13 @@ function useVoiceOutput(options) {
       playCtxRef.current.suspend().catch(console.warn);
     }
   }, [clearCompleteTimer]);
-  const clearQueue = react.useCallback(() => {
+  const clearQueue = React.useCallback(() => {
     playQueueRef.current = [];
     queuedMsRef.current = 0;
     queuedChunksRef.current = 0;
     clearCompleteTimer();
   }, [clearCompleteTimer]);
-  const enqueueAudio = react.useCallback((base64Data, sampleRate) => {
+  const enqueueAudio = React.useCallback((base64Data, sampleRate) => {
     if (isPausedRef.current) {
       emitEvent("audio_output_dropped", { reason: "speaker_paused" });
       return;
@@ -1487,16 +1506,16 @@ function useVoiceOutput(options) {
       console.error("Failed to enqueue audio:", e);
     }
   }, [drainQueue, clearCompleteTimer, emitEvent]);
-  const stopPlaybackRef = react.useRef(stopPlayback);
-  react.useEffect(() => {
+  const stopPlaybackRef = React.useRef(stopPlayback);
+  React.useEffect(() => {
     stopPlaybackRef.current = stopPlayback;
   }, [stopPlayback]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (isPaused) {
       stopPlaybackRef.current();
     }
   }, [isPaused]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     return () => {
       if (currentSourceRef.current) {
         try {
@@ -1512,47 +1531,48 @@ function useVoiceOutput(options) {
       clearCompleteTimer();
     };
   }, [clearCompleteTimer]);
-  return {
+  const getStats = React.useCallback(() => ({
+    queueMs: queuedMsRef.current,
+    queueChunks: queuedChunksRef.current,
+    droppedChunks: droppedChunksRef.current,
+    droppedMs: droppedMsRef.current,
+    contextState: playCtxRef.current?.state ?? "none"
+  }), []);
+  return React.useMemo(() => ({
     isPlaying,
     enqueueAudio,
     stopPlayback,
     clearQueue,
-    getStats: () => ({
-      queueMs: queuedMsRef.current,
-      queueChunks: queuedChunksRef.current,
-      droppedChunks: droppedChunksRef.current,
-      droppedMs: droppedMsRef.current,
-      contextState: playCtxRef.current?.state ?? "none"
-    })
-  };
+    getStats
+  }), [isPlaying, enqueueAudio, stopPlayback, clearQueue, getStats]);
 }
 
 // src/hooks/useVoiceChat.ts
 function useVoiceChat(options) {
   const { config: userConfig, apiKey, getApiKey } = options;
-  const config = mergeConfig(userConfig);
-  const [messages, setMessages] = react.useState([]);
-  const [isLoading, setIsLoading] = react.useState(false);
+  const config = React.useMemo(() => mergeConfig(userConfig), [userConfig]);
+  const [messages, setMessages] = React.useState([]);
+  const [isLoading, setIsLoading] = React.useState(false);
   const maxMessages = config.maxMessages ?? 0;
   const maxTranscriptChars = config.maxTranscriptChars ?? 0;
-  const [isMuted, setIsMuted] = react.useState(false);
-  const [isMicEnabled, setIsMicEnabled] = react.useState(true);
-  const [isSpeakerPaused, setIsSpeakerPaused] = react.useState(false);
-  const [isAISpeaking, setIsAISpeaking] = react.useState(false);
-  const isMutedRef = react.useRef(false);
-  const isMicEnabledRef = react.useRef(true);
-  const micEnabledBeforeMuteRef = react.useRef(true);
-  const isSpeakerPausedRef = react.useRef(isSpeakerPaused);
-  const limitText = react.useCallback((text) => {
+  const [isMuted, setIsMuted] = React.useState(false);
+  const [isMicEnabled, setIsMicEnabled] = React.useState(true);
+  const [isSpeakerPaused, setIsSpeakerPaused] = React.useState(false);
+  const [isAISpeaking, setIsAISpeaking] = React.useState(false);
+  const isMutedRef = React.useRef(false);
+  const isMicEnabledRef = React.useRef(true);
+  const micEnabledBeforeMuteRef = React.useRef(true);
+  const isSpeakerPausedRef = React.useRef(isSpeakerPaused);
+  const limitText = React.useCallback((text) => {
     if (!maxTranscriptChars || maxTranscriptChars <= 0) return text;
     if (text.length <= maxTranscriptChars) return text;
     return text.slice(text.length - maxTranscriptChars);
   }, [maxTranscriptChars]);
-  const appendWithLimit = react.useCallback((base, addition) => {
+  const appendWithLimit = React.useCallback((base, addition) => {
     if (!addition) return base;
     return limitText(base + addition);
   }, [limitText]);
-  const updateMessages = react.useCallback((updater) => {
+  const updateMessages = React.useCallback((updater) => {
     setMessages((prev) => {
       const next = updater(prev);
       if (maxMessages && maxMessages > 0 && next.length > maxMessages) {
@@ -1561,32 +1581,55 @@ function useVoiceChat(options) {
       return next;
     });
   }, [maxMessages]);
-  const emitEvent = react.useCallback((type, data) => {
+  const emitEvent = React.useCallback((type, data) => {
     config.onEvent?.({ type, ts: Date.now(), data });
   }, [config.onEvent]);
-  const currentTranscriptRef = react.useRef("");
-  const streamingMsgIdRef = react.useRef(null);
-  const currentInputTranscriptRef = react.useRef("");
-  const streamingInputMsgIdRef = react.useRef(null);
-  const pendingMicResumeRef = react.useRef(false);
-  const sessionConnectedRef = react.useRef(false);
-  const welcomeSentRef = react.useRef(false);
-  const sawAudioRef = react.useRef(false);
-  const wasListeningBeforeHideRef = react.useRef(false);
-  const wasListeningBeforeOfflineRef = react.useRef(false);
-  const micResumeTimerRef = react.useRef(null);
-  const voiceOutputRef = react.useRef(null);
-  const voiceInputRef = react.useRef(null);
-  react.useEffect(() => {
+  const currentTranscriptRef = React.useRef("");
+  const streamingMsgIdRef = React.useRef(null);
+  const currentInputTranscriptRef = React.useRef("");
+  const streamingInputMsgIdRef = React.useRef(null);
+  const pendingUpdatesRef = React.useRef(false);
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      if (pendingUpdatesRef.current) {
+        pendingUpdatesRef.current = false;
+        updateMessages((prev) => {
+          let next = prev;
+          if (streamingMsgIdRef.current) {
+            const id = streamingMsgIdRef.current;
+            const content = limitText(currentTranscriptRef.current);
+            next = next.map((m) => m.id === id ? { ...m, content } : m);
+          }
+          if (streamingInputMsgIdRef.current) {
+            const id = streamingInputMsgIdRef.current;
+            const content = limitText(currentInputTranscriptRef.current);
+            next = next.map((m) => m.id === id ? { ...m, content } : m);
+          }
+          return next;
+        });
+      }
+    }, 50);
+    return () => clearInterval(interval);
+  }, [updateMessages, limitText]);
+  const pendingMicResumeRef = React.useRef(false);
+  const sessionConnectedRef = React.useRef(false);
+  const welcomeSentRef = React.useRef(false);
+  const sawAudioRef = React.useRef(false);
+  const wasListeningBeforeHideRef = React.useRef(false);
+  const wasListeningBeforeOfflineRef = React.useRef(false);
+  const micResumeTimerRef = React.useRef(null);
+  const voiceOutputRef = React.useRef(null);
+  const voiceInputRef = React.useRef(null);
+  React.useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     isMicEnabledRef.current = isMicEnabled;
   }, [isMicEnabled]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     isSpeakerPausedRef.current = isSpeakerPaused;
   }, [isSpeakerPaused]);
-  const pushMsg = react.useCallback((content, role) => {
+  const pushMsg = React.useCallback((content, role) => {
     const safeContent = limitText(content);
     updateMessages((prev) => [...prev, {
       id: `${Date.now()}-${Math.random()}`,
@@ -1595,12 +1638,12 @@ function useVoiceChat(options) {
       ts: Date.now()
     }]);
   }, [limitText, updateMessages]);
-  const pauseMicForModelReply = react.useCallback(() => {
+  const pauseMicForModelReply = React.useCallback(() => {
     pendingMicResumeRef.current = true;
     sawAudioRef.current = false;
     voiceInputRef.current?.stopMic();
   }, []);
-  const resumeMicIfAllowed = react.useCallback(() => {
+  const resumeMicIfAllowed = React.useCallback(() => {
     if (!pendingMicResumeRef.current || !sessionConnectedRef.current || isMutedRef.current || !isMicEnabledRef.current) {
       return;
     }
@@ -1612,7 +1655,7 @@ function useVoiceChat(options) {
       }
     }, delay);
   }, [config.micResumeDelayMs]);
-  const scheduleMicResume = react.useCallback((reason) => {
+  const scheduleMicResume = React.useCallback((reason) => {
     if (micResumeTimerRef.current) {
       clearTimeout(micResumeTimerRef.current);
     }
@@ -1628,7 +1671,7 @@ function useVoiceChat(options) {
     }, delay);
     emitEvent("mic_resume_scheduled", { reason, delay });
   }, [config.micResumeDelayMs, emitEvent]);
-  const handleMessage = react.useCallback((msg) => {
+  const handleMessage = React.useCallback((msg) => {
     const parseSampleRate = (mimeType) => {
       if (!mimeType) return void 0;
       const match = mimeType.match(/rate=(\d+)/i);
@@ -1761,7 +1804,7 @@ function useVoiceChat(options) {
       pushMsg(message, "system");
     }
   });
-  react.useEffect(() => {
+  React.useEffect(() => {
     sessionConnectedRef.current = session.isConnected;
   }, [session.isConnected]);
   const voiceOutput = useVoiceOutput({
@@ -1803,13 +1846,13 @@ function useVoiceChat(options) {
       pushMsg(error, "system");
     }
   });
-  react.useEffect(() => {
+  React.useEffect(() => {
     voiceOutputRef.current = voiceOutput;
   }, [voiceOutput]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     voiceInputRef.current = voiceInput;
   }, [voiceInput]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (typeof document === "undefined") return;
     const handleVisibility = () => {
       if (document.hidden) {
@@ -1835,7 +1878,7 @@ function useVoiceChat(options) {
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [emitEvent, scheduleMicResume]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (typeof window === "undefined") return;
     const handlePageHide = (event) => {
       wasListeningBeforeHideRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
@@ -1862,7 +1905,7 @@ function useVoiceChat(options) {
       window.removeEventListener("pageshow", handlePageShow);
     };
   }, [emitEvent, scheduleMicResume]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (typeof window === "undefined") return;
     const handleOffline = () => {
       wasListeningBeforeOfflineRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
@@ -1887,7 +1930,7 @@ function useVoiceChat(options) {
       window.removeEventListener("online", handleOnline);
     };
   }, [scheduleMicResume]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     return () => {
       if (micResumeTimerRef.current) {
         clearTimeout(micResumeTimerRef.current);
@@ -1895,11 +1938,11 @@ function useVoiceChat(options) {
       }
     };
   }, []);
-  const startMicRef = react.useRef(voiceInput.startMic);
-  react.useEffect(() => {
+  const startMicRef = React.useRef(voiceInput.startMic);
+  React.useEffect(() => {
     startMicRef.current = voiceInput.startMic;
   }, [voiceInput.startMic]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (session.isConnected && config.autoStartMicOnConnect !== false && !voiceInput.isListening && !isMuted && isMicEnabled && !session.isReconnecting && !pendingMicResumeRef.current && !isAISpeakingRef.current) {
       console.log("Auto-starting mic after connection...");
       const timer = setTimeout(() => {
@@ -1907,19 +1950,19 @@ function useVoiceChat(options) {
       }, config.sessionInitDelayMs);
       return () => clearTimeout(timer);
     }
-  }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs]);
-  react.useEffect(() => {
+  }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs, config.autoStartMicOnConnect]);
+  React.useEffect(() => {
     if (session.isConnected && config.autoWelcomeAudio && config.welcomeAudioPrompt && !welcomeSentRef.current) {
       welcomeSentRef.current = true;
       pauseMicForModelReply();
       session.sendText(config.welcomeAudioPrompt);
     }
   }, [session.isConnected, config.autoWelcomeAudio, config.welcomeAudioPrompt, pauseMicForModelReply, session]);
-  const isAISpeakingRef = react.useRef(false);
-  react.useEffect(() => {
+  const isAISpeakingRef = React.useRef(false);
+  React.useEffect(() => {
     isAISpeakingRef.current = isAISpeaking;
   }, [isAISpeaking]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     if (!session.isConnected) {
       voiceInputRef.current?.stopMic();
       voiceOutputRef.current?.stopPlayback();
@@ -1930,7 +1973,7 @@ function useVoiceChat(options) {
       }
     }
   }, [session.isConnected]);
-  const toggleMute = react.useCallback(() => {
+  const toggleMute = React.useCallback(() => {
     setIsMuted((prev) => {
       const newMuted = !prev;
       if (newMuted) {
@@ -1947,7 +1990,7 @@ function useVoiceChat(options) {
       return newMuted;
     });
   }, [session.isConnected]);
-  const toggleMic = react.useCallback(() => {
+  const toggleMic = React.useCallback(() => {
     if (voiceInput.isListening) {
       setIsMicEnabled(false);
       voiceInput.stopMic();
@@ -1958,8 +2001,8 @@ function useVoiceChat(options) {
       setIsMicEnabled(true);
       void voiceInput.startMic();
     }
-  }, [voiceInput, session.isConnected, isMuted]);
-  const toggleSpeaker = react.useCallback(() => {
+  }, [voiceInput, session.isConnected, isMuted, session.playbackContext]);
+  const toggleSpeaker = React.useCallback(() => {
     setIsSpeakerPaused((prev) => {
       const newPaused = !prev;
       if (newPaused) {
@@ -1970,7 +2013,7 @@ function useVoiceChat(options) {
       return newPaused;
     });
   }, [resumeMicIfAllowed]);
-  const sendTextMessage = react.useCallback((text) => {
+  const sendTextMessage = React.useCallback((text) => {
     if (!text.trim()) return;
     pushMsg(text, "user");
     if (config.replyAsAudio && config.autoPauseMicOnSendText !== false) {
@@ -1979,7 +2022,7 @@ function useVoiceChat(options) {
     setIsLoading(true);
     session.sendText(text);
   }, [session, pushMsg, config.replyAsAudio, config.autoPauseMicOnSendText, pauseMicForModelReply]);
-  const getStats = react.useCallback(() => {
+  const getStats = React.useCallback(() => {
     const sessionStats = session.getStats();
     const inputStats = voiceInput.getStats();
     const outputStats = voiceOutput.getStats();
@@ -2013,7 +2056,7 @@ function useVoiceChat(options) {
         contextState: outputStats.contextState
       }
     };
-  }, [session.isConnected, session.isReconnecting, session.getStats, voiceInput.isListening, voiceInput.getStats, voiceOutput.isPlaying, voiceOutput.getStats]);
+  }, [session, voiceInput, voiceOutput]);
   return {
     // Connection
     isConnected: session.isConnected,
@@ -2039,51 +2082,190 @@ function useVoiceChat(options) {
     getStats
   };
 }
-function ChatMessage({ message, primaryColor = "#2563eb" }) {
+var ChatMessage = React__default.default.memo(function ChatMessage2({ message, primaryColor = "#2563eb" }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "div",
-    {
-      style: {
-        display: "flex",
-        justifyContent: isUser ? "flex-end" : "flex-start",
-        marginBottom: "8px"
-      },
-      children: /* @__PURE__ */ jsxRuntime.jsx(
+  const containerStyle = React.useMemo(() => ({
+    display: "flex",
+    justifyContent: isUser ? "flex-end" : "flex-start",
+    marginBottom: "8px"
+  }), [isUser]);
+  const bubbleStyle = React.useMemo(() => ({
+    maxWidth: "80%",
+    padding: "8px 12px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    lineHeight: "1.4",
+    ...isUser ? {
+      backgroundColor: primaryColor,
+      color: "white",
+      borderBottomRightRadius: "4px"
+    } : isSystem ? {
+      backgroundColor: "#f3f4f6",
+      color: "#6b7280",
+      fontStyle: "italic"
+    } : {
+      backgroundColor: "#f3f4f6",
+      color: "#1f2937",
+      borderBottomLeftRadius: "4px"
+    }
+  }), [isUser, isSystem, primaryColor]);
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { style: containerStyle, children: /* @__PURE__ */ jsxRuntime.jsx("div", { style: bubbleStyle, children: message.content }) });
+});
+var MessageList = React.memo(function MessageList2({
+  messages,
+  isLoading,
+  isConnected,
+  isReconnecting,
+  suggestedQuestions,
+  onSuggestionClick,
+  primaryColor
+}) {
+  const userMessageCount = messages.filter((m) => m.role === "user").length;
+  return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+    userMessageCount === 0 && isConnected && suggestedQuestions.length > 0 && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { marginBottom: "16px" }, children: [
+      /* @__PURE__ */ jsxRuntime.jsx("div", { style: { fontSize: "12px", color: "#6b7280", marginBottom: "8px" }, children: "Suggested questions" }),
+      /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexDirection: "column", gap: "8px" }, children: suggestedQuestions.map((question) => /* @__PURE__ */ jsxRuntime.jsx(
+        "button",
+        {
+          onClick: () => onSuggestionClick(question),
+          disabled: isLoading || isReconnecting,
+          style: {
+            textAlign: "left",
+            padding: "12px",
+            border: "1px solid #e5e7eb",
+            borderRadius: "8px",
+            backgroundColor: "white",
+            cursor: "pointer",
+            fontSize: "14px",
+            color: "#1f2937",
+            transition: "border-color 0.2s"
+          },
+          onMouseEnter: (e) => e.currentTarget.style.borderColor = primaryColor,
+          onMouseLeave: (e) => e.currentTarget.style.borderColor = "#e5e7eb",
+          children: question
+        },
+        question
+      )) })
+    ] }),
+    messages.map((m) => /* @__PURE__ */ jsxRuntime.jsx(ChatMessage, { message: m, primaryColor }, m.id)),
+    isLoading && /* @__PURE__ */ jsxRuntime.jsx("div", { style: { fontSize: "14px", color: "#6b7280", padding: "8px" }, children: "Processing..." })
+  ] });
+});
+var AudioStatus = React.memo(function AudioStatus2({
+  isListening,
+  isMuted,
+  micLevel,
+  isAISpeaking,
+  isSpeakerPaused,
+  primaryColor
+}) {
+  if ((!isListening || isMuted) && (!isAISpeaking || isSpeakerPaused)) {
+    return null;
+  }
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", flexDirection: "column", gap: "4px" }, children: [
+    isListening && !isMuted && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#6b7280", padding: "8px 0" }, children: [
+      /* @__PURE__ */ jsxRuntime.jsx(
         "div",
         {
           style: {
-            maxWidth: "80%",
-            padding: "8px 12px",
-            borderRadius: "12px",
-            fontSize: "14px",
-            lineHeight: "1.4",
-            ...isUser ? {
-              backgroundColor: primaryColor,
-              color: "white",
-              borderBottomRightRadius: "4px"
-            } : isSystem ? {
-              backgroundColor: "#f3f4f6",
-              color: "#6b7280",
-              fontStyle: "italic"
-            } : {
-              backgroundColor: "#f3f4f6",
-              color: "#1f2937",
-              borderBottomLeftRadius: "4px"
-            }
+            width: "60px",
+            height: "6px",
+            backgroundColor: "#e5e7eb",
+            borderRadius: "3px",
+            overflow: "hidden"
           },
-          children: message.content
+          children: /* @__PURE__ */ jsxRuntime.jsx(
+            "div",
+            {
+              style: {
+                width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
+                height: "100%",
+                backgroundColor: primaryColor,
+                borderRadius: "3px",
+                transition: "width 75ms"
+              }
+            }
+          )
         }
-      )
-    }
-  );
-}
+      ),
+      /* @__PURE__ */ jsxRuntime.jsx("span", { children: "Listening" })
+    ] }),
+    isAISpeaking && !isSpeakerPaused && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: primaryColor, padding: "8px 0" }, children: [
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", gap: "2px" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx("span", { style: { width: "3px", height: "12px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite" } }),
+        /* @__PURE__ */ jsxRuntime.jsx("span", { style: { width: "3px", height: "16px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.1s" } }),
+        /* @__PURE__ */ jsxRuntime.jsx("span", { style: { width: "3px", height: "8px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.2s" } })
+      ] }),
+      /* @__PURE__ */ jsxRuntime.jsx("span", { children: "Speaking" })
+    ] })
+  ] });
+});
+var CloseIcon = /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "18", y1: "6", x2: "6", y2: "18" }),
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "6", y1: "6", x2: "18", y2: "18" })
+] });
+var ChatIcon = /* @__PURE__ */ jsxRuntime.jsx("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }) });
+var MutedIcon = /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "23", y1: "9", x2: "17", y2: "15" }),
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "17", y1: "9", x2: "23", y2: "15" })
+] });
+var UnmutedIcon = /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" })
+] });
+var MicActiveIcon = /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" }),
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M19 10v2a7 7 0 0 1-14 0v-2" }),
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
+] });
+var MicInactiveIcon = /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" }),
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" }),
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" }),
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
+] });
+var SpeakerPausedIcon = /* @__PURE__ */ jsxRuntime.jsx("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "5 3 19 12 5 21 5 3" }) });
+var SpeakerActiveIcon = /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "6", y: "4", width: "4", height: "16" }),
+  /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "14", y: "4", width: "4", height: "16" })
+] });
+var SendIcon = /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "22", y1: "2", x2: "11", y2: "13" }),
+  /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "22 2 15 22 11 13 2 9 22 2" })
+] });
+var MicVisualizer = React.memo(({ micLevel, primaryColor }) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "80px", display: "flex", alignItems: "center" }, children: /* @__PURE__ */ jsxRuntime.jsx(
+  "div",
+  {
+    style: {
+      width: "100%",
+      height: "8px",
+      backgroundColor: "#e5e7eb",
+      borderRadius: "4px",
+      overflow: "hidden"
+    },
+    children: /* @__PURE__ */ jsxRuntime.jsx(
+      "div",
+      {
+        style: {
+          width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
+          height: "100%",
+          backgroundColor: primaryColor,
+          borderRadius: "4px",
+          transition: "width 75ms"
+        }
+      }
+    )
+  }
+) }));
 function ChatBot({ config: userConfig, apiKey, getApiKey }) {
-  const config = mergeConfig(userConfig);
-  const [isOpen, setIsOpen] = react.useState(false);
-  const [inputText, setInputText] = react.useState("");
-  const messagesEndRef = react.useRef(null);
+  const config = React.useMemo(() => mergeConfig(userConfig), [userConfig]);
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [inputText, setInputText] = React.useState("");
+  const messagesEndRef = React.useRef(null);
   const {
     isConnected,
     isReconnecting,
@@ -2101,36 +2283,35 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
     toggleMute,
     toggleMic,
     toggleSpeaker
-  } = useVoiceChat({ config: userConfig, apiKey, getApiKey });
-  react.useEffect(() => {
+  } = useVoiceChat({ config, apiKey, getApiKey });
+  React.useEffect(() => {
     if (isOpen && !isConnected) {
       void connect();
     }
   }, [isOpen, isConnected, connect]);
-  react.useEffect(() => {
+  React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-  const handleClose = react.useCallback(async () => {
+  const handleClose = React.useCallback(async () => {
     await disconnect();
     setIsOpen(false);
   }, [disconnect]);
-  const handleSendText = react.useCallback(() => {
+  const handleSendText = React.useCallback(() => {
     if (!inputText.trim() || !isConnected) return;
     sendText(inputText.trim());
     setInputText("");
   }, [inputText, isConnected, sendText]);
-  const handleSuggestionClick = react.useCallback(
+  const handleSuggestionClick = React.useCallback(
     (suggestion) => {
       if (!isConnected) return;
       sendText(suggestion);
     },
     [isConnected, sendText]
   );
-  const userMessageCount = messages.filter((m) => m.role === "user").length;
   const primaryColor = config.theme.primaryColor || "#2563eb";
   const position = config.theme.position || "bottom-right";
-  const positionStyles = position === "bottom-left" ? { bottom: "24px", left: "24px" } : { bottom: "24px", right: "24px" };
-  const cardPositionStyles = position === "bottom-left" ? { bottom: "96px", left: "24px" } : { bottom: "96px", right: "24px" };
+  const positionStyles = React.useMemo(() => position === "bottom-left" ? { bottom: "24px", left: "24px" } : { bottom: "24px", right: "24px" }, [position]);
+  const cardPositionStyles = React.useMemo(() => position === "bottom-left" ? { bottom: "96px", left: "24px" } : { bottom: "96px", right: "24px" }, [position]);
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
     /* @__PURE__ */ jsxRuntime.jsx(
       "button",
@@ -2161,10 +2342,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
         },
         onMouseEnter: (e) => e.currentTarget.style.transform = "scale(1.05)",
         onMouseLeave: (e) => e.currentTarget.style.transform = "scale(1)",
-        children: isOpen ? /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-          /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "18", y1: "6", x2: "6", y2: "18" }),
-          /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "6", y1: "6", x2: "18", y2: "18" })
-        ] }) : /* @__PURE__ */ jsxRuntime.jsx("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }) })
+        children: isOpen ? CloseIcon : ChatIcon
       }
     ),
     isOpen && /* @__PURE__ */ jsxRuntime.jsxs(
@@ -2211,14 +2389,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                         padding: "4px",
                         color: isMuted ? "#ef4444" : "#6b7280"
                       },
-                      children: isMuted ? /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                        /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
-                        /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "23", y1: "9", x2: "17", y2: "15" }),
-                        /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "17", y1: "9", x2: "23", y2: "15" })
-                      ] }) : /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                        /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
-                        /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" })
-                      ] })
+                      children: isMuted ? MutedIcon : UnmutedIcon
                     }
                   ),
                   isReconnecting && /* @__PURE__ */ jsxRuntime.jsx("span", { style: { fontSize: "12px", color: "#6b7280" }, children: "Reconnecting..." }),
@@ -2239,68 +2410,29 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
             }
           ),
           /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { flex: 1, overflowY: "auto", padding: "16px" }, children: [
-            userMessageCount === 0 && isConnected && config.suggestedQuestions.length > 0 && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { marginBottom: "16px" }, children: [
-              /* @__PURE__ */ jsxRuntime.jsx("div", { style: { fontSize: "12px", color: "#6b7280", marginBottom: "8px" }, children: "Suggested questions" }),
-              /* @__PURE__ */ jsxRuntime.jsx("div", { style: { display: "flex", flexDirection: "column", gap: "8px" }, children: config.suggestedQuestions.map((question) => /* @__PURE__ */ jsxRuntime.jsx(
-                "button",
-                {
-                  onClick: () => handleSuggestionClick(question),
-                  disabled: isLoading || isReconnecting,
-                  style: {
-                    textAlign: "left",
-                    padding: "12px",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    backgroundColor: "white",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    color: "#1f2937",
-                    transition: "border-color 0.2s"
-                  },
-                  onMouseEnter: (e) => e.currentTarget.style.borderColor = primaryColor,
-                  onMouseLeave: (e) => e.currentTarget.style.borderColor = "#e5e7eb",
-                  children: question
-                },
-                question
-              )) })
-            ] }),
-            messages.map((m) => /* @__PURE__ */ jsxRuntime.jsx(ChatMessage, { message: m, primaryColor }, m.id)),
-            isLoading && /* @__PURE__ */ jsxRuntime.jsx("div", { style: { fontSize: "14px", color: "#6b7280", padding: "8px" }, children: "Processing..." }),
-            isListening && !isMuted && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#6b7280", padding: "8px 0" }, children: [
-              /* @__PURE__ */ jsxRuntime.jsx(
-                "div",
-                {
-                  style: {
-                    width: "60px",
-                    height: "6px",
-                    backgroundColor: "#e5e7eb",
-                    borderRadius: "3px",
-                    overflow: "hidden"
-                  },
-                  children: /* @__PURE__ */ jsxRuntime.jsx(
-                    "div",
-                    {
-                      style: {
-                        width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
-                        height: "100%",
-                        backgroundColor: primaryColor,
-                        borderRadius: "3px",
-                        transition: "width 75ms"
-                      }
-                    }
-                  )
-                }
-              ),
-              /* @__PURE__ */ jsxRuntime.jsx("span", { children: "Listening" })
-            ] }),
-            isAISpeaking && !isSpeakerPaused && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: primaryColor, padding: "8px 0" }, children: [
-              /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", gap: "2px" }, children: [
-                /* @__PURE__ */ jsxRuntime.jsx("span", { style: { width: "3px", height: "12px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite" } }),
-                /* @__PURE__ */ jsxRuntime.jsx("span", { style: { width: "3px", height: "16px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.1s" } }),
-                /* @__PURE__ */ jsxRuntime.jsx("span", { style: { width: "3px", height: "8px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.2s" } })
-              ] }),
-              /* @__PURE__ */ jsxRuntime.jsx("span", { children: "Speaking" })
-            ] }),
+            /* @__PURE__ */ jsxRuntime.jsx(
+              MessageList,
+              {
+                messages,
+                isLoading,
+                isConnected,
+                isReconnecting,
+                suggestedQuestions: config.suggestedQuestions,
+                onSuggestionClick: handleSuggestionClick,
+                primaryColor
+              }
+            ),
+            /* @__PURE__ */ jsxRuntime.jsx(
+              AudioStatus,
+              {
+                isListening,
+                isMuted,
+                micLevel,
+                isAISpeaking,
+                isSpeakerPaused,
+                primaryColor
+              }
+            ),
             /* @__PURE__ */ jsxRuntime.jsx("div", { ref: messagesEndRef })
           ] }),
           /* @__PURE__ */ jsxRuntime.jsxs(
@@ -2333,44 +2465,10 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                       justifyContent: "center",
                       opacity: !isConnected || isMuted || isReconnecting ? 0.5 : 1
                     },
-                    children: isListening ? /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M19 10v2a7 7 0 0 1-14 0v-2" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
-                    ] }) : /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
-                    ] })
+                    children: isListening ? MicActiveIcon : MicInactiveIcon
                   }
                 ),
-                isListening && /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "80px", display: "flex", alignItems: "center" }, children: /* @__PURE__ */ jsxRuntime.jsx(
-                  "div",
-                  {
-                    style: {
-                      width: "100%",
-                      height: "8px",
-                      backgroundColor: "#e5e7eb",
-                      borderRadius: "4px",
-                      overflow: "hidden"
-                    },
-                    children: /* @__PURE__ */ jsxRuntime.jsx(
-                      "div",
-                      {
-                        style: {
-                          width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
-                          height: "100%",
-                          backgroundColor: primaryColor,
-                          borderRadius: "4px",
-                          transition: "width 75ms"
-                        }
-                      }
-                    )
-                  }
-                ) }),
+                isListening && /* @__PURE__ */ jsxRuntime.jsx(MicVisualizer, { micLevel, primaryColor }),
                 /* @__PURE__ */ jsxRuntime.jsx(
                   "button",
                   {
@@ -2389,10 +2487,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                       justifyContent: "center",
                       opacity: !isConnected || isReconnecting ? 0.5 : 1
                     },
-                    children: isSpeakerPaused ? /* @__PURE__ */ jsxRuntime.jsx("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "5 3 19 12 5 21 5 3" }) }) : /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "6", y: "4", width: "4", height: "16" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "14", y: "4", width: "4", height: "16" })
-                    ] })
+                    children: isSpeakerPaused ? SpeakerPausedIcon : SpeakerActiveIcon
                   }
                 )
               ]
@@ -2450,10 +2545,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                       justifyContent: "center",
                       opacity: !inputText.trim() || !isConnected || isLoading || isReconnecting ? 0.5 : 1
                     },
-                    children: /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "22", y1: "2", x2: "11", y2: "13" }),
-                      /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "22 2 15 22 11 13 2 9 22 2" })
-                    ] })
+                    children: SendIcon
                   }
                 )
               ]

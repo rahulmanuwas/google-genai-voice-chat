@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, memo, useState, useRef, useEffect, useCallback } from 'react';
 import { EndSensitivity, StartSensitivity, GoogleGenAI, ActivityHandling, Modality } from '@google/genai';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 
@@ -11,8 +11,13 @@ var PLAYBACK_COMPLETE_DELAY_MS = 200;
 function float32ToPCM16(float32) {
   const out = new Int16Array(float32.length);
   for (let i = 0; i < float32.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32[i]));
-    out[i] = s < 0 ? s * 32768 : s * 32767;
+    const s = float32[i];
+    if (isNaN(s)) {
+      out[i] = 0;
+      continue;
+    }
+    const clamped = s < -1 ? -1 : s > 1 ? 1 : s;
+    out[i] = clamped < 0 ? clamped * 32768 : clamped * 32767;
   }
   return out;
 }
@@ -24,11 +29,16 @@ function pcm16ToFloat32(pcm16) {
   return float32;
 }
 function uint8ToBase64(u8) {
-  let s = "";
-  for (let i = 0; i < u8.length; i++) {
-    s += String.fromCharCode(u8[i]);
+  const CHUNK_SIZE = 32768;
+  let index = 0;
+  const length = u8.length;
+  let result = "";
+  while (index < length) {
+    const slice = u8.subarray(index, Math.min(index + CHUNK_SIZE, length));
+    result += String.fromCharCode.apply(null, Array.from(slice));
+    index += CHUNK_SIZE;
   }
-  return btoa(s);
+  return btoa(result);
 }
 function base64ToPCM16(base64) {
   const bin = atob(base64);
@@ -154,7 +164,7 @@ function mergeConfig(userConfig) {
 }
 function useLiveSession(options) {
   const { config: userConfig, apiKey, getApiKey, onMessage, onConnected, onDisconnected, onError, onSystemMessage } = options;
-  const config = mergeConfig(userConfig);
+  const config = useMemo(() => mergeConfig(userConfig), [userConfig]);
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [sessionHandle, setSessionHandle] = useState(null);
@@ -365,7 +375,10 @@ function useLiveSession(options) {
       return false;
     }
     try {
-      const ai = new GoogleGenAI({ apiKey: resolvedKey });
+      const ai = new GoogleGenAI({
+        apiKey: resolvedKey,
+        ...config.httpOptions ? { httpOptions: config.httpOptions } : {}
+      });
       ensurePlaybackContext();
       console.log("Connecting to Google GenAI Live...", { model: config.modelId, hasResumption: !!resumptionHandle });
       emitEvent("session_connect_start", { hasResumption: !!resumptionHandle });
@@ -717,7 +730,13 @@ function useLiveSession(options) {
       onErrorRef.current?.(`Send failed: ${e.message}`);
     }
   }, []);
-  return {
+  const getStats = useCallback(() => ({
+    reconnectAttempts: reconnectAttemptsRef.current,
+    lastConnectAttemptAt: lastConnectAttemptAtRef.current,
+    lastDisconnectCode: lastDisconnectRef.current?.code ?? null,
+    lastDisconnectReason: lastDisconnectRef.current?.reason ?? null
+  }), []);
+  return useMemo(() => ({
     session: sessionRef.current,
     isConnected,
     isReconnecting,
@@ -726,13 +745,8 @@ function useLiveSession(options) {
     disconnect,
     sendText,
     playbackContext: playCtxRef.current,
-    getStats: () => ({
-      reconnectAttempts: reconnectAttemptsRef.current,
-      lastConnectAttemptAt: lastConnectAttemptAtRef.current,
-      lastDisconnectCode: lastDisconnectRef.current?.code ?? null,
-      lastDisconnectReason: lastDisconnectRef.current?.reason ?? null
-    })
-  };
+    getStats
+  }), [isConnected, isReconnecting, sessionHandle, connect, disconnect, sendText, getStats]);
 }
 var MIC_BUFFER_SIZE = 2048;
 var MIC_CHANNELS = 1;
@@ -1212,22 +1226,23 @@ registerProcessor('pcm-processor', PCMProcessor);
       }
     };
   }, [cleanup, clearFlushTimer]);
-  return {
+  const getStats = useCallback(() => ({
+    queueMs: queuedMsRef.current,
+    queueChunks: queuedChunksRef.current,
+    droppedChunks: droppedChunksRef.current,
+    droppedMs: droppedMsRef.current,
+    sendErrorStreak: sendErrorStreakRef.current,
+    blockedUntil: sendBlockedUntilRef.current,
+    lastSendAt: lastSendAtRef.current,
+    usingWorklet: usingWorkletRef.current
+  }), []);
+  return useMemo(() => ({
     isListening,
     micLevel,
     startMic,
     stopMic,
-    getStats: () => ({
-      queueMs: queuedMsRef.current,
-      queueChunks: queuedChunksRef.current,
-      droppedChunks: droppedChunksRef.current,
-      droppedMs: droppedMsRef.current,
-      sendErrorStreak: sendErrorStreakRef.current,
-      blockedUntil: sendBlockedUntilRef.current,
-      lastSendAt: lastSendAtRef.current,
-      usingWorklet: usingWorkletRef.current
-    })
-  };
+    getStats
+  }), [isListening, micLevel, startMic, stopMic, getStats]);
 }
 function useVoiceOutput(options) {
   const { playbackContext, isPaused, startBufferMs, maxQueueMs, maxQueueChunks, dropPolicy, onEvent, onPlaybackStart, onPlaybackComplete } = options;
@@ -1510,25 +1525,26 @@ function useVoiceOutput(options) {
       clearCompleteTimer();
     };
   }, [clearCompleteTimer]);
-  return {
+  const getStats = useCallback(() => ({
+    queueMs: queuedMsRef.current,
+    queueChunks: queuedChunksRef.current,
+    droppedChunks: droppedChunksRef.current,
+    droppedMs: droppedMsRef.current,
+    contextState: playCtxRef.current?.state ?? "none"
+  }), []);
+  return useMemo(() => ({
     isPlaying,
     enqueueAudio,
     stopPlayback,
     clearQueue,
-    getStats: () => ({
-      queueMs: queuedMsRef.current,
-      queueChunks: queuedChunksRef.current,
-      droppedChunks: droppedChunksRef.current,
-      droppedMs: droppedMsRef.current,
-      contextState: playCtxRef.current?.state ?? "none"
-    })
-  };
+    getStats
+  }), [isPlaying, enqueueAudio, stopPlayback, clearQueue, getStats]);
 }
 
 // src/hooks/useVoiceChat.ts
 function useVoiceChat(options) {
   const { config: userConfig, apiKey, getApiKey } = options;
-  const config = mergeConfig(userConfig);
+  const config = useMemo(() => mergeConfig(userConfig), [userConfig]);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const maxMessages = config.maxMessages ?? 0;
@@ -1566,6 +1582,29 @@ function useVoiceChat(options) {
   const streamingMsgIdRef = useRef(null);
   const currentInputTranscriptRef = useRef("");
   const streamingInputMsgIdRef = useRef(null);
+  const pendingUpdatesRef = useRef(false);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (pendingUpdatesRef.current) {
+        pendingUpdatesRef.current = false;
+        updateMessages((prev) => {
+          let next = prev;
+          if (streamingMsgIdRef.current) {
+            const id = streamingMsgIdRef.current;
+            const content = limitText(currentTranscriptRef.current);
+            next = next.map((m) => m.id === id ? { ...m, content } : m);
+          }
+          if (streamingInputMsgIdRef.current) {
+            const id = streamingInputMsgIdRef.current;
+            const content = limitText(currentInputTranscriptRef.current);
+            next = next.map((m) => m.id === id ? { ...m, content } : m);
+          }
+          return next;
+        });
+      }
+    }, 50);
+    return () => clearInterval(interval);
+  }, [updateMessages, limitText]);
   const pendingMicResumeRef = useRef(false);
   const sessionConnectedRef = useRef(false);
   const welcomeSentRef = useRef(false);
@@ -1905,7 +1944,7 @@ function useVoiceChat(options) {
       }, config.sessionInitDelayMs);
       return () => clearTimeout(timer);
     }
-  }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs]);
+  }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs, config.autoStartMicOnConnect]);
   useEffect(() => {
     if (session.isConnected && config.autoWelcomeAudio && config.welcomeAudioPrompt && !welcomeSentRef.current) {
       welcomeSentRef.current = true;
@@ -1956,7 +1995,7 @@ function useVoiceChat(options) {
       setIsMicEnabled(true);
       void voiceInput.startMic();
     }
-  }, [voiceInput, session.isConnected, isMuted]);
+  }, [voiceInput, session.isConnected, isMuted, session.playbackContext]);
   const toggleSpeaker = useCallback(() => {
     setIsSpeakerPaused((prev) => {
       const newPaused = !prev;
@@ -2011,7 +2050,7 @@ function useVoiceChat(options) {
         contextState: outputStats.contextState
       }
     };
-  }, [session.isConnected, session.isReconnecting, session.getStats, voiceInput.isListening, voiceInput.getStats, voiceOutput.isPlaying, voiceOutput.getStats]);
+  }, [session, voiceInput, voiceOutput]);
   return {
     // Connection
     isConnected: session.isConnected,
@@ -2037,48 +2076,187 @@ function useVoiceChat(options) {
     getStats
   };
 }
-function ChatMessage({ message, primaryColor = "#2563eb" }) {
+var ChatMessage = React.memo(function ChatMessage2({ message, primaryColor = "#2563eb" }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
-  return /* @__PURE__ */ jsx(
-    "div",
-    {
-      style: {
-        display: "flex",
-        justifyContent: isUser ? "flex-end" : "flex-start",
-        marginBottom: "8px"
-      },
-      children: /* @__PURE__ */ jsx(
+  const containerStyle = useMemo(() => ({
+    display: "flex",
+    justifyContent: isUser ? "flex-end" : "flex-start",
+    marginBottom: "8px"
+  }), [isUser]);
+  const bubbleStyle = useMemo(() => ({
+    maxWidth: "80%",
+    padding: "8px 12px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    lineHeight: "1.4",
+    ...isUser ? {
+      backgroundColor: primaryColor,
+      color: "white",
+      borderBottomRightRadius: "4px"
+    } : isSystem ? {
+      backgroundColor: "#f3f4f6",
+      color: "#6b7280",
+      fontStyle: "italic"
+    } : {
+      backgroundColor: "#f3f4f6",
+      color: "#1f2937",
+      borderBottomLeftRadius: "4px"
+    }
+  }), [isUser, isSystem, primaryColor]);
+  return /* @__PURE__ */ jsx("div", { style: containerStyle, children: /* @__PURE__ */ jsx("div", { style: bubbleStyle, children: message.content }) });
+});
+var MessageList = memo(function MessageList2({
+  messages,
+  isLoading,
+  isConnected,
+  isReconnecting,
+  suggestedQuestions,
+  onSuggestionClick,
+  primaryColor
+}) {
+  const userMessageCount = messages.filter((m) => m.role === "user").length;
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    userMessageCount === 0 && isConnected && suggestedQuestions.length > 0 && /* @__PURE__ */ jsxs("div", { style: { marginBottom: "16px" }, children: [
+      /* @__PURE__ */ jsx("div", { style: { fontSize: "12px", color: "#6b7280", marginBottom: "8px" }, children: "Suggested questions" }),
+      /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: "8px" }, children: suggestedQuestions.map((question) => /* @__PURE__ */ jsx(
+        "button",
+        {
+          onClick: () => onSuggestionClick(question),
+          disabled: isLoading || isReconnecting,
+          style: {
+            textAlign: "left",
+            padding: "12px",
+            border: "1px solid #e5e7eb",
+            borderRadius: "8px",
+            backgroundColor: "white",
+            cursor: "pointer",
+            fontSize: "14px",
+            color: "#1f2937",
+            transition: "border-color 0.2s"
+          },
+          onMouseEnter: (e) => e.currentTarget.style.borderColor = primaryColor,
+          onMouseLeave: (e) => e.currentTarget.style.borderColor = "#e5e7eb",
+          children: question
+        },
+        question
+      )) })
+    ] }),
+    messages.map((m) => /* @__PURE__ */ jsx(ChatMessage, { message: m, primaryColor }, m.id)),
+    isLoading && /* @__PURE__ */ jsx("div", { style: { fontSize: "14px", color: "#6b7280", padding: "8px" }, children: "Processing..." })
+  ] });
+});
+var AudioStatus = memo(function AudioStatus2({
+  isListening,
+  isMuted,
+  micLevel,
+  isAISpeaking,
+  isSpeakerPaused,
+  primaryColor
+}) {
+  if ((!isListening || isMuted) && (!isAISpeaking || isSpeakerPaused)) {
+    return null;
+  }
+  return /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: "4px" }, children: [
+    isListening && !isMuted && /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#6b7280", padding: "8px 0" }, children: [
+      /* @__PURE__ */ jsx(
         "div",
         {
           style: {
-            maxWidth: "80%",
-            padding: "8px 12px",
-            borderRadius: "12px",
-            fontSize: "14px",
-            lineHeight: "1.4",
-            ...isUser ? {
-              backgroundColor: primaryColor,
-              color: "white",
-              borderBottomRightRadius: "4px"
-            } : isSystem ? {
-              backgroundColor: "#f3f4f6",
-              color: "#6b7280",
-              fontStyle: "italic"
-            } : {
-              backgroundColor: "#f3f4f6",
-              color: "#1f2937",
-              borderBottomLeftRadius: "4px"
-            }
+            width: "60px",
+            height: "6px",
+            backgroundColor: "#e5e7eb",
+            borderRadius: "3px",
+            overflow: "hidden"
           },
-          children: message.content
+          children: /* @__PURE__ */ jsx(
+            "div",
+            {
+              style: {
+                width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
+                height: "100%",
+                backgroundColor: primaryColor,
+                borderRadius: "3px",
+                transition: "width 75ms"
+              }
+            }
+          )
         }
-      )
-    }
-  );
-}
+      ),
+      /* @__PURE__ */ jsx("span", { children: "Listening" })
+    ] }),
+    isAISpeaking && !isSpeakerPaused && /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: primaryColor, padding: "8px 0" }, children: [
+      /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: "2px" }, children: [
+        /* @__PURE__ */ jsx("span", { style: { width: "3px", height: "12px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite" } }),
+        /* @__PURE__ */ jsx("span", { style: { width: "3px", height: "16px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.1s" } }),
+        /* @__PURE__ */ jsx("span", { style: { width: "3px", height: "8px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.2s" } })
+      ] }),
+      /* @__PURE__ */ jsx("span", { children: "Speaking" })
+    ] })
+  ] });
+});
+var CloseIcon = /* @__PURE__ */ jsxs("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsx("line", { x1: "18", y1: "6", x2: "6", y2: "18" }),
+  /* @__PURE__ */ jsx("line", { x1: "6", y1: "6", x2: "18", y2: "18" })
+] });
+var ChatIcon = /* @__PURE__ */ jsx("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsx("path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }) });
+var MutedIcon = /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
+  /* @__PURE__ */ jsx("line", { x1: "23", y1: "9", x2: "17", y2: "15" }),
+  /* @__PURE__ */ jsx("line", { x1: "17", y1: "9", x2: "23", y2: "15" })
+] });
+var UnmutedIcon = /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
+  /* @__PURE__ */ jsx("path", { d: "M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" })
+] });
+var MicActiveIcon = /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsx("path", { d: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" }),
+  /* @__PURE__ */ jsx("path", { d: "M19 10v2a7 7 0 0 1-14 0v-2" }),
+  /* @__PURE__ */ jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
+  /* @__PURE__ */ jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
+] });
+var MicInactiveIcon = /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" }),
+  /* @__PURE__ */ jsx("path", { d: "M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" }),
+  /* @__PURE__ */ jsx("path", { d: "M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" }),
+  /* @__PURE__ */ jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
+  /* @__PURE__ */ jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
+] });
+var SpeakerPausedIcon = /* @__PURE__ */ jsx("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsx("polygon", { points: "5 3 19 12 5 21 5 3" }) });
+var SpeakerActiveIcon = /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsx("rect", { x: "6", y: "4", width: "4", height: "16" }),
+  /* @__PURE__ */ jsx("rect", { x: "14", y: "4", width: "4", height: "16" })
+] });
+var SendIcon = /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
+  /* @__PURE__ */ jsx("line", { x1: "22", y1: "2", x2: "11", y2: "13" }),
+  /* @__PURE__ */ jsx("polygon", { points: "22 2 15 22 11 13 2 9 22 2" })
+] });
+var MicVisualizer = memo(({ micLevel, primaryColor }) => /* @__PURE__ */ jsx("div", { style: { width: "80px", display: "flex", alignItems: "center" }, children: /* @__PURE__ */ jsx(
+  "div",
+  {
+    style: {
+      width: "100%",
+      height: "8px",
+      backgroundColor: "#e5e7eb",
+      borderRadius: "4px",
+      overflow: "hidden"
+    },
+    children: /* @__PURE__ */ jsx(
+      "div",
+      {
+        style: {
+          width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
+          height: "100%",
+          backgroundColor: primaryColor,
+          borderRadius: "4px",
+          transition: "width 75ms"
+        }
+      }
+    )
+  }
+) }));
 function ChatBot({ config: userConfig, apiKey, getApiKey }) {
-  const config = mergeConfig(userConfig);
+  const config = useMemo(() => mergeConfig(userConfig), [userConfig]);
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef(null);
@@ -2099,7 +2277,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
     toggleMute,
     toggleMic,
     toggleSpeaker
-  } = useVoiceChat({ config: userConfig, apiKey, getApiKey });
+  } = useVoiceChat({ config, apiKey, getApiKey });
   useEffect(() => {
     if (isOpen && !isConnected) {
       void connect();
@@ -2124,11 +2302,10 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
     },
     [isConnected, sendText]
   );
-  const userMessageCount = messages.filter((m) => m.role === "user").length;
   const primaryColor = config.theme.primaryColor || "#2563eb";
   const position = config.theme.position || "bottom-right";
-  const positionStyles = position === "bottom-left" ? { bottom: "24px", left: "24px" } : { bottom: "24px", right: "24px" };
-  const cardPositionStyles = position === "bottom-left" ? { bottom: "96px", left: "24px" } : { bottom: "96px", right: "24px" };
+  const positionStyles = useMemo(() => position === "bottom-left" ? { bottom: "24px", left: "24px" } : { bottom: "24px", right: "24px" }, [position]);
+  const cardPositionStyles = useMemo(() => position === "bottom-left" ? { bottom: "96px", left: "24px" } : { bottom: "96px", right: "24px" }, [position]);
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsx(
       "button",
@@ -2159,10 +2336,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
         },
         onMouseEnter: (e) => e.currentTarget.style.transform = "scale(1.05)",
         onMouseLeave: (e) => e.currentTarget.style.transform = "scale(1)",
-        children: isOpen ? /* @__PURE__ */ jsxs("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-          /* @__PURE__ */ jsx("line", { x1: "18", y1: "6", x2: "6", y2: "18" }),
-          /* @__PURE__ */ jsx("line", { x1: "6", y1: "6", x2: "18", y2: "18" })
-        ] }) : /* @__PURE__ */ jsx("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsx("path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }) })
+        children: isOpen ? CloseIcon : ChatIcon
       }
     ),
     isOpen && /* @__PURE__ */ jsxs(
@@ -2209,14 +2383,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                         padding: "4px",
                         color: isMuted ? "#ef4444" : "#6b7280"
                       },
-                      children: isMuted ? /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                        /* @__PURE__ */ jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
-                        /* @__PURE__ */ jsx("line", { x1: "23", y1: "9", x2: "17", y2: "15" }),
-                        /* @__PURE__ */ jsx("line", { x1: "17", y1: "9", x2: "23", y2: "15" })
-                      ] }) : /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                        /* @__PURE__ */ jsx("polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }),
-                        /* @__PURE__ */ jsx("path", { d: "M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" })
-                      ] })
+                      children: isMuted ? MutedIcon : UnmutedIcon
                     }
                   ),
                   isReconnecting && /* @__PURE__ */ jsx("span", { style: { fontSize: "12px", color: "#6b7280" }, children: "Reconnecting..." }),
@@ -2237,68 +2404,29 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
             }
           ),
           /* @__PURE__ */ jsxs("div", { style: { flex: 1, overflowY: "auto", padding: "16px" }, children: [
-            userMessageCount === 0 && isConnected && config.suggestedQuestions.length > 0 && /* @__PURE__ */ jsxs("div", { style: { marginBottom: "16px" }, children: [
-              /* @__PURE__ */ jsx("div", { style: { fontSize: "12px", color: "#6b7280", marginBottom: "8px" }, children: "Suggested questions" }),
-              /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: "8px" }, children: config.suggestedQuestions.map((question) => /* @__PURE__ */ jsx(
-                "button",
-                {
-                  onClick: () => handleSuggestionClick(question),
-                  disabled: isLoading || isReconnecting,
-                  style: {
-                    textAlign: "left",
-                    padding: "12px",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    backgroundColor: "white",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    color: "#1f2937",
-                    transition: "border-color 0.2s"
-                  },
-                  onMouseEnter: (e) => e.currentTarget.style.borderColor = primaryColor,
-                  onMouseLeave: (e) => e.currentTarget.style.borderColor = "#e5e7eb",
-                  children: question
-                },
-                question
-              )) })
-            ] }),
-            messages.map((m) => /* @__PURE__ */ jsx(ChatMessage, { message: m, primaryColor }, m.id)),
-            isLoading && /* @__PURE__ */ jsx("div", { style: { fontSize: "14px", color: "#6b7280", padding: "8px" }, children: "Processing..." }),
-            isListening && !isMuted && /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#6b7280", padding: "8px 0" }, children: [
-              /* @__PURE__ */ jsx(
-                "div",
-                {
-                  style: {
-                    width: "60px",
-                    height: "6px",
-                    backgroundColor: "#e5e7eb",
-                    borderRadius: "3px",
-                    overflow: "hidden"
-                  },
-                  children: /* @__PURE__ */ jsx(
-                    "div",
-                    {
-                      style: {
-                        width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
-                        height: "100%",
-                        backgroundColor: primaryColor,
-                        borderRadius: "3px",
-                        transition: "width 75ms"
-                      }
-                    }
-                  )
-                }
-              ),
-              /* @__PURE__ */ jsx("span", { children: "Listening" })
-            ] }),
-            isAISpeaking && !isSpeakerPaused && /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: primaryColor, padding: "8px 0" }, children: [
-              /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: "2px" }, children: [
-                /* @__PURE__ */ jsx("span", { style: { width: "3px", height: "12px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite" } }),
-                /* @__PURE__ */ jsx("span", { style: { width: "3px", height: "16px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.1s" } }),
-                /* @__PURE__ */ jsx("span", { style: { width: "3px", height: "8px", backgroundColor: primaryColor, borderRadius: "2px", animation: "pulse 1s infinite 0.2s" } })
-              ] }),
-              /* @__PURE__ */ jsx("span", { children: "Speaking" })
-            ] }),
+            /* @__PURE__ */ jsx(
+              MessageList,
+              {
+                messages,
+                isLoading,
+                isConnected,
+                isReconnecting,
+                suggestedQuestions: config.suggestedQuestions,
+                onSuggestionClick: handleSuggestionClick,
+                primaryColor
+              }
+            ),
+            /* @__PURE__ */ jsx(
+              AudioStatus,
+              {
+                isListening,
+                isMuted,
+                micLevel,
+                isAISpeaking,
+                isSpeakerPaused,
+                primaryColor
+              }
+            ),
             /* @__PURE__ */ jsx("div", { ref: messagesEndRef })
           ] }),
           /* @__PURE__ */ jsxs(
@@ -2331,44 +2459,10 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                       justifyContent: "center",
                       opacity: !isConnected || isMuted || isReconnecting ? 0.5 : 1
                     },
-                    children: isListening ? /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsx("path", { d: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" }),
-                      /* @__PURE__ */ jsx("path", { d: "M19 10v2a7 7 0 0 1-14 0v-2" }),
-                      /* @__PURE__ */ jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
-                      /* @__PURE__ */ jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
-                    ] }) : /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" }),
-                      /* @__PURE__ */ jsx("path", { d: "M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" }),
-                      /* @__PURE__ */ jsx("path", { d: "M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" }),
-                      /* @__PURE__ */ jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
-                      /* @__PURE__ */ jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
-                    ] })
+                    children: isListening ? MicActiveIcon : MicInactiveIcon
                   }
                 ),
-                isListening && /* @__PURE__ */ jsx("div", { style: { width: "80px", display: "flex", alignItems: "center" }, children: /* @__PURE__ */ jsx(
-                  "div",
-                  {
-                    style: {
-                      width: "100%",
-                      height: "8px",
-                      backgroundColor: "#e5e7eb",
-                      borderRadius: "4px",
-                      overflow: "hidden"
-                    },
-                    children: /* @__PURE__ */ jsx(
-                      "div",
-                      {
-                        style: {
-                          width: `${Math.max(5, Math.min(100, Math.round(micLevel * 100)))}%`,
-                          height: "100%",
-                          backgroundColor: primaryColor,
-                          borderRadius: "4px",
-                          transition: "width 75ms"
-                        }
-                      }
-                    )
-                  }
-                ) }),
+                isListening && /* @__PURE__ */ jsx(MicVisualizer, { micLevel, primaryColor }),
                 /* @__PURE__ */ jsx(
                   "button",
                   {
@@ -2387,10 +2481,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                       justifyContent: "center",
                       opacity: !isConnected || isReconnecting ? 0.5 : 1
                     },
-                    children: isSpeakerPaused ? /* @__PURE__ */ jsx("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: /* @__PURE__ */ jsx("polygon", { points: "5 3 19 12 5 21 5 3" }) }) : /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsx("rect", { x: "6", y: "4", width: "4", height: "16" }),
-                      /* @__PURE__ */ jsx("rect", { x: "14", y: "4", width: "4", height: "16" })
-                    ] })
+                    children: isSpeakerPaused ? SpeakerPausedIcon : SpeakerActiveIcon
                   }
                 )
               ]
@@ -2448,10 +2539,7 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
                       justifyContent: "center",
                       opacity: !inputText.trim() || !isConnected || isLoading || isReconnecting ? 0.5 : 1
                     },
-                    children: /* @__PURE__ */ jsxs("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", children: [
-                      /* @__PURE__ */ jsx("line", { x1: "22", y1: "2", x2: "11", y2: "13" }),
-                      /* @__PURE__ */ jsx("polygon", { points: "22 2 15 22 11 13 2 9 22 2" })
-                    ] })
+                    children: SendIcon
                   }
                 )
               ]

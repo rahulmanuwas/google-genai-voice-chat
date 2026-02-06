@@ -278,7 +278,10 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         }
 
         try {
-            const ai = new GoogleGenAI({ apiKey: resolvedKey });
+            const ai = new GoogleGenAI({
+                apiKey: resolvedKey,
+                ...(config.httpOptions ? { httpOptions: config.httpOptions } : {}),
+            });
 
             // Initialize playback context (best-effort unlock)
             ensurePlaybackContext();

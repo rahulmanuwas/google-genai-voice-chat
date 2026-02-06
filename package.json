@@ -1,6 +1,6 @@
 {
   "name": "google-genai-voice-chat",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "description": "Real-time voice and text chat component for Google Gemini Live API",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

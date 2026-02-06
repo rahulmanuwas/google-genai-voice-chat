@@ -1,6 +1,7 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { V as VoiceChatConfig, C as ChatMessage$1, a as VoiceChatStats, M as MessageHandler, L as LiveSession, A as AudioDropPolicy, b as VoiceChatEvent } from './types-Bt86lhtR.mjs';
-export { e as ChatHandlerConfig, c as ChatRole, d as ChatTheme } from './types-Bt86lhtR.mjs';
+import { V as VoiceChatConfig, C as ChatMessage$1, a as VoiceChatStats, M as MessageHandler, L as LiveSession, A as AudioDropPolicy, b as VoiceChatEvent } from './types-JPCRE8BD.mjs';
+export { e as ChatHandlerConfig, c as ChatRole, d as ChatTheme } from './types-JPCRE8BD.mjs';
+import React from 'react';
 import '@google/genai';
 
 interface ChatBotProps {
@@ -14,7 +15,7 @@ interface ChatMessageProps {
     message: ChatMessage$1;
     primaryColor?: string;
 }
-declare function ChatMessage({ message, primaryColor }: ChatMessageProps): react_jsx_runtime.JSX.Element;
+declare const ChatMessage: React.NamedExoticComponent<ChatMessageProps>;
 
 interface UseVoiceChatOptions {
     config: VoiceChatConfig;
@@ -134,7 +135,7 @@ declare function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputR
 /**
  * Default configuration values
  */
-declare const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId' | 'onEvent'>> & {
+declare const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId' | 'onEvent' | 'httpOptions'>> & {
     theme: NonNullable<VoiceChatConfig['theme']>;
 };
 
@@ -156,9 +157,10 @@ declare const STABLE_PRESET: Partial<VoiceChatConfig>;
 /**
  * Merge user config with defaults
  */
-declare function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceChatConfig, 'theme' | 'onEvent'>> & {
+declare function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceChatConfig, 'systemPrompt' | 'theme' | 'modelId' | 'onEvent' | 'httpOptions'>> & Pick<VoiceChatConfig, 'systemPrompt' | 'modelId'> & {
     theme: NonNullable<VoiceChatConfig['theme']>;
     onEvent?: VoiceChatConfig['onEvent'];
+    httpOptions?: VoiceChatConfig['httpOptions'];
 };
 
 export { AUDIO_CONFIG, AudioDropPolicy, ChatBot, ChatMessage, ChatMessage$1 as ChatMessageType, DEFAULT_CONFIG, LiveSession, MessageHandler, STABLE_PRESET, VoiceChatConfig, VoiceChatEvent, VoiceChatStats, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };

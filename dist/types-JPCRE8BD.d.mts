@@ -162,6 +162,13 @@ interface VoiceChatConfig {
     chatTitle?: string;
     /** Optional debug/event hook */
     onEvent?: (event: VoiceChatEvent) => void;
+    /** HTTP options passed to GoogleGenAI constructor (e.g. { apiVersion: 'v1alpha' } for ephemeral tokens) */
+    httpOptions?: {
+        apiVersion?: string;
+        baseUrl?: string;
+        headers?: Record<string, string>;
+        timeout?: number;
+    };
 }
 /**
  * Runtime stats snapshot
