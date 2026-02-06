@@ -87,24 +87,26 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
     useEffect(() => { getApiKeyRef.current = getApiKey; }, [getApiKey]);
 
+    const { onEvent: configOnEvent, reconnectJitterPct, reconnectBaseDelayMs, reconnectBackoffFactor, reconnectMaxDelayMs } = config;
+
     const emitEvent = useCallback((type: string, data?: Record<string, unknown>) => {
-        config.onEvent?.({ type, ts: Date.now(), data });
-    }, [config.onEvent]);
+        configOnEvent?.({ type, ts: Date.now(), data });
+    }, [configOnEvent]);
 
     const getJitteredDelay = useCallback((delayMs: number): number => {
-        const jitterPct = Math.max(0, Math.min(1, config.reconnectJitterPct ?? 0));
+        const jitterPct = Math.max(0, Math.min(1, reconnectJitterPct ?? 0));
         if (!jitterPct) return Math.max(0, delayMs);
         const jitter = delayMs * jitterPct * (Math.random() * 2 - 1);
         return Math.max(0, delayMs + jitter);
-    }, [config.reconnectJitterPct]);
+    }, [reconnectJitterPct]);
 
     const getBackoffDelay = useCallback((attempt: number): number => {
-        const base = Math.max(0, config.reconnectBaseDelayMs ?? 1500);
-        const factor = Math.max(1, config.reconnectBackoffFactor ?? 1.5);
-        const maxDelay = Math.max(base, config.reconnectMaxDelayMs ?? 15000);
+        const base = Math.max(0, reconnectBaseDelayMs ?? 1500);
+        const factor = Math.max(1, reconnectBackoffFactor ?? 1.5);
+        const maxDelay = Math.max(base, reconnectMaxDelayMs ?? 15000);
         const raw = Math.min(maxDelay, base * Math.pow(factor, Math.max(0, attempt - 1)));
         return getJitteredDelay(raw);
-    }, [config.reconnectBaseDelayMs, config.reconnectBackoffFactor, config.reconnectMaxDelayMs, getJitteredDelay]);
+    }, [reconnectBaseDelayMs, reconnectBackoffFactor, reconnectMaxDelayMs, getJitteredDelay]);
 
     // Session handle lifecycle on mount
     useEffect(() => {

@@ -91,9 +91,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         });
     }, [maxMessages]);
 
+    const configOnEvent = config.onEvent;
     const emitEvent = useCallback((type: string, data?: Record<string, unknown>) => {
-        config.onEvent?.({ type, ts: Date.now(), data });
-    }, [config.onEvent]);
+        configOnEvent?.({ type, ts: Date.now(), data });
+    }, [configOnEvent]);
 
     // Transcript handling
     const currentTranscriptRef = useRef('');

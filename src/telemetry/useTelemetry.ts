@@ -1,6 +1,6 @@
 // src/telemetry/useTelemetry.ts
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VoiceChatEvent, ChatMessage } from '../lib/types';
 import type { createConvexHelper, EventPayload } from './convexHelper';
 
@@ -12,6 +12,10 @@ const NOISE_EVENTS = new Set([
 const BUFFER_FLUSH_SIZE = 20;
 const BUFFER_FLUSH_INTERVAL_MS = 5000;
 
+function generateSessionId(): string {
+    return `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 interface UseTelemetryOptions {
     convex: ReturnType<typeof createConvexHelper>;
 }
@@ -19,10 +23,13 @@ interface UseTelemetryOptions {
 export function useTelemetry(options: UseTelemetryOptions) {
     const { convex } = options;
 
-    const sessionIdRef = useRef(
-        `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    );
-    const sessionStartRef = useRef(Date.now());
+    // useState lazy initializer is the React-approved escape hatch for impure init
+    const [initialSession] = useState(() => ({
+        id: generateSessionId(),
+        start: Date.now(),
+    }));
+    const sessionIdRef = useRef(initialSession.id);
+    const sessionStartRef = useRef(initialSession.start);
 
     const eventBufferRef = useRef<EventPayload[]>([]);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,7 +75,7 @@ export function useTelemetry(options: UseTelemetryOptions) {
     );
 
     const resetSession = useCallback(() => {
-        sessionIdRef.current = `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        sessionIdRef.current = generateSessionId();
         sessionStartRef.current = Date.now();
     }, []);
 
