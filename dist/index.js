@@ -1880,7 +1880,7 @@ function useVoiceChat(options) {
   }, [emitEvent, scheduleMicResume]);
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const handlePageHide = (event) => {
+    const handlePageHide = () => {
       wasListeningBeforeHideRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
       voiceInputRef.current?.stopMic();
       voiceOutputRef.current?.stopPlayback();
@@ -1889,10 +1889,8 @@ function useVoiceChat(options) {
         clearTimeout(micResumeTimerRef.current);
         micResumeTimerRef.current = null;
       }
-      emitEvent("page_hide", { persisted: event.persisted });
     };
-    const handlePageShow = (event) => {
-      emitEvent("page_show", { persisted: event.persisted });
+    const handlePageShow = (_event) => {
       if (wasListeningBeforeHideRef.current) {
         wasListeningBeforeHideRef.current = false;
         scheduleMicResume("pageshow");
@@ -2563,13 +2561,145 @@ function ChatBot({ config: userConfig, apiKey, getApiKey }) {
   ] });
 }
 
+// src/telemetry/convexHelper.ts
+function createConvexHelper(config) {
+  const { url, appSlug, appSecret } = config;
+  async function fetchToken() {
+    const res = await fetch(`${url}/api/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appSlug, appSecret })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(`Token fetch failed: ${err.error || res.statusText}`);
+    }
+    const data = await res.json();
+    return data.token;
+  }
+  async function postEvents(sessionId, events) {
+    try {
+      await fetch(`${url}/api/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appSlug, appSecret, sessionId, events })
+      });
+    } catch {
+    }
+  }
+  async function saveConversation(sessionId, messages, startedAt) {
+    try {
+      await fetch(`${url}/api/conversations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appSlug, appSecret, sessionId, startedAt, messages })
+      });
+    } catch {
+    }
+  }
+  function beaconEvents(sessionId, events) {
+    if (typeof navigator === "undefined" || !navigator.sendBeacon || events.length === 0) return;
+    const blob = new Blob(
+      [JSON.stringify({ appSlug, appSecret, sessionId, events })],
+      { type: "application/json" }
+    );
+    navigator.sendBeacon(`${url}/api/events`, blob);
+  }
+  function beaconConversation(sessionId, messages, startedAt) {
+    if (typeof navigator === "undefined" || !navigator.sendBeacon || messages.length === 0) return;
+    const blob = new Blob(
+      [JSON.stringify({ appSlug, appSecret, sessionId, startedAt, messages })],
+      { type: "application/json" }
+    );
+    navigator.sendBeacon(`${url}/api/conversations`, blob);
+  }
+  return { fetchToken, postEvents, saveConversation, beaconEvents, beaconConversation };
+}
+var NOISE_EVENTS = /* @__PURE__ */ new Set([
+  "audio_output_queue_overflow",
+  "playback_context_state"
+]);
+var BUFFER_FLUSH_SIZE = 20;
+var BUFFER_FLUSH_INTERVAL_MS = 5e3;
+function useTelemetry(options) {
+  const { convex } = options;
+  const sessionIdRef = React.useRef(
+    `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  );
+  const sessionStartRef = React.useRef(Date.now());
+  const eventBufferRef = React.useRef([]);
+  const flushTimerRef = React.useRef(null);
+  const flushEvents = React.useCallback(() => {
+    if (eventBufferRef.current.length === 0) return;
+    const batch = eventBufferRef.current.splice(0);
+    void convex.postEvents(sessionIdRef.current, batch);
+  }, [convex]);
+  const onEvent = React.useCallback(
+    (event) => {
+      if (NOISE_EVENTS.has(event.type)) return;
+      eventBufferRef.current.push({
+        eventType: event.type,
+        ts: event.ts,
+        data: event.data ? JSON.stringify(event.data) : void 0
+      });
+      if (eventBufferRef.current.length >= BUFFER_FLUSH_SIZE) {
+        flushEvents();
+      } else if (!flushTimerRef.current) {
+        flushTimerRef.current = setTimeout(() => {
+          flushTimerRef.current = null;
+          flushEvents();
+        }, BUFFER_FLUSH_INTERVAL_MS);
+      }
+    },
+    [flushEvents]
+  );
+  const saveTranscript = React.useCallback(
+    (messages) => {
+      if (messages.length === 0) return;
+      void convex.saveConversation(
+        sessionIdRef.current,
+        messages.map((m) => ({ role: m.role, content: m.content, ts: m.ts })),
+        sessionStartRef.current
+      );
+    },
+    [convex]
+  );
+  const resetSession = React.useCallback(() => {
+    sessionIdRef.current = `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionStartRef.current = Date.now();
+  }, []);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePageHide = () => {
+      if (eventBufferRef.current.length === 0) return;
+      const batch = eventBufferRef.current.splice(0);
+      convex.beaconEvents(sessionIdRef.current, batch);
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [convex]);
+  React.useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, []);
+  return { sessionId: sessionIdRef, onEvent, flushEvents, saveTranscript, resetSession };
+}
+
 exports.AUDIO_CONFIG = AUDIO_CONFIG;
 exports.ChatBot = ChatBot;
 exports.ChatMessage = ChatMessage;
 exports.DEFAULT_CONFIG = DEFAULT_CONFIG;
 exports.STABLE_PRESET = STABLE_PRESET;
+exports.createConvexHelper = createConvexHelper;
 exports.mergeConfig = mergeConfig;
 exports.useLiveSession = useLiveSession;
+exports.useTelemetry = useTelemetry;
 exports.useVoiceChat = useVoiceChat;
 exports.useVoiceInput = useVoiceInput;
 exports.useVoiceOutput = useVoiceOutput;

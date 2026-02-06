@@ -1,0 +1,5 @@
+node_modules/
+.env
+.env.local
+convex/_generated/
+ENV_VARS_REFERENCE.md

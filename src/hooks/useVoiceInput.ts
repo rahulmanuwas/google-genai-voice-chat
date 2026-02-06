@@ -5,7 +5,7 @@
  * Ported from tested g2p implementation (server-side VAD mode)
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import type { AudioDropPolicy, LiveSession, VoiceChatEvent } from '../lib/types';
 import { INPUT_SAMPLE_RATE, encodeAudioToBase64, calculateRMSLevel } from '../lib/audio-utils';
 
@@ -556,20 +556,22 @@ registerProcessor('pcm-processor', PCMProcessor);
         };
     }, [cleanup, clearFlushTimer]);
 
-    return {
+    const getStats = useCallback(() => ({
+        queueMs: queuedMsRef.current,
+        queueChunks: queuedChunksRef.current,
+        droppedChunks: droppedChunksRef.current,
+        droppedMs: droppedMsRef.current,
+        sendErrorStreak: sendErrorStreakRef.current,
+        blockedUntil: sendBlockedUntilRef.current,
+        lastSendAt: lastSendAtRef.current,
+        usingWorklet: usingWorkletRef.current,
+    }), []);
+
+    return useMemo(() => ({
         isListening,
         micLevel,
         startMic,
         stopMic,
-        getStats: () => ({
-            queueMs: queuedMsRef.current,
-            queueChunks: queuedChunksRef.current,
-            droppedChunks: droppedChunksRef.current,
-            droppedMs: droppedMsRef.current,
-            sendErrorStreak: sendErrorStreakRef.current,
-            blockedUntil: sendBlockedUntilRef.current,
-            lastSendAt: lastSendAtRef.current,
-            usingWorklet: usingWorkletRef.current,
-        }),
-    };
+        getStats,
+    }), [isListening, micLevel, startMic, stopMic, getStats]);
 }

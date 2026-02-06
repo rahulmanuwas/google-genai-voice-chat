@@ -1,7 +1,8 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import { V as VoiceChatConfig, C as ChatMessage$1, a as VoiceChatStats, M as MessageHandler, L as LiveSession, A as AudioDropPolicy, b as VoiceChatEvent } from './types-JPCRE8BD.mjs';
 export { e as ChatHandlerConfig, c as ChatRole, d as ChatTheme } from './types-JPCRE8BD.mjs';
-import React from 'react';
+import * as React from 'react';
+import React__default from 'react';
 import '@google/genai';
 
 interface ChatBotProps {
@@ -15,7 +16,7 @@ interface ChatMessageProps {
     message: ChatMessage$1;
     primaryColor?: string;
 }
-declare const ChatMessage: React.NamedExoticComponent<ChatMessageProps>;
+declare const ChatMessage: React__default.NamedExoticComponent<ChatMessageProps>;
 
 interface UseVoiceChatOptions {
     config: VoiceChatConfig;
@@ -163,4 +164,38 @@ declare function mergeConfig(userConfig: VoiceChatConfig): Required<Omit<VoiceCh
     httpOptions?: VoiceChatConfig['httpOptions'];
 };
 
-export { AUDIO_CONFIG, AudioDropPolicy, ChatBot, ChatMessage, ChatMessage$1 as ChatMessageType, DEFAULT_CONFIG, LiveSession, MessageHandler, STABLE_PRESET, VoiceChatConfig, VoiceChatEvent, VoiceChatStats, mergeConfig, useLiveSession, useVoiceChat, useVoiceInput, useVoiceOutput };
+interface ConvexHelperConfig {
+    url: string;
+    appSlug: string;
+    appSecret: string;
+}
+interface EventPayload {
+    eventType: string;
+    ts: number;
+    data?: string;
+}
+interface MessagePayload {
+    role: string;
+    content: string;
+    ts: number;
+}
+declare function createConvexHelper(config: ConvexHelperConfig): {
+    fetchToken: () => Promise<string>;
+    postEvents: (sessionId: string, events: EventPayload[]) => Promise<void>;
+    saveConversation: (sessionId: string, messages: MessagePayload[], startedAt: number) => Promise<void>;
+    beaconEvents: (sessionId: string, events: EventPayload[]) => void;
+    beaconConversation: (sessionId: string, messages: MessagePayload[], startedAt: number) => void;
+};
+
+interface UseTelemetryOptions {
+    convex: ReturnType<typeof createConvexHelper>;
+}
+declare function useTelemetry(options: UseTelemetryOptions): {
+    sessionId: React.MutableRefObject<string>;
+    onEvent: (event: VoiceChatEvent) => void;
+    flushEvents: () => void;
+    saveTranscript: (messages: ChatMessage$1[]) => void;
+    resetSession: () => void;
+};
+
+export { AUDIO_CONFIG, AudioDropPolicy, ChatBot, ChatMessage, ChatMessage$1 as ChatMessageType, type ConvexHelperConfig, DEFAULT_CONFIG, type EventPayload, LiveSession, MessageHandler, type MessagePayload, STABLE_PRESET, VoiceChatConfig, VoiceChatEvent, VoiceChatStats, createConvexHelper, mergeConfig, useLiveSession, useTelemetry, useVoiceChat, useVoiceInput, useVoiceOutput };

@@ -26,3 +26,7 @@ export type {
 
 // Utilities
 export { mergeConfig, DEFAULT_CONFIG, AUDIO_CONFIG, STABLE_PRESET } from './lib/constants';
+
+// Telemetry
+export { createConvexHelper, useTelemetry } from './telemetry';
+export type { ConvexHelperConfig, EventPayload, MessagePayload } from './telemetry';

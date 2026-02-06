@@ -5,7 +5,7 @@
  * Ported from tested g2p implementation
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { OUTPUT_SAMPLE_RATE, PLAYBACK_COMPLETE_DELAY_MS, base64ToPCM16, pcm16ToFloat32 } from '../lib/audio-utils';
 import type { AudioDropPolicy, VoiceChatEvent } from '../lib/types';
 
@@ -365,17 +365,19 @@ export function useVoiceOutput(options: UseVoiceOutputOptions): UseVoiceOutputRe
         };
     }, [clearCompleteTimer]);
 
-    return {
+    const getStats = useCallback(() => ({
+        queueMs: queuedMsRef.current,
+        queueChunks: queuedChunksRef.current,
+        droppedChunks: droppedChunksRef.current,
+        droppedMs: droppedMsRef.current,
+        contextState: (playCtxRef.current?.state ?? 'none') as AudioContextState | 'none',
+    }), []);
+
+    return useMemo(() => ({
         isPlaying,
         enqueueAudio,
         stopPlayback,
         clearQueue,
-        getStats: () => ({
-            queueMs: queuedMsRef.current,
-            queueChunks: queuedChunksRef.current,
-            droppedChunks: droppedChunksRef.current,
-            droppedMs: droppedMsRef.current,
-            contextState: playCtxRef.current?.state ?? 'none',
-        }),
-    };
+        getStats,
+    }), [isPlaying, enqueueAudio, stopPlayback, clearQueue, getStats]);
 }

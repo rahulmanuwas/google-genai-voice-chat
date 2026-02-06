@@ -464,7 +464,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
-        const handlePageHide = (event: PageTransitionEvent) => {
+        const handlePageHide = () => {
             wasListeningBeforeHideRef.current = !!voiceInputRef.current?.isListening || pendingMicResumeRef.current;
             voiceInputRef.current?.stopMic();
             voiceOutputRef.current?.stopPlayback();
@@ -473,11 +473,11 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
                 clearTimeout(micResumeTimerRef.current);
                 micResumeTimerRef.current = null;
             }
-            emitEvent('page_hide', { persisted: event.persisted });
+            // page_hide event emitted by useLiveSession — no duplicate here
         };
 
-        const handlePageShow = (event: PageTransitionEvent) => {
-            emitEvent('page_show', { persisted: event.persisted });
+        const handlePageShow = (_event: PageTransitionEvent) => {
+            // page_show event emitted by useLiveSession — no duplicate here
             if (wasListeningBeforeHideRef.current) {
                 wasListeningBeforeHideRef.current = false;
                 scheduleMicResume('pageshow');
