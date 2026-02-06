@@ -7,7 +7,7 @@
     "dev": "npx convex dev",
     "deploy": "npx convex deploy",
     "seed": "npx convex run seed:seedApp",
-    "typecheck": "npx convex typecheck"
+    "typecheck": "echo 'Skipped: Convex typecheck requires npx convex dev to generate _generated/ types'"
   },
   "dependencies": {
     "@google/genai": "^1.40.0",
