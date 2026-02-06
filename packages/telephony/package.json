@@ -1,0 +1,40 @@
+{
+  "name": "@genai-voice/telephony",
+  "version": "0.1.0",
+  "description": "Provider-agnostic telephony adapters (Telnyx, Twilio) for genai-voice",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./telnyx": {
+      "types": "./dist/adapters/telnyx.d.ts",
+      "import": "./dist/adapters/telnyx.mjs",
+      "require": "./dist/adapters/telnyx.js"
+    },
+    "./twilio": {
+      "types": "./dist/adapters/twilio.d.ts",
+      "import": "./dist/adapters/twilio.mjs",
+      "require": "./dist/adapters/twilio.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@genai-voice/core": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}

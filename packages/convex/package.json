@@ -1,0 +1,16 @@
+{
+  "name": "@genai-voice/convex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Convex backend platform for genai-voice: tools, handoff, guardrails, knowledge, analytics",
+  "scripts": {
+    "dev": "npx convex dev",
+    "deploy": "npx convex deploy",
+    "seed": "npx convex run seed:seedApp",
+    "typecheck": "npx convex typecheck"
+  },
+  "dependencies": {
+    "@google/genai": "^1.40.0",
+    "convex": "^1.31.7"
+  }
+}

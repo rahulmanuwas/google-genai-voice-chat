@@ -1,79 +1,30 @@
 {
-  "name": "google-genai-voice-chat",
-  "version": "0.3.29",
-  "description": "Real-time voice and text chat component for Google Gemini Live API",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    },
-    "./api": {
-      "types": "./dist/api.d.ts",
-      "import": "./dist/api.mjs",
-      "require": "./dist/api.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "test": "node ./scripts/run-tests.mjs",
-    "version:auto": "node ./scripts/set-version.mjs",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run version:auto && npm run build",
-    "prepare": "npm run build"
-  },
-  "keywords": [
-    "google",
-    "gemini",
-    "genai",
-    "voice-chat",
-    "live-api",
-    "ai",
-    "chatbot",
-    "react",
-    "realtime",
-    "audio"
-  ],
+  "name": "genai-voice",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI voice agent platform powered by Google Gemini",
   "author": "Rahul Manuwas",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/rahulmanuwas/google-genai-voice-chat.git"
   },
-  "bugs": {
-    "url": "https://github.com/rahulmanuwas/google-genai-voice-chat/issues"
-  },
-  "homepage": "https://github.com/rahulmanuwas/google-genai-voice-chat#readme",
   "engines": {
     "node": ">=18.0.0"
   },
-  "sideEffects": false,
-  "peerDependencies": {
-    "@google/genai": ">=0.10.0",
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
-    "@google/genai": "^0.10.0",
-    "@types/node": "^25.0.9",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
     "eslint": "^9.39.2",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "tsx": "^4.19.0",
     "tsup": "^8.0.0",
+    "turbo": "^2.5.0",
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.54.0"
   }

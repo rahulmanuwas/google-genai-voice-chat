@@ -7,6 +7,16 @@ node_modules/
 skills/
 .github/skills/
 .npmrc
-convex-backend/convex/_generated/
-convex-backend/node_modules/
-convex-backend/ENV_VARS_REFERENCE.md
+
+# Build artifacts
+dist/
+.turbo/
+
+# Convex generated
+packages/convex/convex/_generated/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
