@@ -165,6 +165,95 @@ const config = {
 | `enableAffectiveDialog` | `boolean` | `false` | v1alpha-only feature |
 | `proactivity` | `object` | `{}` | v1alpha-only feature |
 
+## Telemetry Module
+
+Built-in helpers for logging events and conversations to a [Convex](https://convex.dev) backend. Replaces per-app boilerplate with two imports.
+
+### Setup
+
+```tsx
+import { createConvexHelper, useTelemetry } from 'google-genai-voice-chat';
+
+// Module-level (outside component):
+const convex = createConvexHelper({
+  url: process.env.NEXT_PUBLIC_CONVEX_URL!,   // Convex HTTP Actions URL
+  appSlug: 'my-app',                           // Identifies this app
+  appSecret: process.env.NEXT_PUBLIC_APP_SECRET!,
+});
+```
+
+### Inside your component
+
+```tsx
+function Chat() {
+  const { onEvent, flushEvents, saveTranscript, resetSession } = useTelemetry({ convex });
+
+  const config = useMemo(() => ({
+    ...VOICE_CHAT_CONFIG,
+    httpOptions: { apiVersion: 'v1alpha' },
+    onEvent, // wired to telemetry buffer
+  }), [onEvent]);
+
+  const getApiKey = useCallback(() => convex.fetchToken(), []);
+
+  const { messages, disconnect, /* ... */ } = useVoiceChat({ config, getApiKey });
+
+  const handleClose = useCallback(async () => {
+    flushEvents();
+    saveTranscript(messages);
+    await disconnect();
+    resetSession();
+  }, [disconnect, flushEvents, saveTranscript, messages, resetSession]);
+}
+```
+
+### What `useTelemetry` handles
+
+- **Session ID** — generated on mount (`ses_<timestamp>_<random>`), reset via `resetSession()`
+- **Event buffering** — batches events (flush at 20 events or every 5 seconds)
+- **Noise filtering** — skips `audio_output_queue_overflow` and `playback_context_state`
+- **Page unload** — flushes remaining events via `sendBeacon` on `pagehide`
+
+### `createConvexHelper` API
+
+| Method | Description |
+|---|---|
+| `fetchToken()` | Fetch an ephemeral Gemini API key via the Convex token endpoint |
+| `postEvents(sessionId, events)` | POST event batch (fire-and-forget) |
+| `saveConversation(sessionId, messages, startedAt)` | POST conversation transcript (fire-and-forget) |
+| `beaconEvents(sessionId, events)` | Flush events via `navigator.sendBeacon` (for page unload) |
+| `beaconConversation(sessionId, messages, startedAt)` | Flush transcript via `navigator.sendBeacon` |
+
+## Convex Backend
+
+The `convex-backend/` directory contains the Convex functions that power token vending, event logging, and conversation persistence. It deploys independently and is **not** part of the npm package.
+
+```
+convex-backend/
+├── convex/
+│   ├── schema.ts              # apps, conversations, events tables
+│   ├── tokens.ts / http.ts    # Ephemeral token vending (HTTP action)
+│   ├── events.ts              # Event ingestion (HTTP action → batch mutation)
+│   ├── conversations.ts       # Conversation upsert (HTTP action)
+│   ├── admin.ts               # Stats/transcripts (internal queries only)
+│   └── seed.ts                # App config seeding (internal mutation only)
+└── package.json               # Separate deps (convex, @google/genai)
+```
+
+### Deploy
+
+```bash
+cd convex-backend
+npm install
+CONVEX_DEPLOYMENT=prod:<your-deployment> npx convex deploy
+```
+
+### Seed an app
+
+```bash
+npx convex run seed:seedApp '{"slug":"my-app","name":"My App","secret":"...","modelId":"gemini-2.5-flash-native-audio-preview-12-2025","replyAsAudio":true,"systemPrompt":"You are..."}'
+```
+
 ## Text-only API Route
 
 For server-side text chat (Next.js):

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.29] - 2026-02-06
+
+### Added
+- **Telemetry module**: `createConvexHelper()` and `useTelemetry()` hook — replaces per-app boilerplate for event logging, conversation persistence, and ephemeral token fetching
+- **sendBeacon support**: `beaconEvents()` and `beaconConversation()` for reliable data delivery on page unload
+- **Co-located Convex backend**: `convex-backend/` directory with all Convex functions (token vending, event logging, conversation persistence)
+
+### Changed
+- **Security hardening**: `admin.ts` stats/transcripts are now `internalQuery` (no longer publicly accessible); `seed.ts` seedApp is now `internalMutation`
+- **Multi-tenant scoping**: Added `by_app_session` compound indexes on conversations and events tables; `upsertConversation` now queries by both `appSlug` and `sessionId` (prevents cross-app collision)
+- **Batch event writes**: New `insertEventBatch` mutation replaces N individual `insertEvent` calls with a single mutation
+
+### Fixed
+- **Duplicate page lifecycle events**: Removed `page_hide`/`page_show` event emissions from `useVoiceChat` (already emitted by `useLiveSession`)
+
 ## [0.3.27] - 2026-02-01
 
 ### Added
@@ -79,7 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Text chat fallback
 - Theme customization
 
-[Unreleased]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.3.27...HEAD
+[Unreleased]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.3.29...HEAD
+[0.3.29]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.3.27...v0.3.29
 [0.3.27]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.3.0-beta.1...v0.3.27
 [0.3.0-beta.1]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.2.3...v0.3.0-beta.1
 [0.2.3]: https://github.com/rahulmanuwas/google-genai-voice-chat/compare/v0.2.2...v0.2.3
