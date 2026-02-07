@@ -3,7 +3,7 @@
  */
 
 /** Supported communication channels */
-export type Channel = 'web' | 'voice-pstn' | 'sms' | 'email';
+export type Channel = 'web' | 'voice-pstn' | 'voice-webrtc' | 'sms' | 'email';
 
 /** Conversation participant role */
 export type Role = 'user' | 'model' | 'system' | 'agent';

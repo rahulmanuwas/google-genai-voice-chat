@@ -27,7 +27,7 @@ importers:
         specifier: ^8.54.0
         version: 8.54.0(eslint@9.39.2)(typescript@5.9.3)
 
-  apps/demo:
+  apps/console:
     dependencies:
       '@genai-voice/livekit':
         specifier: workspace:*
@@ -64,11 +64,11 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
-  packages/convex:
+  apps/convex-backend:
     dependencies:
       '@genai-voice/livekit':
         specifier: workspace:*
-        version: link:../livekit
+        version: link:../../packages/livekit
       '@google/genai':
         specifier: ^1.40.0
         version: 1.40.0
@@ -90,9 +90,6 @@ importers:
 
   packages/livekit:
     dependencies:
-      '@genai-voice/core':
-        specifier: workspace:*
-        version: link:../core
       '@livekit/agents':
         specifier: '>=1.0.0'
         version: 1.0.42(@livekit/rtc-node@0.13.24)(zod@4.3.6)

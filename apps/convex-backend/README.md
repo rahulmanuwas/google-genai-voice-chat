@@ -127,7 +127,7 @@ The status is used by `GET /api/analytics/overview` to compute resolution rate a
 ## Setup
 
 ```bash
-cd packages/convex
+cd apps/convex-backend
 pnpm install
 
 # Start development server (generates types, pushes schema)
@@ -234,7 +234,7 @@ curl -X POST https://your-deployment.convex.cloud/api/conversations \
     "startedAt": 1700000000000,
     "messages": [{"role":"user","content":"Hello","ts":1700000000}],
     "status": "resolved",
-    "channel": "voice-livekit"
+    "channel": "voice-webrtc"
   }'
 ```
 

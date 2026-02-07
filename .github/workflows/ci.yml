@@ -55,4 +55,4 @@ jobs:
           test -f packages/livekit/dist/server/index.js
           test -f packages/livekit/dist/agent/index.js
           test -f packages/livekit/dist/react/index.js
-          test -f apps/demo/.next/BUILD_ID
+          test -f apps/console/.next/BUILD_ID

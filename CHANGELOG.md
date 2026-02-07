@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — Monorepo restructure
 - **Monorepo**: Restructured from single package to pnpm workspaces + Turborepo
-- **`@genai-voice/core`**: New shared types package (conversation protocol, tools, handoff, guardrails, knowledge, analytics, persona, livekit)
-- **`@genai-voice/convex`**: Expanded Convex backend from 3 to 16 tables and 3 to 25+ HTTP endpoints
+- **`@genai-voice/core`**: New shared types package (conversation protocol, tools, handoff, guardrails, knowledge, analytics, persona)
+- **`@genai-voice/convex`**: Expanded Convex backend from 3 to 18 tables and 3 to 33+ HTTP endpoints (now in `apps/convex-backend`)
   - **Tool execution framework**: Register external API tools, execute with full audit logging, per-turn rate limiting
   - **Human handoff**: Real-time AI-to-human escalation with context transfer and webhook notifications
   - **Guardrails**: Pattern-based content validation (regex, keywords) with block/warn/log actions and audit trail
@@ -24,15 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`@genai-voice/livekit`**: New LiveKit WebRTC integration package with three subpath exports
   - `@genai-voice/livekit/server`: Token generation, webhook validation, room management via `livekit-server-sdk`
   - `@genai-voice/livekit/agent`: Voice AI agent using `@livekit/agents` + Gemini Live API (speech-to-speech via `google.beta.realtime.RealtimeModel`)
-  - `@genai-voice/livekit/react`: `useLiveKitVoiceChat` hook, `LiveKitVoiceChat` component, `AudioVisualizerWrapper` with live transcriptions
+  - `@genai-voice/livekit/react`: `useLiveKitVoiceChat` hook with `LiveKitRoomCallbacks` interface, `LiveKitVoiceChat` component, `AudioVisualizerWrapper` with live transcriptions
   - Convex backend: 2 new tables (`livekitRooms`, `livekitParticipants`) and 5 HTTP endpoints under `/api/livekit/*`
   - Dynamic tool loading from Convex via `createToolsFromConvex()`
+  - Backend-agnostic via callback injection (`AgentCallbacks`, `LiveKitRoomCallbacks`) with `createConvexAgentCallbacks()` and `createConvexRoomCallbacks()` factories
 - **Live transcriptions**: Both user and agent speech are transcribed and displayed chronologically in the LiveKit voice chat UI via `useTranscriptions()` hook
 - **Input audio transcription**: Gemini Live sessions now include `inputAudioTranscription` for user speech-to-text alongside agent audio
 
 ### Changed
 - Moved `src/` to `packages/react/src/` (published as `@genai-voice/react`)
-- Moved `convex-backend/` to `packages/convex/`
+- Moved `convex-backend/` to `apps/convex-backend/`
+- Renamed `apps/demo` to `apps/console` (`@genai-voice/console`)
+- Removed placeholder directories (`apps/dashboard`, `apps/example`)
+- Moved LiveKit types from `@genai-voice/core` to `@genai-voice/livekit` — livekit package no longer depends on core
+- Removed `convexUrl`/`appSlug`/`appSecret` from `LiveKitAgentConfig` — use `AgentCallbacks` instead
+- Changed `voice-livekit` channel to `voice-webrtc`
+- Added `voice-webrtc` to the `Channel` union type in core
 - Root `package.json` is now a private workspace root
 - ESLint config updated for monorepo file patterns
 - `.gitignore` updated for Turborepo and multi-package structure

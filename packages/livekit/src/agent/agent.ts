@@ -5,7 +5,9 @@ import {
   type llm,
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
-import type { LiveKitAgentConfig } from '@genai-voice/core';
+import type { LiveKitAgentConfig } from '../types';
+import type { AgentCallbacks, BufferedMessage } from './callbacks';
+import { createConvexAgentCallbacks } from './callbacks';
 
 export interface AgentDefinitionOptions {
   /** Gemini native audio model for speech-to-speech (default: "gemini-2.5-flash-native-audio-preview-12-2025") */
@@ -18,22 +20,8 @@ export interface AgentDefinitionOptions {
   temperature?: number;
   /** Tools keyed by name (use llm.tool() to create each) */
   tools?: llm.ToolContext;
-  /** Convex HTTP URL for storing transcriptions (defaults to CONVEX_URL env) */
-  convexUrl?: string;
-  /** App slug for Convex auth (defaults to APP_SLUG env) */
-  appSlug?: string;
-  /** App secret for Convex auth (defaults to APP_SECRET env) */
-  appSecret?: string;
-}
-
-interface BufferedMessage {
-  sessionId: string;
-  roomName: string;
-  participantIdentity: string;
-  role: string;
-  content: string;
-  isFinal: boolean;
-  createdAt: number;
+  /** Backend-agnostic lifecycle callbacks (persona, messages, conversation) */
+  callbacks?: AgentCallbacks;
 }
 
 /**
@@ -66,31 +54,31 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
     entry: async (ctx: JobContext) => {
       await ctx.connect();
 
-      // Resolve Convex credentials early so persona can load in parallel
-      const convexUrl = options?.convexUrl ?? process.env.CONVEX_URL;
-      const appSlug = options?.appSlug ?? process.env.APP_SLUG;
-      const appSecret = options?.appSecret ?? process.env.APP_SECRET;
-      const enableTranscriptionStorage = !!(convexUrl && appSlug && appSecret);
+      // Resolve callbacks: use provided callbacks, or auto-create from env vars (backwards compat)
+      let callbacks = options?.callbacks;
+      if (!callbacks) {
+        const convexUrl = process.env.CONVEX_URL;
+        const appSlug = process.env.APP_SLUG;
+        const appSecret = process.env.APP_SECRET;
+        if (convexUrl && appSlug && appSecret) {
+          callbacks = createConvexAgentCallbacks({ convexUrl, appSlug, appSecret });
+        }
+      }
 
       // Start persona loading in parallel with waiting for participant.
       // For SIP/PSTN calls the wait can be 5-10s (ring time), so loading
       // the persona concurrently eliminates that latency.
       const personaPromise = (async (): Promise<string> => {
-        if (!enableTranscriptionStorage) return config.instructions;
+        if (!callbacks?.loadPersona) return config.instructions;
         try {
-          const personaRes = await fetch(
-            `${convexUrl}/api/persona?appSlug=${encodeURIComponent(appSlug!)}&appSecret=${encodeURIComponent(appSecret!)}`
-          );
-          if (personaRes.ok) {
-            const persona = await personaRes.json();
-            if (persona.personaName || persona.personaTone || persona.personaGreeting) {
-              const parts: string[] = [config.instructions];
-              if (persona.personaName) parts.push(`Your name is ${persona.personaName}.`);
-              if (persona.personaTone) parts.push(`Speak in a ${persona.personaTone} tone.`);
-              if (persona.preferredTerms) parts.push(`Preferred terms: ${persona.preferredTerms}.`);
-              if (persona.blockedTerms) parts.push(`Never use these terms: ${persona.blockedTerms}.`);
-              return parts.join(' ');
-            }
+          const persona = await callbacks.loadPersona();
+          if (persona) {
+            const parts: string[] = [config.instructions];
+            if (persona.personaName) parts.push(`Your name is ${persona.personaName}.`);
+            if (persona.personaTone) parts.push(`Speak in a ${persona.personaTone} tone.`);
+            if (persona.preferredTerms) parts.push(`Preferred terms: ${persona.preferredTerms}.`);
+            if (persona.blockedTerms) parts.push(`Never use these terms: ${persona.blockedTerms}.`);
+            return parts.join(' ');
           }
         } catch {
           // Non-fatal — continue without persona
@@ -136,26 +124,23 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
       await session.start({ agent, room: ctx.room });
 
-      // Set up transcription storage
-      if (enableTranscriptionStorage) {
+      // Set up transcription storage (only if persistMessages callback is available)
+      if (callbacks?.persistMessages) {
+        const appSlug = process.env.APP_SLUG ?? '';
         const roomName = ctx.room.name ?? '';
         const sessionId = parseSessionIdFromRoom(roomName, appSlug);
         const messageBuffer: BufferedMessage[] = [];
         let flushTimer: ReturnType<typeof setInterval> | null = null;
 
+        // Capture callback refs for use in closures
+        const persistMessages = callbacks.persistMessages;
+        const resolveConversation = callbacks.resolveConversation;
+
         const flushMessages = async () => {
           if (messageBuffer.length === 0) return;
           const batch = messageBuffer.splice(0);
           try {
-            await fetch(`${convexUrl}/api/messages`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                appSlug,
-                appSecret,
-                messages: batch,
-              }),
-            });
+            await persistMessages(batch);
           } catch {
             // Re-queue on failure
             messageBuffer.unshift(...batch);
@@ -211,22 +196,12 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           await flushMessages();
 
           // Update conversation status to resolved
-          try {
-            await fetch(`${convexUrl}/api/conversations`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                appSlug,
-                appSecret,
-                sessionId,
-                startedAt: Date.now(),
-                messages: [],
-                status: 'resolved',
-                channel: 'voice-livekit',
-              }),
-            });
-          } catch {
-            // Best-effort
+          if (resolveConversation) {
+            try {
+              await resolveConversation(sessionId, 'voice-webrtc', Date.now());
+            } catch {
+              // Best-effort
+            }
           }
         });
       }
@@ -238,7 +213,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 }
 
 /**
- * Create an agent definition from a LiveKitAgentConfig (from @genai-voice/core).
+ * Create an agent definition from a LiveKitAgentConfig.
  */
 export function createAgentFromConfig(agentConfig: LiveKitAgentConfig) {
   return createAgentDefinition({
@@ -246,8 +221,5 @@ export function createAgentFromConfig(agentConfig: LiveKitAgentConfig) {
     voice: agentConfig.voice,
     instructions: agentConfig.instructions,
     temperature: agentConfig.temperature,
-    convexUrl: agentConfig.convexUrl,
-    appSlug: agentConfig.appSlug,
-    appSecret: agentConfig.appSecret,
   });
 }

@@ -1,14 +1,20 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import type { LiveKitRoomCallbacks } from './callbacks';
+import { createConvexRoomCallbacks } from './callbacks';
 
 export interface UseLiveKitVoiceChatOptions {
-  /** Convex deployment URL (e.g. https://my-app.convex.cloud) */
-  convexUrl: string;
-  /** App slug for authentication */
-  appSlug: string;
-  /** @deprecated Use getSessionToken for browser clients */
+  /** Backend-agnostic room lifecycle callbacks */
+  callbacks?: LiveKitRoomCallbacks;
+
+  /** @deprecated Use callbacks instead. Convex deployment URL (e.g. https://my-app.convex.cloud) */
+  convexUrl?: string;
+  /** @deprecated Use callbacks instead. App slug for authentication */
+  appSlug?: string;
+  /** @deprecated Use callbacks instead. Use getSessionToken for browser clients */
   appSecret?: string;
-  /** Async callback returning a short-lived session token (browser-safe) */
+  /** @deprecated Use callbacks instead. Async callback returning a short-lived session token (browser-safe) */
   getSessionToken?: () => Promise<string>;
+
   /** LiveKit server URL (defaults to token endpoint response) */
   serverUrl?: string;
   /** Participant identity (default: auto-generated) */
@@ -70,25 +76,36 @@ export function useLiveKitVoiceChat(
   // Refs to track current state for cleanup effect
   const roomNameRef = useRef<string | null>(null);
   const isReadyRef = useRef(false);
-  // Cache last resolved token for sync cleanup (sendBeacon-style fire-and-forget)
-  const cachedAuthRef = useRef<Record<string, string>>({});
 
-  /** Resolve auth credentials for request bodies */
-  async function resolveAuth(): Promise<Record<string, string>> {
-    if (options.getSessionToken) {
-      const token = await options.getSessionToken();
-      const auth = { sessionToken: token };
-      cachedAuthRef.current = auth;
-      return auth;
+  // Resolve callbacks: use provided callbacks, or auto-create from legacy Convex props (backwards compat)
+  const callbacksRef = useRef<LiveKitRoomCallbacks | null>(null);
+
+  // Capture the deleteRoom callback at connect-time for stable unmount cleanup
+  const deleteRoomRef = useRef<((roomName: string) => Promise<void>) | null>(null);
+
+  function resolveCallbacks(): LiveKitRoomCallbacks {
+    if (options.callbacks) {
+      callbacksRef.current = options.callbacks;
+      return options.callbacks;
     }
-    if (!options.appSecret) {
+
+    // Backwards compat: auto-create Convex callbacks from legacy props
+    if (!options.convexUrl) {
       throw new Error(
-        'useLiveKitVoiceChat: provide getSessionToken() (recommended) or appSecret (server-only)',
+        'useLiveKitVoiceChat: provide callbacks or convexUrl',
       );
     }
-    const auth = { appSlug: options.appSlug, appSecret: options.appSecret };
-    cachedAuthRef.current = auth;
-    return auth;
+
+    if (!callbacksRef.current) {
+      callbacksRef.current = createConvexRoomCallbacks({
+        convexUrl: options.convexUrl,
+        appSlug: options.appSlug ?? '',
+        appSecret: options.appSecret,
+        getSessionToken: options.getSessionToken,
+      });
+    }
+
+    return callbacksRef.current;
   }
 
   const connect = useCallback(async () => {
@@ -101,53 +118,17 @@ export function useLiveKitVoiceChat(
     isReadyRef.current = false;
 
     try {
-      const auth = await resolveAuth();
+      const cb = resolveCallbacks();
 
       // Step 1: Create a room
-      const roomResponse = await fetch(
-        new URL('/api/livekit/rooms', options.convexUrl).toString(),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...auth,
-            sessionId: sessionIdRef.current,
-          }),
-        },
-      );
-
-      if (!roomResponse.ok) {
-        throw new Error(`Failed to create room: ${roomResponse.statusText}`);
-      }
-
-      const { roomName: newRoomName } = (await roomResponse.json()) as {
-        roomName: string;
-      };
+      const { roomName: newRoomName } = await cb.createRoom(sessionIdRef.current);
 
       // Step 2: Get a token
-      const tokenResponse = await fetch(
-        new URL('/api/livekit/token', options.convexUrl).toString(),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...auth,
-            roomName: newRoomName,
-            identity: identityRef.current,
-            name: options.name,
-          }),
-        },
-      );
-
-      if (!tokenResponse.ok) {
-        throw new Error(`Failed to get token: ${tokenResponse.statusText}`);
-      }
-
       const { token: newToken, serverUrl: returnedServerUrl } =
-        (await tokenResponse.json()) as {
-          token: string;
-          serverUrl?: string;
-        };
+        await cb.fetchToken(newRoomName, identityRef.current, options.name);
+
+      // Capture deleteRoom for unmount cleanup
+      deleteRoomRef.current = cb.deleteRoom;
 
       setRoomName(newRoomName);
       roomNameRef.current = newRoomName;
@@ -162,25 +143,15 @@ export function useLiveKitVoiceChat(
     } finally {
       setIsConnecting(false);
     }
-  }, [isConnecting, options.convexUrl, options.appSlug, options.appSecret, options.getSessionToken, options.name, options.serverUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isConnecting, options.callbacks, options.convexUrl, options.appSlug, options.appSecret, options.getSessionToken, options.name, options.serverUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const disconnect = useCallback(async () => {
     const currentRoomName = roomNameRef.current;
     if (!currentRoomName) return;
 
     try {
-      const auth = await resolveAuth();
-      await fetch(
-        new URL('/api/livekit/rooms', options.convexUrl).toString(),
-        {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...auth,
-            roomName: currentRoomName,
-          }),
-        },
-      );
+      const cb = resolveCallbacks();
+      await cb.deleteRoom(currentRoomName);
     } catch {
       // Best-effort cleanup
     }
@@ -190,7 +161,7 @@ export function useLiveKitVoiceChat(
     roomNameRef.current = null;
     setIsReady(false);
     isReadyRef.current = false;
-  }, [options.convexUrl, options.appSlug, options.appSecret, options.getSessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [options.callbacks, options.convexUrl, options.appSlug, options.appSecret, options.getSessionToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-connect if requested
   useEffect(() => {
@@ -203,19 +174,13 @@ export function useLiveKitVoiceChat(
   useEffect(() => {
     return () => {
       const currentRoomName = roomNameRef.current;
-      if (isReadyRef.current && currentRoomName) {
-        // Fire-and-forget cleanup using cached auth (sync context)
-        fetch(new URL('/api/livekit/rooms', options.convexUrl).toString(), {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...cachedAuthRef.current,
-            roomName: currentRoomName,
-          }),
-        }).catch(() => {});
+      const deleteRoom = deleteRoomRef.current;
+      if (isReadyRef.current && currentRoomName && deleteRoom) {
+        // Fire-and-forget cleanup
+        deleteRoom(currentRoomName).catch(() => {});
       }
     };
-  }, [options.convexUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     token,

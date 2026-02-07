@@ -557,7 +557,7 @@ packages/
 
 ### Session 1: Monorepo + LiveKit Package
 
-1. **Monorepo restructure completed**: Moved from single-package to pnpm workspaces with `packages/core`, `packages/react`, `packages/convex`, `packages/telephony`. Fixed Turborepo config, TypeScript base config, CI/CD workflows.
+1. **Monorepo restructure completed**: Moved from single-package to pnpm workspaces with `packages/core`, `packages/react`, `packages/telephony`, and `apps/convex-backend`. Fixed Turborepo config, TypeScript base config, CI/CD workflows.
 
 2. **Code audit & fixes**: Found and fixed 57+ issues across all packages:
    - Convex backend (31 fixes): error handling, type safety, silent catches, incomplete implementations, unused variables, hardcoded values
@@ -589,9 +589,24 @@ packages/
 
 10. **Live transcription display**: Rewrote `AudioVisualizerWrapper.tsx` to use `useTranscriptions()` hook (replacing deprecated `useTrackTranscription`). Displays both user and agent transcriptions chronologically as chat bubbles, sorted by `streamInfo.timestamp` with participant identity from `participantInfo.identity`.
 
+### Session 3: Modularization & Cleanup
+
+11. **Channel taxonomy**: Added `voice-webrtc` to `Channel` union type. Changed agent from `voice-livekit` → `voice-webrtc`.
+
+12. **LiveKit type isolation**: Moved all LiveKit types from `@genai-voice/core` to `@genai-voice/livekit`. Removed `convexUrl`/`appSlug`/`appSecret` from `LiveKitAgentConfig`. Livekit package no longer depends on core.
+
+13. **Convex moved to apps**: `packages/convex` → `apps/convex-backend` (it's a deployable app, not a publishable package).
+
+14. **Agent decoupled from Convex**: Introduced `AgentCallbacks` interface (`loadPersona`, `persistMessages`, `resolveConversation`) with `createConvexAgentCallbacks()` factory. Agent auto-creates Convex callbacks from env vars for backwards compat.
+
+15. **React hook decoupled from Convex**: Introduced `LiveKitRoomCallbacks` interface (`createRoom`, `fetchToken`, `deleteRoom`) with `createConvexRoomCallbacks()` factory. Legacy props still work via auto-creation.
+
+16. **Cleanup**: Deleted empty placeholder directories (`apps/dashboard`, `apps/example`). Renamed `apps/demo` → `apps/console`.
+
 ### Current Status:
-- All packages build successfully (core, react, convex, telephony, livekit)
-- Convex backend deployed with 16 tables and 25+ HTTP endpoints
+- All packages build successfully (core, react, convex-backend, telephony, livekit)
+- Convex backend deployed with 18 tables and 33+ HTTP endpoints
 - LiveKit voice agent running end-to-end with live transcriptions
-- Demo app tested on http://localhost:3100 (Google voice chat + LiveKit voice chat)
+- `@genai-voice/livekit` is fully backend-agnostic (zero workspace dependencies)
+- Console app at http://localhost:3100 (Google voice chat + LiveKit voice chat)
 - Commits created but **not pushed**

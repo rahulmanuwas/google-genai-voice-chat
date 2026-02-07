@@ -66,13 +66,3 @@ export type {
   PersonaConfig,
 } from './persona';
 
-// LiveKit integration
-export type {
-  LiveKitRoomStatus,
-  LiveKitParticipantRole,
-  LiveKitRoomConfig,
-  LiveKitAgentConfig,
-  LiveKitParticipant,
-  LiveKitRoom,
-  LiveKitTokenRequest,
-} from './livekit';

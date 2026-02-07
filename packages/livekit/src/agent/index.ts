@@ -4,8 +4,11 @@ import { createAgentDefinition } from './agent.js';
 
 export { createAgentDefinition, createAgentFromConfig } from './agent.js';
 export { createToolsFromConvex } from './tools.js';
+export { createConvexAgentCallbacks } from './callbacks.js';
 export type { AgentDefinitionOptions } from './agent.js';
 export type { ConvexToolsConfig } from './tools.js';
+export type { AgentCallbacks, AgentPersonaData, BufferedMessage, ConvexAgentConfig } from './callbacks.js';
+export type { LiveKitAgentConfig } from '../types';
 
 // Default export required by @livekit/agents framework
 const defaultAgent = createAgentDefinition();

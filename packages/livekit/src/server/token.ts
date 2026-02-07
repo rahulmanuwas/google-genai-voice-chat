@@ -1,5 +1,5 @@
 import { AccessToken } from 'livekit-server-sdk';
-import type { LiveKitRoomConfig } from '@genai-voice/core';
+import type { LiveKitRoomConfig } from '../types';
 
 export interface CreateTokenOptions {
   /** LiveKit API key (defaults to LIVEKIT_API_KEY env var) */

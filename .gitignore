@@ -17,7 +17,7 @@ dist/
 coverage/
 
 # Convex generated
-packages/convex/convex/_generated/
+apps/convex-backend/convex/_generated/
 
 # IDE
 .idea/

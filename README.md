@@ -10,7 +10,7 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 | Package | Description | Status |
 |---|---|---|
 | [`@genai-voice/react`](./packages/react) | Drop-in voice/text chat React components + hooks | Stable |
-| [`@genai-voice/convex`](./packages/convex) | Convex backend: tools, handoff, guardrails, RAG, analytics, persona, A/B testing, transcription storage | Repo-only |
+| [`@genai-voice/convex`](./apps/convex-backend) | Convex backend: tools, handoff, guardrails, RAG, analytics, persona, A/B testing, transcription storage | Repo-only |
 | [`@genai-voice/core`](./packages/core) | Shared types and conversation protocol | New |
 | [`@genai-voice/telephony`](./packages/telephony) | Telnyx (voice) + Twilio (SMS) adapters | New |
 | [`@genai-voice/livekit`](./packages/livekit) | LiveKit WebRTC: voice agent, server utilities, React components | New |
@@ -18,12 +18,15 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 ## Architecture
 
 ```
+apps/
+├── console/            Next.js console app (chatbot, voice, LiveKit, Twilio pages)
+└── convex-backend/     Convex backend platform (18 tables, 33+ HTTP endpoints)
+
 packages/
-├── core/           Shared types (conversation, tools, handoff, guardrails, knowledge, analytics, persona, livekit)
-├── react/          React voice/text chat UI + hooks (published as @genai-voice/react on npm)
-├── convex/         Convex backend platform (18 tables, 33+ HTTP endpoints)
-├── telephony/      Provider-agnostic telephony adapters (Telnyx, Twilio)
-└── livekit/        LiveKit WebRTC integration (server, agent, react subpaths)
+├── core/               Shared types (conversation, tools, handoff, guardrails, knowledge, analytics, persona)
+├── react/              React voice/text chat UI + hooks (published as @genai-voice/react on npm)
+├── telephony/          Provider-agnostic telephony adapters (Telnyx, Twilio)
+└── livekit/            LiveKit WebRTC integration (server, agent, react subpaths) — backend-agnostic
 ```
 
 ## Quick Start
@@ -53,7 +56,7 @@ function App() {
 
 ### Tier 2 — Agent platform with tools, handoff, and analytics
 
-Deploy the Convex backend from this repo, register tools the AI can call, configure guardrails, set up persona/brand voice, run A/B experiments, and get a real-time analytics dashboard. See the [Convex backend docs](./packages/convex/README.md).
+Deploy the Convex backend from this repo, register tools the AI can call, configure guardrails, set up persona/brand voice, run A/B experiments, and get a real-time analytics dashboard. See the [Convex backend docs](./apps/convex-backend/README.md).
 
 ### Tier 3 — LiveKit WebRTC voice agent
 
@@ -98,9 +101,9 @@ pnpm typecheck
 pnpm lint
 ```
 
-## Demo App
+## Console App
 
-Run the Next.js demo showcasing:
+Run the Next.js console app showcasing:
 - Drop-in `<ChatBot />`
 - Custom UI with `useVoiceChat`
 - LiveKit WebRTC voice agent
@@ -111,8 +114,8 @@ pnpm install
 pnpm dev
 ```
 
-Copy `apps/demo/.env.example` to `apps/demo/.env.local` and fill values.
-For monorepo local dev, the demo also supports reading server-only secrets from the repo root `.env`.
+Copy `apps/console/.env.example` to `apps/console/.env.local` and fill values.
+For monorepo local dev, the console app also supports reading server-only secrets from the repo root `.env`.
 
 ## Using Individual Hooks
 

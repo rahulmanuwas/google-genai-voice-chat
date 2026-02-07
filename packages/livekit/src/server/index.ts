@@ -9,3 +9,12 @@ export type { RoomOptions, CreateRoomOptions } from './room';
 
 export { createSipParticipant } from './sip';
 export type { SipOptions, CreateSipParticipantOptions } from './sip';
+
+export type {
+  LiveKitRoomConfig,
+  LiveKitRoom,
+  LiveKitRoomStatus,
+  LiveKitParticipant,
+  LiveKitParticipantRole,
+  LiveKitTokenRequest,
+} from '../types';

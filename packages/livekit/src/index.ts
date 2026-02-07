@@ -3,6 +3,7 @@
 // For the voice agent, use @genai-voice/livekit/agent
 export {
   useLiveKitVoiceChat,
+  createConvexRoomCallbacks,
   LiveKitVoiceChat,
   AudioVisualizerWrapper,
 } from './react/index';
@@ -10,5 +11,7 @@ export {
 export type {
   UseLiveKitVoiceChatOptions,
   UseLiveKitVoiceChatReturn,
+  LiveKitRoomCallbacks,
+  ConvexRoomConfig,
   LiveKitVoiceChatProps,
 } from './react/index';

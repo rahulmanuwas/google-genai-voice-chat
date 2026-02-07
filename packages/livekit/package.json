@@ -33,7 +33,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "agent:dev": "node --env-file=../../apps/demo/.env.local --import tsx src/agent/index.ts dev",
+    "agent:dev": "node --env-file=../../apps/console/.env.local --import tsx src/agent/index.ts dev",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm run build"
@@ -53,7 +53,6 @@
   "author": "Rahul Manuwas",
   "license": "MIT",
   "dependencies": {
-    "@genai-voice/core": "workspace:*",
     "livekit-server-sdk": "^2.15.0",
     "zod": "^4.3.6"
   },

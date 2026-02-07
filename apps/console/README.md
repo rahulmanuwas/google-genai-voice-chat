@@ -1,6 +1,6 @@
-# @genai-voice/demo
+# @genai-voice/console
 
-Next.js demo app for the `@genai-voice/*` packages.
+Next.js console app for the `@genai-voice/*` packages.
 
 ## Run
 
@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-Copy `apps/demo/.env.example` to `apps/demo/.env.local` and fill values.
+Copy `apps/console/.env.example` to `apps/console/.env.local` and fill values.
 
 If you're running the monorepo from the repo root, the demo API routes also fall back to reading Twilio/Convex secrets from the repo root `.env` during development.
 

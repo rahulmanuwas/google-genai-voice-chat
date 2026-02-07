@@ -14,7 +14,6 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   external: [
-    '@genai-voice/core',
     '@livekit/agents',
     '@livekit/agents-plugin-google',
     '@livekit/components-react',

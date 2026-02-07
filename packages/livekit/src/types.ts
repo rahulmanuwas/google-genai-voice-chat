@@ -36,13 +36,6 @@ export interface LiveKitAgentConfig {
 
   /** Model temperature (0-2) */
   temperature?: number;
-
-  /** Convex deployment URL for tool/knowledge integration */
-  convexUrl?: string;
-
-  /** App credentials for Convex API calls */
-  appSlug?: string;
-  appSecret?: string;
 }
 
 /** A participant in a LiveKit room */

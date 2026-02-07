@@ -13,8 +13,8 @@ npm install @genai-voice/livekit
 | Export | Purpose | Key Dependencies |
 |---|---|---|
 | `@genai-voice/livekit/server` | Token generation, webhook validation, room management | `livekit-server-sdk` |
-| `@genai-voice/livekit/agent` | Runnable voice AI agent with Gemini Live API | `@livekit/agents`, `@livekit/agents-plugin-google` |
-| `@genai-voice/livekit/react` | React hook + components for LiveKit voice chat | `@livekit/components-react`, `livekit-client` |
+| `@genai-voice/livekit/agent` | Voice AI agent with Gemini Live API + backend-agnostic callbacks | `@livekit/agents`, `@livekit/agents-plugin-google` |
+| `@genai-voice/livekit/react` | React hook + components with backend-agnostic callbacks | `@livekit/components-react`, `livekit-client` |
 
 ## Server Utilities
 
@@ -90,15 +90,28 @@ createAgentDefinition({
 });
 ```
 
-### With Convex Integration (Transcription Storage + Persona)
+### Backend Integration via Callbacks
 
-When Convex credentials are provided (via options or env vars), the agent automatically:
-1. Loads the app's **persona** from `GET /api/persona` and injects it into agent instructions
-2. **Streams transcriptions** to `POST /api/messages` every 2 seconds during the conversation
-3. Updates the **conversation status** to `resolved` when the session ends
+The agent uses an `AgentCallbacks` interface for backend integration (persona loading, transcription storage, conversation resolution). This makes the agent backend-agnostic — you can use Convex, a custom API, or no backend at all.
+
+When callbacks are provided, the agent automatically:
+1. Loads the app's **persona** via `loadPersona()` and injects it into agent instructions
+2. **Streams transcriptions** via `persistMessages()` every 2 seconds during the conversation
+3. Updates the **conversation status** via `resolveConversation()` when the session ends
 
 ```typescript
-import { createAgentDefinition, createToolsFromConvex } from '@genai-voice/livekit/agent';
+import {
+  createAgentDefinition,
+  createConvexAgentCallbacks,
+  createToolsFromConvex,
+} from '@genai-voice/livekit/agent';
+
+// Create Convex-backed callbacks
+const callbacks = createConvexAgentCallbacks({
+  convexUrl: 'https://your-deployment.convex.cloud',
+  appSlug: 'my-app',
+  appSecret: '...',
+});
 
 const tools = await createToolsFromConvex({
   convexUrl: 'https://your-deployment.convex.cloud',
@@ -109,19 +122,32 @@ const tools = await createToolsFromConvex({
 createAgentDefinition({
   instructions: 'You are a helpful assistant with access to tools.',
   tools,
-  // Convex integration for transcription storage + persona
-  convexUrl: 'https://your-deployment.convex.cloud',
-  appSlug: 'my-app',
-  appSecret: '...',
+  callbacks,
 });
 ```
 
-Or set via environment variables (no code changes needed):
+Or set via environment variables — Convex callbacks are auto-created when all three are present (no code changes needed):
 
 ```bash
 CONVEX_URL=https://your-deployment.convex.cloud
 APP_SLUG=my-app
 APP_SECRET=your-app-secret
+```
+
+### Custom Backend
+
+Implement `AgentCallbacks` to use any backend:
+
+```typescript
+import { createAgentDefinition, type AgentCallbacks } from '@genai-voice/livekit/agent';
+
+const callbacks: AgentCallbacks = {
+  loadPersona: async () => ({ personaName: 'Aria', personaTone: 'friendly' }),
+  persistMessages: async (messages) => { /* your storage logic */ },
+  resolveConversation: async (sessionId, channel, startedAt) => { /* your logic */ },
+};
+
+createAgentDefinition({ instructions: '...', callbacks });
 ```
 
 ## React Components
@@ -131,19 +157,29 @@ APP_SECRET=your-app-secret
 Drop-in component that handles room creation, token fetching, audio visualization, and live transcriptions.
 
 ```tsx
-import { LiveKitVoiceChat } from '@genai-voice/livekit/react';
+import { LiveKitVoiceChat, createConvexRoomCallbacks } from '@genai-voice/livekit/react';
+
+const callbacks = createConvexRoomCallbacks({
+  convexUrl: 'https://your-deployment.convex.cloud',
+  appSlug: 'my-app',
+  getSessionToken: async () => {
+    const res = await fetch('/api/session', { method: 'POST' });
+    const data = await res.json();
+    return data.sessionToken;
+  },
+});
 
 function App() {
   return (
     <LiveKitVoiceChat
-      convexUrl="https://your-deployment.convex.cloud"
-      appSlug="my-app"
-      appSecret="..."
+      callbacks={callbacks}
       serverUrl="wss://your-app.livekit.cloud"
     />
   );
 }
 ```
+
+Legacy props (`convexUrl`, `appSlug`, `appSecret`, `getSessionToken`) are still supported for backwards compatibility.
 
 Features:
 - Audio visualization with `BarVisualizer` showing agent state (listening, thinking, speaking)
@@ -164,7 +200,13 @@ Transcriptions require the agent's Gemini RealtimeModel to have `inputAudioTrans
 For custom UIs, use the hook directly:
 
 ```tsx
-import { useLiveKitVoiceChat } from '@genai-voice/livekit/react';
+import { useLiveKitVoiceChat, createConvexRoomCallbacks } from '@genai-voice/livekit/react';
+
+const callbacks = createConvexRoomCallbacks({
+  convexUrl: 'https://your-deployment.convex.cloud',
+  appSlug: 'my-app',
+  getSessionToken: async () => { /* ... */ },
+});
 
 function CustomVoiceChat() {
   const {
@@ -177,14 +219,22 @@ function CustomVoiceChat() {
     connect,
     disconnect,
   } = useLiveKitVoiceChat({
-    convexUrl: 'https://your-deployment.convex.cloud',
-    appSlug: 'my-app',
-    appSecret: '...',
+    callbacks,
     serverUrl: 'wss://your-app.livekit.cloud',
   });
 
   // Build your own UI...
 }
+```
+
+You can also implement `LiveKitRoomCallbacks` directly for any backend:
+
+```typescript
+const callbacks: LiveKitRoomCallbacks = {
+  createRoom: async (sessionId) => { /* return { roomName } */ },
+  fetchToken: async (roomName, identity, name) => { /* return { token, serverUrl } */ },
+  deleteRoom: async (roomName) => { /* cleanup */ },
+};
 ```
 
 ## Environment Variables
@@ -236,7 +286,7 @@ The Convex backend (`@genai-voice/convex`) includes LiveKit-specific tables and 
 
 ## Transcription Persistence
 
-When the agent has Convex credentials configured (`CONVEX_URL`, `APP_SLUG`, `APP_SECRET`), it automatically persists all voice transcriptions:
+When the agent has `persistMessages` callback configured (via `createConvexAgentCallbacks()` or env vars), it automatically persists all voice transcriptions:
 
 1. **User speech** — captured via `user_input_transcribed` events (final transcriptions only)
 2. **Agent responses** — captured via `conversation_item_added` events (assistant role only)

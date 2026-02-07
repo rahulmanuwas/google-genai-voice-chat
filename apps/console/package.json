@@ -1,5 +1,5 @@
 {
-  "name": "@genai-voice/demo",
+  "name": "@genai-voice/console",
   "version": "0.0.0",
   "private": true,
   "scripts": {
