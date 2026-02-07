@@ -123,13 +123,31 @@ export const createRule = internalMutation({
   },
 });
 
-/** Get all rules for an app */
+/** Get all rules (optionally filtered by app) */
 export const getRules = internalQuery({
-  args: { appSlug: v.string() },
+  args: { appSlug: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("guardrailRules")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .collect();
+    if (args.appSlug) {
+      return await ctx.db
+        .query("guardrailRules")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .collect();
+    }
+    return await ctx.db.query("guardrailRules").collect();
+  },
+});
+
+/** List guardrail violations (optionally filtered by app) */
+export const listViolations = internalQuery({
+  args: { appSlug: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (args.appSlug) {
+      return await ctx.db
+        .query("guardrailViolations")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(100);
+    }
+    return await ctx.db.query("guardrailViolations").order("desc").take(100);
   },
 });

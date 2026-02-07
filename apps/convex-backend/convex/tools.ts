@@ -60,6 +60,44 @@ export const executeTool = httpAction(async (ctx, request) => {
   return jsonResponse(result);
 });
 
+/** GET /api/tools/executions — List recent tool executions */
+export const listExecutions = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
+  const all = url.searchParams.get("all") === "true";
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const executions = await ctx.runQuery(
+    internal.toolsDb.listExecutions,
+    { appSlug: all ? undefined : auth.app.slug }
+  );
+
+  return jsonResponse({ executions });
+});
+
+/** GET /api/tools/all — List all tools (including inactive) for dashboard */
+export const listAllTools = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
+  const all = url.searchParams.get("all") === "true";
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const tools = await ctx.runQuery(
+    internal.toolsDb.listAllTools,
+    { appSlug: all ? undefined : auth.app.slug }
+  );
+
+  return jsonResponse({ tools });
+});
+
 /** POST /api/tools — Register a new tool */
 export const registerTool = httpAction(async (ctx, request) => {
   const body = await request.json();

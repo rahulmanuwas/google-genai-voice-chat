@@ -35,7 +35,12 @@ export interface AgentCallbacks {
   persistMessages?: (messages: BufferedMessage[]) => Promise<void>;
 
   /** Mark the conversation as resolved when the session ends */
-  resolveConversation?: (sessionId: string, channel: string, startedAt: number) => Promise<void>;
+  resolveConversation?: (
+    sessionId: string,
+    channel: string,
+    startedAt: number,
+    messages?: Array<{ role: string; content: string; ts: number }>,
+  ) => Promise<void>;
 }
 
 /** Config for the built-in Convex callbacks factory */
@@ -81,7 +86,12 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
       });
     },
 
-    async resolveConversation(sessionId: string, channel: string, startedAt: number): Promise<void> {
+    async resolveConversation(
+      sessionId: string,
+      channel: string,
+      startedAt: number,
+      messages?: Array<{ role: string; content: string; ts: number }>,
+    ): Promise<void> {
       await fetch(`${convexUrl}/api/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +100,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
           appSecret,
           sessionId,
           startedAt,
-          messages: [],
+          messages: messages ?? [],
           status: 'resolved',
           channel,
         }),

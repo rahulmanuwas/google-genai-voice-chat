@@ -32,63 +32,72 @@ export const getInsightByPeriod = internalQuery({
 
 /** Get recent insights (last 30) */
 export const getRecentInsights = internalQuery({
-  args: { appSlug: v.string() },
+  args: { appSlug: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("insights")
-      .withIndex("by_app_period", (q) => q.eq("appSlug", args.appSlug))
-      .order("desc")
-      .take(30);
+    if (args.appSlug) {
+      return await ctx.db
+        .query("insights")
+        .withIndex("by_app_period", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(30);
+    }
+    return await ctx.db.query("insights").order("desc").take(30);
   },
 });
 
-/** Compute live overview stats for an app (optionally limited by time window) */
+/** Compute live overview stats (optionally filtered by app and/or time window) */
 export const computeOverview = internalQuery({
   args: {
-    appSlug: v.string(),
+    appSlug: v.optional(v.string()),
     since: v.optional(v.float64()),
   },
   handler: async (ctx, args) => {
     const since = args.since ?? 0;
 
-    // Use time-window indexes when available
-    const allConversations = await ctx.db
-      .query("conversations")
-      .withIndex("by_app_startedAt", (q) => {
-        const q1 = q.eq("appSlug", args.appSlug);
-        return since > 0 ? q1.gte("startedAt", since) : q1;
-      })
-      .collect();
-    const conversations = allConversations;
+    // If appSlug provided, use indexed queries; otherwise scan all
+    let conversations;
+    if (args.appSlug) {
+      conversations = await ctx.db
+        .query("conversations")
+        .withIndex("by_app_startedAt", (q) => {
+          const q1 = q.eq("appSlug", args.appSlug!);
+          return since > 0 ? q1.gte("startedAt", since) : q1;
+        })
+        .collect();
+    } else {
+      const all = await ctx.db.query("conversations").collect();
+      conversations = since > 0 ? all.filter((c) => c.startedAt >= since) : all;
+    }
 
-    const allHandoffs = await ctx.db
-      .query("handoffs")
-      .withIndex("by_app_createdAt", (q) => {
-        const q1 = q.eq("appSlug", args.appSlug);
-        return since > 0 ? q1.gte("createdAt", since) : q1;
-      })
-      .collect();
-    const handoffs = allHandoffs;
+    let handoffs;
+    if (args.appSlug) {
+      handoffs = await ctx.db
+        .query("handoffs")
+        .withIndex("by_app_createdAt", (q) => {
+          const q1 = q.eq("appSlug", args.appSlug!);
+          return since > 0 ? q1.gte("createdAt", since) : q1;
+        })
+        .collect();
+    } else {
+      const all = await ctx.db.query("handoffs").collect();
+      handoffs = since > 0 ? all.filter((h) => h.createdAt >= since) : all;
+    }
 
-    const csatRatings = await ctx.db
-      .query("csatRatings")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .collect();
+    const csatRatings = args.appSlug
+      ? await ctx.db.query("csatRatings").withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!)).collect()
+      : await ctx.db.query("csatRatings").collect();
 
-    const toolExecutions = await ctx.db
-      .query("toolExecutions")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .collect();
+    const toolExecutions = args.appSlug
+      ? await ctx.db.query("toolExecutions").withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!)).collect()
+      : await ctx.db.query("toolExecutions").collect();
 
-    const guardrailViolations = await ctx.db
-      .query("guardrailViolations")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .collect();
+    const guardrailViolations = args.appSlug
+      ? await ctx.db.query("guardrailViolations").withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!)).collect()
+      : await ctx.db.query("guardrailViolations").collect();
 
-    const knowledgeGaps = await ctx.db
-      .query("knowledgeGaps")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .collect();
+    const knowledgeGaps = args.appSlug
+      ? await ctx.db.query("knowledgeGaps").withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!)).collect()
+      : await ctx.db.query("knowledgeGaps").collect();
 
     // Compute metrics
     const totalConversations = conversations.length;

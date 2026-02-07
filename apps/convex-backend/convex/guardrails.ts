@@ -62,18 +62,38 @@ export const upsertRule = httpAction(async (ctx, request) => {
   return jsonResponse({ id: ruleId });
 });
 
-/** GET /api/guardrails/rules — List all guardrail rules for an app */
+/** GET /api/guardrails/violations — List guardrail violations */
+export const listViolations = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
+  const all = url.searchParams.get("all") === "true";
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const violations = await ctx.runQuery(
+    internal.guardrailsInternal.listViolations,
+    { appSlug: all ? undefined : auth.app.slug }
+  );
+
+  return jsonResponse({ violations });
+});
+
+/** GET /api/guardrails/rules — List all guardrail rules */
 export const listRules = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const appSlug = url.searchParams.get("appSlug") ?? undefined;
   const appSecret = url.searchParams.get("appSecret") ?? undefined;
   const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
+  const all = url.searchParams.get("all") === "true";
 
   const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const rules = await ctx.runQuery(internal.guardrailsInternal.getRules, {
-    appSlug: auth.app.slug,
+    appSlug: all ? undefined : auth.app.slug,
   });
 
   return jsonResponse({ rules });

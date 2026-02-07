@@ -57,8 +57,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
       // Resolve callbacks: use provided callbacks, or auto-create from env vars (backwards compat)
       let callbacks = options?.callbacks;
       if (!callbacks) {
-        const convexUrl = process.env.CONVEX_URL;
-        const appSlug = process.env.APP_SLUG;
+        const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
+        const appSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG;
         const appSecret = process.env.APP_SECRET;
         if (convexUrl && appSlug && appSecret) {
           callbacks = createConvexAgentCallbacks({ convexUrl, appSlug, appSecret });
@@ -88,6 +88,13 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
       // Wait for a real participant (browser user or SIP callee) to join
       const participant = await ctx.waitForParticipant();
+
+      // Detect SIP/PSTN participants for channel tagging
+      // ParticipantKind.SIP = 3 in @livekit/rtc-node
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const isSipParticipant = (participant as any).kind === 3
+        || participant.identity?.startsWith('sip_');
+      const channel = isSipParticipant ? 'voice-sip' : 'voice-webrtc';
 
       // For SIP/PSTN calls, the SIP participant joins the room as soon as the
       // call is *placed* (ringing), not when the callee *answers*. The audio
@@ -126,10 +133,13 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
       // Set up transcription storage (only if persistMessages callback is available)
       if (callbacks?.persistMessages) {
-        const appSlug = process.env.APP_SLUG ?? '';
+        const appSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG ?? '';
         const roomName = ctx.room.name ?? '';
         const sessionId = parseSessionIdFromRoom(roomName, appSlug);
         const messageBuffer: BufferedMessage[] = [];
+        // Keep a full transcript log for resolveConversation (separate from flush buffer)
+        const allMessages: Array<{ role: string; content: string; ts: number }> = [];
+        const sessionStart = Date.now();
         let flushTimer: ReturnType<typeof setInterval> | null = null;
 
         // Capture callback refs for use in closures
@@ -159,6 +169,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           // Strip <noise> tags from Gemini transcription (common with telephony audio)
           const transcript = (ev.transcript ?? '').replace(/<noise>/gi, '').trim();
           if (!transcript || !ev.isFinal) return;
+          const ts = ev.createdAt ?? Date.now();
           messageBuffer.push({
             sessionId,
             roomName,
@@ -166,8 +177,9 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             role: 'user',
             content: transcript,
             isFinal: true,
-            createdAt: ev.createdAt ?? Date.now(),
+            createdAt: ts,
           });
+          allMessages.push({ role: 'user', content: transcript, ts });
         });
 
         // Capture agent responses
@@ -176,6 +188,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           if (!item || item.role !== 'assistant') return;
           const text = item.textContent;
           if (!text) return;
+          const ts = item.createdAt ?? Date.now();
           messageBuffer.push({
             sessionId,
             roomName,
@@ -183,8 +196,9 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             role: 'agent',
             content: text,
             isFinal: true,
-            createdAt: item.createdAt ?? Date.now(),
+            createdAt: ts,
           });
+          allMessages.push({ role: 'agent', content: text, ts });
         });
 
         // On session close, flush remaining and update conversation
@@ -195,10 +209,10 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           }
           await flushMessages();
 
-          // Update conversation status to resolved
+          // Update conversation status to resolved, include full transcript
           if (resolveConversation) {
             try {
-              await resolveConversation(sessionId, 'voice-webrtc', Date.now());
+              await resolveConversation(sessionId, channel, sessionStart, allMessages);
             } catch {
               // Best-effort
             }

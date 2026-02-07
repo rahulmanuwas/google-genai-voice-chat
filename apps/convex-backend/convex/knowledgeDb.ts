@@ -117,16 +117,36 @@ export const logKnowledgeGap = internalMutation({
   },
 });
 
+/** List all knowledge documents (without embeddings) */
+export const listDocuments = internalQuery({
+  args: { appSlug: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const docs = args.appSlug
+      ? await ctx.db
+          .query("knowledgeDocuments")
+          .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+          .order("desc")
+          .take(100)
+      : await ctx.db.query("knowledgeDocuments").order("desc").take(100);
+    // Strip embeddings to keep response small
+    return docs.map(({ embedding: _, ...rest }) => rest);
+  },
+});
+
 /** Get unresolved knowledge gaps */
 export const getUnresolvedGaps = internalQuery({
-  args: { appSlug: v.string() },
+  args: { appSlug: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("knowledgeGaps")
-      .withIndex("by_app_resolved", (q) =>
-        q.eq("appSlug", args.appSlug).eq("resolved", false)
-      )
-      .order("desc")
-      .take(100);
+    if (args.appSlug) {
+      return await ctx.db
+        .query("knowledgeGaps")
+        .withIndex("by_app_resolved", (q) =>
+          q.eq("appSlug", args.appSlug!).eq("resolved", false)
+        )
+        .order("desc")
+        .take(100);
+    }
+    const all = await ctx.db.query("knowledgeGaps").order("desc").take(100);
+    return all.filter((g) => !g.resolved);
   },
 });

@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 export const upsertConversation = internalMutation({
@@ -71,5 +71,77 @@ export const updateConversationStatus = internalMutation({
     }
 
     await ctx.db.patch(existing._id, updates);
+  },
+});
+
+/** Backfill transcripts from the messages table for conversations with empty transcripts */
+export const backfillTranscripts = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const conversations = await ctx.db.query("conversations").collect();
+    let updated = 0;
+
+    for (const conv of conversations) {
+      // Skip if already has a real transcript (non-empty JSON array)
+      if (conv.transcript) {
+        try {
+          const parsed = JSON.parse(conv.transcript);
+          if (Array.isArray(parsed) && parsed.length > 0) continue;
+        } catch {
+          // Invalid JSON, overwrite it
+        }
+      }
+
+      // Look up messages from the messages table
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_session", (q) => q.eq("sessionId", conv.sessionId))
+        .collect();
+
+      const finalMsgs = messages
+        .filter((m) => m.isFinal && m.content)
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((m) => ({ role: m.role, content: m.content, ts: m.createdAt }));
+
+      if (finalMsgs.length > 0) {
+        await ctx.db.patch(conv._id, {
+          transcript: JSON.stringify(finalMsgs),
+          messageCount: finalMsgs.length,
+        });
+        updated++;
+      }
+    }
+
+    return { total: conversations.length, updated };
+  },
+});
+
+/** List conversations (optionally filtered by app and/or status) */
+export const listConversations = internalQuery({
+  args: {
+    appSlug: v.optional(v.string()),
+    status: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (args.appSlug && args.status) {
+      return await ctx.db
+        .query("conversations")
+        .withIndex("by_app_status", (q) =>
+          q.eq("appSlug", args.appSlug!).eq("status", args.status!)
+        )
+        .order("desc")
+        .take(100);
+    }
+    if (args.appSlug) {
+      return await ctx.db
+        .query("conversations")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(100);
+    }
+    // Global: return all conversations
+    const all = await ctx.db.query("conversations").order("desc").take(100);
+    if (args.status) return all.filter((c) => c.status === args.status);
+    return all;
   },
 });

@@ -100,6 +100,35 @@ export const logExecution = internalMutation({
   },
 });
 
+/** List all tools (including inactive, for dashboard) */
+export const listAllTools = internalQuery({
+  args: { appSlug: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (args.appSlug) {
+      return await ctx.db
+        .query("tools")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .collect();
+    }
+    return await ctx.db.query("tools").collect();
+  },
+});
+
+/** List recent tool executions */
+export const listExecutions = internalQuery({
+  args: { appSlug: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (args.appSlug) {
+      return await ctx.db
+        .query("toolExecutions")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(100);
+    }
+    return await ctx.db.query("toolExecutions").order("desc").take(100);
+  },
+});
+
 /** Get full tool record by name (includes endpoint) */
 export const getToolByName = internalQuery({
   args: { appSlug: v.string(), name: v.string() },

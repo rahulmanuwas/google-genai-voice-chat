@@ -19,15 +19,18 @@ export const createExperiment = internalMutation({
   },
 });
 
-/** List experiments for an app */
+/** List experiments (optionally filtered by app) */
 export const listExperiments = internalQuery({
-  args: { appSlug: v.string() },
+  args: { appSlug: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("experiments")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .order("desc")
-      .collect();
+    if (args.appSlug) {
+      return await ctx.db
+        .query("experiments")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .collect();
+    }
+    return await ctx.db.query("experiments").order("desc").collect();
   },
 });
 

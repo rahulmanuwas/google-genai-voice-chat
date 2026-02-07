@@ -5,16 +5,16 @@ import { CORS_HEADERS } from "./helpers";
 // ─── Existing handlers ──────────────────────────────────────────
 import { createToken } from "./tokens";
 import { logEvents } from "./events";
-import { saveConversation } from "./conversations";
+import { saveConversation, listConversations } from "./conversations";
 
 // ─── Session auth ───────────────────────────────────────────────
 import { createSession } from "./sessions";
 
 // ─── Phase 1 handlers ───────────────────────────────────────────
-import { listTools, executeTool, registerTool } from "./tools";
+import { listTools, executeTool, registerTool, listExecutions as listToolExecutions, listAllTools } from "./tools";
 import { createHandoff, updateHandoff, listHandoffs } from "./handoffs";
-import { checkGuardrails, upsertRule, listRules } from "./guardrails";
-import { upsertDocument, searchKnowledge, listGaps } from "./knowledge";
+import { checkGuardrails, upsertRule, listRules, listViolations } from "./guardrails";
+import { upsertDocument, searchKnowledge, listGaps, listDocuments as listKnowledgeDocs } from "./knowledge";
 import { submitCSAT, getInsights, getOverview } from "./analytics";
 import {
   generateToken as livekitToken,
@@ -70,11 +70,14 @@ post("/api/token", createToken);
 // ─── Events (existing) ──────────────────────────────────────────
 post("/api/events", logEvents);
 
-// ─── Conversations (existing) ───────────────────────────────────
+// ─── Conversations ──────────────────────────────────────────────
+get("/api/conversations", listConversations);
 post("/api/conversations", saveConversation);
 
 // ─── Tools ──────────────────────────────────────────────────────
 get("/api/tools", listTools);
+get("/api/tools/all", listAllTools);
+get("/api/tools/executions", listToolExecutions);
 post("/api/tools", registerTool);
 post("/api/tools/execute", executeTool);
 
@@ -87,10 +90,12 @@ patch("/api/handoffs", updateHandoff);
 post("/api/guardrails/check", checkGuardrails);
 post("/api/guardrails/rules", upsertRule);
 get("/api/guardrails/rules", listRules);
+get("/api/guardrails/violations", listViolations);
 
 // ─── Knowledge (RAG) ────────────────────────────────────────────
 post("/api/knowledge", upsertDocument);
 post("/api/knowledge/search", searchKnowledge);
+get("/api/knowledge/documents", listKnowledgeDocs);
 get("/api/knowledge/gaps", listGaps);
 
 // ─── Analytics ──────────────────────────────────────────────────

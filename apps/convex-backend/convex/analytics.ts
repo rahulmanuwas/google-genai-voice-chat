@@ -42,6 +42,7 @@ export const getInsights = httpAction(async (ctx, request) => {
   const appSecret = url.searchParams.get("appSecret") ?? undefined;
   const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const period = url.searchParams.get("period");
+  const all = url.searchParams.get("all") === "true";
 
   const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
@@ -57,7 +58,7 @@ export const getInsights = httpAction(async (ctx, request) => {
   // Return last 30 periods
   const insights = await ctx.runQuery(
     internal.analyticsInternal.getRecentInsights,
-    { appSlug: auth.app.slug }
+    { appSlug: all ? undefined : auth.app.slug }
   );
   return jsonResponse({ insights });
 });
@@ -69,13 +70,14 @@ export const getOverview = httpAction(async (ctx, request) => {
   const appSecret = url.searchParams.get("appSecret") ?? undefined;
   const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const since = url.searchParams.get("since");
+  const all = url.searchParams.get("all") === "true";
 
   const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const overview = await ctx.runQuery(
     internal.analyticsInternal.computeOverview,
-    { appSlug: auth.app.slug, since: since ? Number(since) : undefined }
+    { appSlug: all ? undefined : auth.app.slug, since: since ? Number(since) : undefined }
   );
 
   return jsonResponse(overview);

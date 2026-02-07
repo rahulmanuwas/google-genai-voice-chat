@@ -47,26 +47,32 @@ export const updateHandoffStatus = internalMutation({
   },
 });
 
-/** List handoffs with optional status filter */
+/** List handoffs with optional app and status filter */
 export const listHandoffs = internalQuery({
   args: {
-    appSlug: v.string(),
+    appSlug: v.optional(v.string()),
     status: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    if (args.status) {
+    if (args.appSlug && args.status) {
       return await ctx.db
         .query("handoffs")
         .withIndex("by_app_status", (q) =>
-          q.eq("appSlug", args.appSlug).eq("status", args.status!)
+          q.eq("appSlug", args.appSlug!).eq("status", args.status!)
         )
         .order("desc")
         .take(50);
     }
-    return await ctx.db
-      .query("handoffs")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .order("desc")
-      .take(50);
+    if (args.appSlug) {
+      return await ctx.db
+        .query("handoffs")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(50);
+    }
+    // Global: return all handoffs
+    const all = await ctx.db.query("handoffs").order("desc").take(50);
+    if (args.status) return all.filter((h) => h.status === args.status);
+    return all;
   },
 });

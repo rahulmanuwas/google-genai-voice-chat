@@ -65,18 +65,38 @@ export const searchKnowledge = httpAction(async (ctx, request) => {
   return jsonResponse({ results });
 });
 
+/** GET /api/knowledge/documents — List knowledge documents */
+export const listDocuments = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
+  const all = url.searchParams.get("all") === "true";
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const documents = await ctx.runQuery(
+    internal.knowledgeDb.listDocuments,
+    { appSlug: all ? undefined : auth.app.slug }
+  );
+
+  return jsonResponse({ documents });
+});
+
 /** GET /api/knowledge/gaps — List knowledge gaps */
 export const listGaps = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const appSlug = url.searchParams.get("appSlug") ?? undefined;
   const appSecret = url.searchParams.get("appSecret") ?? undefined;
   const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
+  const all = url.searchParams.get("all") === "true";
 
   const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const gaps = await ctx.runQuery(internal.knowledgeDb.getUnresolvedGaps, {
-    appSlug: auth.app.slug,
+    appSlug: all ? undefined : auth.app.slug,
   });
 
   return jsonResponse({ gaps });
