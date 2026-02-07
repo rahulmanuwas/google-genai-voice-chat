@@ -20,11 +20,12 @@ export function AudioVisualizerWrapper() {
   const messages = transcriptions
     .map((t) => ({
       role: (t.participantInfo.identity === agentIdentity ? 'agent' : 'user') as 'user' | 'agent',
-      text: t.text,
+      // Strip <noise> tags that Gemini outputs for low-quality telephony audio
+      text: t.text.replace(/<noise>/gi, '').trim(),
       id: t.streamInfo.id,
       timestamp: t.streamInfo.timestamp,
     }))
-    .filter((m) => m.text.trim())
+    .filter((m) => m.text)
     .sort((a, b) => a.timestamp - b.timestamp)
     .slice(-30);
 

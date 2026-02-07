@@ -171,13 +171,15 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         // Capture user speech transcriptions
         emitter.on('user_input_transcribed', (ev: { transcript: string; isFinal: boolean; createdAt: number }) => {
-          if (!ev.transcript || !ev.isFinal) return;
+          // Strip <noise> tags from Gemini transcription (common with telephony audio)
+          const transcript = (ev.transcript ?? '').replace(/<noise>/gi, '').trim();
+          if (!transcript || !ev.isFinal) return;
           messageBuffer.push({
             sessionId,
             roomName,
             participantIdentity: 'user',
             role: 'user',
-            content: ev.transcript,
+            content: transcript,
             isFinal: true,
             createdAt: ev.createdAt ?? Date.now(),
           });
