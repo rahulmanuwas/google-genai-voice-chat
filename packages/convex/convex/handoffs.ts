@@ -1,6 +1,6 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse } from "./helpers";
+import { jsonResponse, authenticateRequest } from "./helpers";
 
 /** POST /api/handoffs — Create a new handoff request */
 export const createHandoff = httpAction(async (ctx, request) => {
@@ -8,6 +8,7 @@ export const createHandoff = httpAction(async (ctx, request) => {
   const {
     appSlug,
     appSecret,
+    sessionToken,
     sessionId,
     channel,
     reason,
@@ -17,8 +18,9 @@ export const createHandoff = httpAction(async (ctx, request) => {
     aiSummary,
     customerData,
   } = body as {
-    appSlug: string;
-    appSecret: string;
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
     sessionId: string;
     channel?: string;
     reason: string;
@@ -29,19 +31,18 @@ export const createHandoff = httpAction(async (ctx, request) => {
     customerData?: Record<string, unknown>;
   };
 
-  if (!appSlug || !appSecret || !sessionId || !reason || !transcript) {
+  if (!sessionId || !reason || !transcript) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  const { app } = auth;
 
   const handoffId = await ctx.runMutation(
-    internal.handoffsInternal.createHandoff,
+    internal.handoffsDb.createHandoff,
     {
-      appSlug,
+      appSlug: app.slug,
       sessionId,
       channel: channel ?? "web",
       reason,
@@ -53,12 +54,19 @@ export const createHandoff = httpAction(async (ctx, request) => {
     }
   );
 
+  // Update conversation status to "handed_off"
+  await ctx.runMutation(internal.conversationsInternal.updateConversationStatus, {
+    appSlug: app.slug,
+    sessionId,
+    status: "handed_off",
+  });
+
   // If a webhook is configured, notify external system
   if (app.handoffWebhookUrl) {
     await ctx.runAction(internal.handoffsInternal.notifyWebhook, {
-      webhookUrl: app.handoffWebhookUrl,
+      webhookUrl: app.handoffWebhookUrl as string,
       handoffId,
-      appSlug,
+      appSlug: app.slug,
       sessionId,
       reason,
       priority: priority ?? "normal",
@@ -71,24 +79,23 @@ export const createHandoff = httpAction(async (ctx, request) => {
 /** PATCH /api/handoffs — Update handoff status (claim, resolve) */
 export const updateHandoff = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, handoffId, status, assignedAgent } = body as {
-    appSlug: string;
-    appSecret: string;
+  const { appSlug, appSecret, sessionToken, handoffId, status, assignedAgent } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
     handoffId: string;
     status: string;
     assignedAgent?: string;
   };
 
-  if (!appSlug || !appSecret || !handoffId || !status) {
+  if (!handoffId || !status) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  await ctx.runMutation(internal.handoffsInternal.updateHandoffStatus, {
+  await ctx.runMutation(internal.handoffsDb.updateHandoffStatus, {
     handoffId,
     status,
     assignedAgent,
@@ -100,22 +107,17 @@ export const updateHandoff = httpAction(async (ctx, request) => {
 /** GET /api/handoffs — List handoffs (filtered by status) */
 export const listHandoffs = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug");
-  const appSecret = url.searchParams.get("appSecret");
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const status = url.searchParams.get("status");
 
-  if (!appSlug || !appSecret) {
-    return jsonResponse({ error: "Missing appSlug or appSecret" }, 400);
-  }
-
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const handoffs = await ctx.runQuery(
-    internal.handoffsInternal.listHandoffs,
-    { appSlug, status: status ?? undefined }
+    internal.handoffsDb.listHandoffs,
+    { appSlug: auth.app.slug, status: status ?? undefined }
   );
 
   return jsonResponse({ handoffs });

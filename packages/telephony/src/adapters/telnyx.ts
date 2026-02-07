@@ -28,18 +28,16 @@ export class TelnyxVoiceAdapter implements VoiceAdapter {
   }
 
   async handleInboundCall(webhookBody: unknown): Promise<VoiceSession> {
-    const body = webhookBody as {
-      data: {
-        payload: {
-          call_control_id: string;
-          call_session_id: string;
-          from: string;
-          to: string;
-        };
-      };
-    };
+    const body = webhookBody as Record<string, unknown>;
+    const data = body?.data as Record<string, unknown> | undefined;
+    const payload = data?.payload as Record<string, unknown> | undefined;
 
-    const payload = body.data.payload;
+    if (!payload?.call_control_id || !payload?.call_session_id) {
+      throw new Error(
+        'Invalid Telnyx webhook body: missing call_control_id or call_session_id'
+      );
+    }
+
     const audioConfig: AudioStreamConfig = {
       sampleRate: 16000,
       encoding: 'pcm16',
@@ -47,28 +45,19 @@ export class TelnyxVoiceAdapter implements VoiceAdapter {
     };
 
     return {
-      callId: payload.call_control_id,
-      sessionId: payload.call_session_id,
-      from: payload.from,
-      to: payload.to,
+      callId: String(payload.call_control_id),
+      sessionId: String(payload.call_session_id),
+      from: String(payload.from ?? ''),
+      to: String(payload.to ?? ''),
       audioConfig,
       channel: 'voice-pstn',
     };
   }
 
-  getAudioStream(_session: VoiceSession): ReadableStream<Uint8Array> {
-    // In production, this connects to the Telnyx WebSocket media stream.
-    // The caller sets up a WebSocket connection using the stream URL
-    // returned by generateStreamResponse(), then pipes audio through.
-    throw new Error(
-      'Use generateStreamResponse() to set up WebSocket streaming, ' +
-      'then pipe audio through the WebSocket connection directly.'
-    );
-  }
-
-  async playAudio(session: VoiceSession, _audio: ArrayBuffer): Promise<void> {
-    // Telnyx call control: play audio via API
-    await fetch(
+  async playAudio(session: VoiceSession, audio: ArrayBuffer): Promise<void> {
+    // Telnyx call control: play audio via API using base64-encoded data URI
+    const base64 = Buffer.from(audio).toString('base64');
+    const response = await fetch(
       `https://api.telnyx.com/v2/calls/${session.callId}/actions/playback_start`,
       {
         method: 'POST',
@@ -77,14 +66,19 @@ export class TelnyxVoiceAdapter implements VoiceAdapter {
           Authorization: `Bearer ${this.config.apiKey}`,
         },
         body: JSON.stringify({
-          audio_url: 'data:audio/wav;base64,...', // Base64 or URL
+          audio_url: `data:audio/raw;encoding=linear16;sample_rate=${session.audioConfig.sampleRate};base64,${base64}`,
         }),
       }
     );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'unknown error');
+      throw new Error(`Telnyx playAudio failed (${response.status}): ${text}`);
+    }
   }
 
   async transferToAgent(session: VoiceSession, destination: string): Promise<void> {
-    await fetch(
+    const response = await fetch(
       `https://api.telnyx.com/v2/calls/${session.callId}/actions/transfer`,
       {
         method: 'POST',
@@ -95,10 +89,15 @@ export class TelnyxVoiceAdapter implements VoiceAdapter {
         body: JSON.stringify({ to: destination }),
       }
     );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'unknown error');
+      throw new Error(`Telnyx transfer failed (${response.status}): ${text}`);
+    }
   }
 
   async hangup(session: VoiceSession): Promise<void> {
-    await fetch(
+    const response = await fetch(
       `https://api.telnyx.com/v2/calls/${session.callId}/actions/hangup`,
       {
         method: 'POST',
@@ -109,6 +108,11 @@ export class TelnyxVoiceAdapter implements VoiceAdapter {
         body: JSON.stringify({}),
       }
     );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'unknown error');
+      throw new Error(`Telnyx hangup failed (${response.status}): ${text}`);
+    }
   }
 
   generateStreamResponse(_session: VoiceSession, wsUrl: string): string {

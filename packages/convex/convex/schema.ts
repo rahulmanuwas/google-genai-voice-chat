@@ -46,7 +46,8 @@ export default defineSchema({
     .index("by_app", ["appSlug"])
     .index("by_session", ["sessionId"])
     .index("by_app_session", ["appSlug", "sessionId"])
-    .index("by_app_status", ["appSlug", "status"]),
+    .index("by_app_status", ["appSlug", "status"])
+    .index("by_app_startedAt", ["appSlug", "startedAt"]),
 
   events: defineTable({
     appSlug: v.string(),
@@ -113,7 +114,8 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_app", ["appSlug"])
     .index("by_app_status", ["appSlug", "status"])
-    .index("by_session", ["sessionId"]),
+    .index("by_session", ["sessionId"])
+    .index("by_app_createdAt", ["appSlug", "createdAt"]),
 
   // ─── Guardrails & Trust/Safety ─────────────────────────────────
 
@@ -155,6 +157,7 @@ export default defineSchema({
     updatedBy: v.optional(v.string()),
   })
     .index("by_app", ["appSlug"])
+    .index("by_app_title", ["appSlug", "title"])
     .index("by_app_category", ["appSlug", "category"])
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
@@ -218,4 +221,62 @@ export default defineSchema({
   })
     .index("by_experiment", ["experimentId"])
     .index("by_session", ["sessionId"]),
+
+  // ─── Messages (Transcription Storage) ────────────────────────
+
+  messages: defineTable({
+    appSlug: v.string(),
+    sessionId: v.string(),
+    roomName: v.optional(v.string()),
+    participantIdentity: v.string(),
+    role: v.string(),           // 'user' | 'agent'
+    content: v.string(),
+    isFinal: v.boolean(),
+    language: v.optional(v.string()),
+    createdAt: v.float64(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_app_session", ["appSlug", "sessionId"])
+    .index("by_room", ["roomName"]),
+
+  // ─── Session Tokens ──────────────────────────────────────────
+  sessions: defineTable({
+    appSlug: v.string(),
+    token: v.string(),
+    expiresAt: v.float64(),
+    createdAt: v.float64(),
+  })
+    .index("by_token", ["token"])
+    .index("by_app", ["appSlug"]),
+
+  // ─── LiveKit Rooms & Participants ─────────────────────────────
+
+  livekitRooms: defineTable({
+    appSlug: v.string(),
+    roomName: v.string(),
+    sessionId: v.string(),
+    status: v.string(), // 'waiting' | 'active' | 'ended'
+    maxParticipants: v.float64(),
+    emptyTimeout: v.float64(),
+    enableRecording: v.boolean(),
+    participantCount: v.float64(),
+    createdAt: v.float64(),
+    endedAt: v.optional(v.float64()),
+  })
+    .index("by_app", ["appSlug"])
+    .index("by_room_name", ["roomName"])
+    .index("by_app_status", ["appSlug", "status"])
+    .index("by_session", ["sessionId"]),
+
+  livekitParticipants: defineTable({
+    appSlug: v.string(),
+    roomId: v.id("livekitRooms"),
+    identity: v.string(),
+    name: v.optional(v.string()),
+    role: v.string(), // 'user' | 'agent' | 'observer'
+    joinedAt: v.float64(),
+    leftAt: v.optional(v.float64()),
+  })
+    .index("by_room", ["roomId"])
+    .index("by_identity", ["identity"]),
 });

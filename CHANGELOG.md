@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — Monorepo restructure
 - **Monorepo**: Restructured from single package to pnpm workspaces + Turborepo
-- **`@genai-voice/core`**: New shared types package (conversation protocol, tools, handoff, guardrails, knowledge, analytics, persona)
-- **`@genai-voice/convex`**: Expanded Convex backend from 3 to 14 tables and 3 to 20+ HTTP endpoints
+- **`@genai-voice/core`**: New shared types package (conversation protocol, tools, handoff, guardrails, knowledge, analytics, persona, livekit)
+- **`@genai-voice/convex`**: Expanded Convex backend from 3 to 16 tables and 3 to 25+ HTTP endpoints
   - **Tool execution framework**: Register external API tools, execute with full audit logging, per-turn rate limiting
   - **Human handoff**: Real-time AI-to-human escalation with context transfer and webhook notifications
   - **Guardrails**: Pattern-based content validation (regex, keywords) with block/warn/log actions and audit trail
@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`@genai-voice/telephony`**: New package with provider-agnostic adapter interfaces
   - Telnyx voice adapter (preferred for AI voice — lower latency)
   - Twilio voice + SMS adapters (preferred for SMS deliverability)
+- **`@genai-voice/livekit`**: New LiveKit WebRTC integration package with three subpath exports
+  - `@genai-voice/livekit/server`: Token generation, webhook validation, room management via `livekit-server-sdk`
+  - `@genai-voice/livekit/agent`: Voice AI agent using `@livekit/agents` + Gemini Live API (speech-to-speech via `google.beta.realtime.RealtimeModel`)
+  - `@genai-voice/livekit/react`: `useLiveKitVoiceChat` hook, `LiveKitVoiceChat` component, `AudioVisualizerWrapper` with live transcriptions
+  - Convex backend: 2 new tables (`livekitRooms`, `livekitParticipants`) and 5 HTTP endpoints under `/api/livekit/*`
+  - Dynamic tool loading from Convex via `createToolsFromConvex()`
+- **Live transcriptions**: Both user and agent speech are transcribed and displayed chronologically in the LiveKit voice chat UI via `useTranscriptions()` hook
+- **Input audio transcription**: Gemini Live sessions now include `inputAudioTranscription` for user speech-to-text alongside agent audio
 
 ### Changed
 - Moved `src/` to `packages/react/src/` (published as `@genai-voice/react`)
@@ -28,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Root `package.json` is now a private workspace root
 - ESLint config updated for monorepo file patterns
 - `.gitignore` updated for Turborepo and multi-package structure
+- Updated `@google/genai` peer dependency to `>=1.0.0` for `inputAudioTranscription` support
+
+### Fixed
+- **Convex "use node" constraint**: Split `*Internal.ts` files into `*Internal.ts` (actions only, `"use node"`) + `*Db.ts` (mutations/queries) to comply with Convex's requirement that Node.js modules can only export actions
+- **LiveKit agent default export**: Added required `export default` for `@livekit/agents` framework compatibility
+- **LiveKit microphone publishing**: Added `audio={true}` to `<LiveKitRoom>` so the agent can hear user speech
+- **LiveKit transcription ordering**: Replaced deprecated `useTrackTranscription` with `useTranscriptions()` for proper chronological turn-by-turn display with participant identity
 
 ## [0.3.29] - 2026-02-06
 

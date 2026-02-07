@@ -42,19 +42,33 @@ export const getRecentInsights = internalQuery({
   },
 });
 
-/** Compute live overview stats for an app */
+/** Compute live overview stats for an app (optionally limited by time window) */
 export const computeOverview = internalQuery({
-  args: { appSlug: v.string() },
+  args: {
+    appSlug: v.string(),
+    since: v.optional(v.float64()),
+  },
   handler: async (ctx, args) => {
-    const conversations = await ctx.db
-      .query("conversations")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
-      .collect();
+    const since = args.since ?? 0;
 
-    const handoffs = await ctx.db
-      .query("handoffs")
-      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
+    // Use time-window indexes when available
+    const allConversations = await ctx.db
+      .query("conversations")
+      .withIndex("by_app_startedAt", (q) => {
+        const q1 = q.eq("appSlug", args.appSlug);
+        return since > 0 ? q1.gte("startedAt", since) : q1;
+      })
       .collect();
+    const conversations = allConversations;
+
+    const allHandoffs = await ctx.db
+      .query("handoffs")
+      .withIndex("by_app_createdAt", (q) => {
+        const q1 = q.eq("appSlug", args.appSlug);
+        return since > 0 ? q1.gte("createdAt", since) : q1;
+      })
+      .collect();
+    const handoffs = allHandoffs;
 
     const csatRatings = await ctx.db
       .query("csatRatings")
@@ -199,6 +213,30 @@ export const computeDailyInsights = internalMutation({
       .slice(0, 20)
       .map((g) => g.query);
 
+    // Extract top topics from conversation transcripts
+    const topicCounts: Record<string, number> = {};
+    for (const conv of conversations) {
+      if (!conv.transcript) continue;
+      try {
+        const messages = JSON.parse(conv.transcript) as Array<{ role?: string; content?: string }>;
+        for (const msg of messages) {
+          if (msg.role === "user" && msg.content) {
+            // Extract simple keyword-based topics from user messages
+            const words = msg.content.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
+            for (const word of words) {
+              topicCounts[word] = (topicCounts[word] || 0) + 1;
+            }
+          }
+        }
+      } catch {
+        // Skip malformed transcripts
+      }
+    }
+    const topTopics = Object.entries(topicCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([topic, count]) => ({ topic, count }));
+
     // Upsert insight
     const existing = await ctx.db
       .query("insights")
@@ -215,7 +253,7 @@ export const computeDailyInsights = internalMutation({
       handoffRate: total > 0 ? handoffs.length / total : 0,
       avgDurationMs,
       avgCSAT,
-      topTopics: JSON.stringify([]),
+      topTopics: JSON.stringify(topTopics),
       knowledgeGaps: JSON.stringify(gapQueries),
       toolUsage: JSON.stringify(toolUsage),
       computedAt: Date.now(),

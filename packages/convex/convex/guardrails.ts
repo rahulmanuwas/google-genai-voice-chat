@@ -1,26 +1,26 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse } from "./helpers";
+import { jsonResponse, authenticateRequest } from "./helpers";
 
 /** POST /api/guardrails/check — Validate input or output against guardrail rules */
 export const checkGuardrails = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionId, content, direction } = body as {
-    appSlug: string;
-    appSecret: string;
+  const { appSlug, appSecret, sessionToken, sessionId, content, direction } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
     sessionId: string;
     content: string;
     direction: "input" | "output";
   };
 
-  if (!appSlug || !appSecret || !sessionId || !content || !direction) {
+  if (!sessionId || !content || !direction) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  const { app } = auth;
 
   if (!app.guardrailsEnabled) {
     return jsonResponse({ allowed: true, violations: [] });
@@ -28,7 +28,7 @@ export const checkGuardrails = httpAction(async (ctx, request) => {
 
   const result = await ctx.runMutation(
     internal.guardrailsInternal.evaluateContent,
-    { appSlug, sessionId, content, direction }
+    { appSlug: app.slug, sessionId, content, direction }
   );
 
   return jsonResponse(result);
@@ -37,27 +37,26 @@ export const checkGuardrails = httpAction(async (ctx, request) => {
 /** POST /api/guardrails/rules — Create or update a guardrail rule */
 export const upsertRule = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, type, pattern, action, userMessage } = body as {
-    appSlug: string;
-    appSecret: string;
+  const { appSlug, appSecret, sessionToken, type, pattern, action, userMessage } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
     type: string;
     pattern: string;
     action: string;
     userMessage?: string;
   };
 
-  if (!appSlug || !appSecret || !type || !pattern || !action) {
+  if (!type || !pattern || !action) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const ruleId = await ctx.runMutation(
     internal.guardrailsInternal.createRule,
-    { appSlug, type, pattern, action, userMessage }
+    { appSlug: auth.app.slug, type, pattern, action, userMessage }
   );
 
   return jsonResponse({ id: ruleId });
@@ -66,20 +65,15 @@ export const upsertRule = httpAction(async (ctx, request) => {
 /** GET /api/guardrails/rules — List all guardrail rules for an app */
 export const listRules = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug");
-  const appSecret = url.searchParams.get("appSecret");
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
 
-  if (!appSlug || !appSecret) {
-    return jsonResponse({ error: "Missing appSlug or appSecret" }, 400);
-  }
-
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const rules = await ctx.runQuery(internal.guardrailsInternal.getRules, {
-    appSlug,
+    appSlug: auth.app.slug,
   });
 
   return jsonResponse({ rules });

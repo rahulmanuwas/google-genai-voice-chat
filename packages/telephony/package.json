@@ -27,13 +27,20 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
+  "keywords": [
+    "telephony", "telnyx", "twilio", "voice", "sms",
+    "sip", "pstn", "ai", "voice-agent", "genai-voice"
+  ],
+  "author": "Rahul Manuwas",
   "license": "MIT",
   "dependencies": {
     "@genai-voice/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0"
   }

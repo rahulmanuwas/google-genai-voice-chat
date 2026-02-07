@@ -6,6 +6,9 @@ export type {
   VoiceSession,
   InboundMessage,
   VoiceAdapter,
+  OutboundVoiceAdapter,
+  OutboundCallOptions,
+  OutboundCallResult,
   SMSAdapter,
   EmailAdapter,
   TelephonyConfig,
@@ -17,5 +20,5 @@ export type {
 export { TelnyxVoiceAdapter } from './adapters/telnyx';
 export type { TelnyxConfig } from './adapters/telnyx';
 
-export { TwilioVoiceAdapter, TwilioSMSAdapter } from './adapters/twilio';
+export { TwilioVoiceAdapter, TwilioOutboundCaller, TwilioSMSAdapter } from './adapters/twilio';
 export type { TwilioConfig } from './adapters/twilio';

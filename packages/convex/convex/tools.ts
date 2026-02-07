@@ -1,24 +1,19 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse } from "./helpers";
+import { jsonResponse, authenticateRequest } from "./helpers";
 
-/** GET /api/tools?appSlug=...&appSecret=... — List active tools for an app */
+/** GET /api/tools?appSlug=...&appSecret=...  or  ?sessionToken=... — List active tools for an app */
 export const listTools = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug");
-  const appSecret = url.searchParams.get("appSecret");
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
 
-  if (!appSlug || !appSecret) {
-    return jsonResponse({ error: "Missing appSlug or appSecret" }, 400);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
-
-  const tools = await ctx.runQuery(internal.toolsInternal.getActiveTools, {
-    appSlug,
+  const tools = await ctx.runQuery(internal.toolsDb.getActiveTools, {
+    appSlug: auth.app.slug,
   });
 
   return jsonResponse({ tools });
@@ -27,36 +22,36 @@ export const listTools = httpAction(async (ctx, request) => {
 /** POST /api/tools/execute — Execute a tool call */
 export const executeTool = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionId, toolName, parameters } = body as {
-    appSlug: string;
-    appSecret: string;
+  const { appSlug, appSecret, sessionToken, sessionId, toolName, parameters } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
     sessionId: string;
     toolName: string;
     parameters: Record<string, unknown>;
   };
 
-  if (!appSlug || !appSecret || !sessionId || !toolName) {
+  if (!sessionId || !toolName) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  const { app } = auth;
 
   // Check per-turn action limits
   if (app.maxActionsPerTurn) {
     const recentCount = await ctx.runQuery(
-      internal.toolsInternal.countRecentExecutions,
-      { appSlug, sessionId, windowMs: 60_000 }
+      internal.toolsDb.countRecentExecutions,
+      { appSlug: app.slug, sessionId, windowMs: 60_000 }
     );
-    if (recentCount >= app.maxActionsPerTurn) {
+    if (recentCount >= (app.maxActionsPerTurn as number)) {
       return jsonResponse({ error: "Max actions per turn exceeded" }, 429);
     }
   }
 
   const result = await ctx.runAction(internal.toolsInternal.executeToolAction, {
-    appSlug,
+    appSlug: app.slug,
     sessionId,
     toolName,
     parameters: JSON.stringify(parameters),
@@ -71,6 +66,7 @@ export const registerTool = httpAction(async (ctx, request) => {
   const {
     appSlug,
     appSecret,
+    sessionToken,
     name,
     description,
     parametersSchema,
@@ -80,8 +76,9 @@ export const registerTool = httpAction(async (ctx, request) => {
     requiresConfirmation,
     requiresAuth,
   } = body as {
-    appSlug: string;
-    appSecret: string;
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
     name: string;
     description: string;
     parametersSchema: string;
@@ -92,17 +89,19 @@ export const registerTool = httpAction(async (ctx, request) => {
     requiresAuth?: boolean;
   };
 
-  if (!appSlug || !appSecret || !name || !description || !parametersSchema) {
+  if (!name || !description || !parametersSchema) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
+  if (!endpoint) {
+    return jsonResponse({ error: "Active tools must have an endpoint" }, 400);
   }
 
-  const toolId = await ctx.runMutation(internal.toolsInternal.upsertTool, {
-    appSlug,
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const toolId = await ctx.runMutation(internal.toolsDb.upsertTool, {
+    appSlug: auth.app.slug,
     name,
     description,
     parametersSchema,

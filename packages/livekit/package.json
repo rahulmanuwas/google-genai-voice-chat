@@ -1,0 +1,92 @@
+{
+  "name": "@genai-voice/livekit",
+  "version": "0.1.0",
+  "description": "LiveKit WebRTC integration for genai-voice: server utilities, voice agent, and React components",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.mjs",
+      "require": "./dist/server/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "import": "./dist/agent/index.mjs",
+      "require": "./dist/agent/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.mjs",
+      "require": "./dist/react/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "agent:dev": "node --env-file=../../apps/demo/.env.local --import tsx src/agent/index.ts dev",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "livekit",
+    "webrtc",
+    "voice-agent",
+    "gemini",
+    "genai",
+    "realtime",
+    "voice-chat",
+    "ai",
+    "speech-to-speech",
+    "react"
+  ],
+  "author": "Rahul Manuwas",
+  "license": "MIT",
+  "dependencies": {
+    "@genai-voice/core": "workspace:*",
+    "livekit-server-sdk": "^2.15.0",
+    "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "@livekit/agents": ">=1.0.0",
+    "@livekit/agents-plugin-google": ">=1.0.0",
+    "@livekit/components-react": ">=2.0.0",
+    "livekit-client": ">=2.17.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@livekit/agents": {
+      "optional": true
+    },
+    "@livekit/agents-plugin-google": {
+      "optional": true
+    },
+    "@livekit/components-react": {
+      "optional": true
+    },
+    "livekit-client": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.9",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0"
+  }
+}

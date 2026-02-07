@@ -23,7 +23,7 @@ interface ChatResponse {
  * @example
  * ```ts
  * // app/api/chat/route.ts
- * import { createChatHandler } from 'google-genai-voice-chat/api';
+ * import { createChatHandler } from '@genai-voice/react/api';
  * 
  * export const POST = createChatHandler({
  *   systemPrompt: 'You are a helpful assistant...',

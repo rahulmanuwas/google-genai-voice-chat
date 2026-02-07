@@ -43,8 +43,11 @@ export const evaluateContent = internalMutation({
           try {
             const regex = new RegExp(rule.pattern, "gi");
             matched = regex.test(args.content);
-          } catch {
-            // Invalid regex — skip
+          } catch (err) {
+            console.warn(
+              `Invalid regex in guardrail rule ${rule._id}: ${rule.pattern}`,
+              err instanceof Error ? err.message : String(err)
+            );
           }
           break;
         }
@@ -62,8 +65,11 @@ export const evaluateContent = internalMutation({
           try {
             const regex = new RegExp(rule.pattern, "gi");
             matched = regex.test(args.content);
-          } catch {
-            // skip
+          } catch (err) {
+            console.warn(
+              `Invalid regex in guardrail rule ${rule._id} (type: ${rule.type}): ${rule.pattern}`,
+              err instanceof Error ? err.message : String(err)
+            );
           }
         }
       }

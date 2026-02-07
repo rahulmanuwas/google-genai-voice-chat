@@ -1,14 +1,15 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse } from "./helpers";
+import { jsonResponse, authenticateRequest } from "./helpers";
 
 /** POST /api/knowledge — Add or update a knowledge document */
 export const upsertDocument = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, title, content, category, sourceType, updatedBy } =
+  const { appSlug, appSecret, sessionToken, title, content, category, sourceType, updatedBy } =
     body as {
-      appSlug: string;
-      appSecret: string;
+      appSlug?: string;
+      appSecret?: string;
+      sessionToken?: string;
       title: string;
       content: string;
       category: string;
@@ -16,17 +17,15 @@ export const upsertDocument = httpAction(async (ctx, request) => {
       updatedBy?: string;
     };
 
-  if (!appSlug || !appSecret || !title || !content || !category) {
+  if (!title || !content || !category) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const docId = await ctx.runAction(internal.knowledgeInternal.upsertWithEmbedding, {
-    appSlug,
+    appSlug: auth.app.slug,
     title,
     content,
     category,
@@ -40,25 +39,24 @@ export const upsertDocument = httpAction(async (ctx, request) => {
 /** POST /api/knowledge/search — Search knowledge base via vector similarity */
 export const searchKnowledge = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, query, category, topK } = body as {
-    appSlug: string;
-    appSecret: string;
+  const { appSlug, appSecret, sessionToken, query, category, topK } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
     query: string;
     category?: string;
     topK?: number;
   };
 
-  if (!appSlug || !appSecret || !query) {
+  if (!query) {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const results = await ctx.runAction(internal.knowledgeInternal.searchAction, {
-    appSlug,
+    appSlug: auth.app.slug,
     query,
     category,
     topK: topK ?? 5,
@@ -70,20 +68,15 @@ export const searchKnowledge = httpAction(async (ctx, request) => {
 /** GET /api/knowledge/gaps — List knowledge gaps */
 export const listGaps = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug");
-  const appSecret = url.searchParams.get("appSecret");
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
 
-  if (!appSlug || !appSecret) {
-    return jsonResponse({ error: "Missing appSlug or appSecret" }, 400);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: appSlug });
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
-
-  const gaps = await ctx.runQuery(internal.knowledgeInternal.getUnresolvedGaps, {
-    appSlug,
+  const gaps = await ctx.runQuery(internal.knowledgeDb.getUnresolvedGaps, {
+    appSlug: auth.app.slug,
   });
 
   return jsonResponse({ gaps });

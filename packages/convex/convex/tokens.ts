@@ -1,32 +1,25 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse } from "./helpers";
+import { jsonResponse, authenticateRequest } from "./helpers";
 
 export const createToken = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret } = body as {
-    appSlug: string;
-    appSecret: string;
+  const { appSlug, appSecret, sessionToken } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
   };
 
-  if (!appSlug || !appSecret) {
-    return jsonResponse({ error: "Missing appSlug or appSecret" }, 400);
-  }
-
-  const app = await ctx.runQuery(internal.apps.getAppBySlug, {
-    slug: appSlug,
-  });
-
-  if (!app || app.secret !== appSecret || !app.isActive) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  const { app } = auth;
 
   try {
     const result = await ctx.runAction(internal.tokensInternal.generateToken, {
-      modelId: app.modelId,
-      replyAsAudio: app.replyAsAudio,
-      systemPrompt: app.systemPrompt,
-      tokenExpireMinutes: app.tokenExpireMinutes ?? 30,
+      modelId: app.modelId as string,
+      replyAsAudio: app.replyAsAudio as boolean,
+      systemPrompt: app.systemPrompt as string,
+      tokenExpireMinutes: (app.tokenExpireMinutes as number | undefined) ?? 30,
     });
 
     return jsonResponse(result);

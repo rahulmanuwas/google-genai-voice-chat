@@ -2,7 +2,7 @@
 
 Real-time voice and text chat React components and hooks for Google Gemini Live API. Drop-in `<ChatBot />` UI or build custom interfaces with low-level hooks.
 
-Published on npm as [`google-genai-voice-chat`](https://www.npmjs.com/package/google-genai-voice-chat).
+Published on npm as [`@genai-voice/react`](https://www.npmjs.com/package/@genai-voice/react).
 
 ## Installation
 
@@ -50,7 +50,11 @@ import { createConvexHelper, useTelemetry } from '@genai-voice/react';
 const convex = createConvexHelper({
   url: process.env.NEXT_PUBLIC_CONVEX_URL!,
   appSlug: 'my-app',
-  appSecret: process.env.NEXT_PUBLIC_APP_SECRET!,
+  getSessionToken: async () => {
+    const res = await fetch('/api/session', { method: 'POST' });
+    const { sessionToken } = await res.json();
+    return sessionToken;
+  },
 });
 
 function Chat() {

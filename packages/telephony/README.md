@@ -47,7 +47,7 @@ await voice.transferToAgent(session, '+15559876543');
 await voice.hangup(session);
 ```
 
-### Twilio SMS
+### Twilio SMS (Optional)
 
 ```typescript
 import { TwilioSMSAdapter } from '@genai-voice/telephony/twilio';
@@ -135,3 +135,15 @@ export const handleInboundSMS = httpAction(async (ctx, request) => {
 | Twilio | mulaw | 8kHz | Requires conversion for Gemini (upsample + re-encode) |
 
 Telnyx's native PCM16 at 16kHz is a direct match for Gemini Live API's input format, eliminating transcoding overhead.
+
+## LiveKit SIP (Twilio Trunk)
+
+If you're using LiveKit's SIP service with a Twilio trunk, you'll typically originate PSTN calls via LiveKit (which then uses the trunk), attaching the call to a LiveKit room for your agent to join.
+
+In this repo, the LiveKit package exposes a helper:
+
+```ts
+import { createSipParticipant } from '@genai-voice/livekit/server';
+```
+
+That wraps LiveKit's SIP API (`SipClient.createSipParticipant`) to dial a phone number into a room.

@@ -49,10 +49,11 @@ export interface VoiceAdapter {
   /** Parse an inbound call webhook and return a session */
   handleInboundCall(webhookBody: unknown): Promise<VoiceSession>;
 
-  /** Get a readable audio stream from the call */
-  getAudioStream(session: VoiceSession): ReadableStream<Uint8Array>;
-
-  /** Play audio back to the caller */
+  /**
+   * Play audio back to the caller via the provider's call control API.
+   * For real-time streaming, use generateStreamResponse() to set up a
+   * WebSocket connection and pipe audio through it directly.
+   */
   playAudio(session: VoiceSession, audio: ArrayBuffer): Promise<void>;
 
   /** Transfer the call to a human agent */
@@ -63,6 +64,35 @@ export interface VoiceAdapter {
 
   /** Generate webhook response markup (TwiML / TeXML) for media streaming */
   generateStreamResponse(session: VoiceSession, wsUrl: string): string;
+}
+
+/** Outbound call creation options */
+export interface OutboundCallOptions {
+  /** Destination phone number in E.164 (e.g. +15551234567) */
+  to: string;
+  /** Caller ID / from number (defaults to provider config) */
+  from?: string;
+  /**
+   * TwiML/TeXML instructions. For Twilio outbound calls, prefer TwiML via `Twiml=...`.
+   * Provide exactly one of `twiml` or `url`.
+   */
+  twiml?: string;
+  /**
+   * URL that serves TwiML/TeXML instructions. Provide exactly one of `twiml` or `url`.
+   * Useful when TwiML is large or needs dynamic behavior.
+   */
+  url?: string;
+  /** Optional status callback URL */
+  statusCallbackUrl?: string;
+}
+
+export interface OutboundCallResult {
+  callId: string;
+}
+
+/** Optional interface for providers that can originate outbound PSTN calls */
+export interface OutboundVoiceAdapter {
+  createOutboundCall(options: OutboundCallOptions): Promise<OutboundCallResult>;
 }
 
 /** SMS adapter */

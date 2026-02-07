@@ -2,7 +2,7 @@
 
 AI voice agent platform powered by Google Gemini. From a drop-in React chat widget to a full enterprise agent backend with tools, handoff, guardrails, knowledge base, and multi-channel telephony.
 
-[![npm version](https://badge.fury.io/js/google-genai-voice-chat.svg)](https://www.npmjs.com/package/google-genai-voice-chat)
+[![npm version](https://badge.fury.io/js/%40genai-voice%2Freact.svg)](https://www.npmjs.com/package/@genai-voice/react)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Packages
@@ -10,18 +10,20 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 | Package | Description | Status |
 |---|---|---|
 | [`@genai-voice/react`](./packages/react) | Drop-in voice/text chat React components + hooks | Stable |
-| [`@genai-voice/convex`](./packages/convex) | Convex backend: tools, handoff, guardrails, RAG, analytics | New |
+| [`@genai-voice/convex`](./packages/convex) | Convex backend: tools, handoff, guardrails, RAG, analytics, persona, A/B testing, transcription storage | Repo-only |
 | [`@genai-voice/core`](./packages/core) | Shared types and conversation protocol | New |
 | [`@genai-voice/telephony`](./packages/telephony) | Telnyx (voice) + Twilio (SMS) adapters | New |
+| [`@genai-voice/livekit`](./packages/livekit) | LiveKit WebRTC: voice agent, server utilities, React components | New |
 
 ## Architecture
 
 ```
 packages/
-├── core/           Shared types (conversation, tools, handoff, guardrails, knowledge, analytics, persona)
-├── react/          React voice/text chat UI + hooks (published as google-genai-voice-chat on npm)
-├── convex/         Convex backend platform (14 tables, 20+ HTTP endpoints)
-└── telephony/      Provider-agnostic telephony adapters (Telnyx, Twilio)
+├── core/           Shared types (conversation, tools, handoff, guardrails, knowledge, analytics, persona, livekit)
+├── react/          React voice/text chat UI + hooks (published as @genai-voice/react on npm)
+├── convex/         Convex backend platform (18 tables, 33+ HTTP endpoints)
+├── telephony/      Provider-agnostic telephony adapters (Telnyx, Twilio)
+└── livekit/        LiveKit WebRTC integration (server, agent, react subpaths)
 ```
 
 ## Quick Start
@@ -51,16 +53,20 @@ function App() {
 
 ### Tier 2 — Agent platform with tools, handoff, and analytics
 
+Deploy the Convex backend from this repo, register tools the AI can call, configure guardrails, set up persona/brand voice, run A/B experiments, and get a real-time analytics dashboard. See the [Convex backend docs](./packages/convex/README.md).
+
+### Tier 3 — LiveKit WebRTC voice agent
+
 ```bash
-npm install @genai-voice/react @genai-voice/convex @google/genai
+npm install @genai-voice/livekit
 ```
 
-Deploy the Convex backend, register tools the AI can call, configure guardrails, and get a real-time analytics dashboard. See the [Convex backend docs](./packages/convex/README.md).
+Add a production-grade voice AI agent using LiveKit rooms and Gemini Live API (speech-to-speech). Includes server-side token generation, webhook handling, React components with live transcriptions, an agent runner, and automatic transcription persistence to Convex. See the [LiveKit docs](./packages/livekit/README.md).
 
-### Tier 3 — Multi-channel (phone + SMS)
+### Tier 4 — Multi-channel (phone + SMS)
 
 ```bash
-npm install @genai-voice/react @genai-voice/convex @genai-voice/telephony
+npm install @genai-voice/react @genai-voice/telephony
 ```
 
 Add Telnyx for voice calls and Twilio for SMS, all feeding into the same Convex conversation engine. See the [Telephony docs](./packages/telephony/README.md).
@@ -76,8 +82,11 @@ pnpm install
 # Build all packages (respects dependency order)
 pnpm build
 
-# Development mode (watches all packages)
+# Development mode (watches packages + runs the demo app; excludes Convex dev server)
 pnpm dev
+
+# Convex dev server (optional; requires Convex project/auth)
+pnpm dev:convex
 
 # Run all tests
 pnpm test
@@ -88,6 +97,22 @@ pnpm typecheck
 # Lint everything
 pnpm lint
 ```
+
+## Demo App
+
+Run the Next.js demo showcasing:
+- Drop-in `<ChatBot />`
+- Custom UI with `useVoiceChat`
+- LiveKit WebRTC voice agent
+- LiveKit SIP outbound call (often backed by Twilio SIP trunk)
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Copy `apps/demo/.env.example` to `apps/demo/.env.local` and fill values.
+For monorepo local dev, the demo also supports reading server-only secrets from the repo root `.env`.
 
 ## Using Individual Hooks
 
@@ -173,10 +198,27 @@ Built-in helpers for logging events and conversations to a [Convex](https://conv
 ```tsx
 import { createConvexHelper, useTelemetry } from '@genai-voice/react';
 
+// Server route example (Next.js): POST /api/session
+// Exchanges APP_SECRET (server env) for a short-lived session token.
+// The browser never sees APP_SECRET.
+//
+// export async function POST() {
+//   const res = await fetch(`${process.env.NEXT_PUBLIC_CONVEX_URL}/api/auth/session`, {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ appSlug: 'my-app', appSecret: process.env.APP_SECRET }),
+//   });
+//   return Response.json(await res.json());
+// }
+
 const convex = createConvexHelper({
   url: process.env.NEXT_PUBLIC_CONVEX_URL!,
   appSlug: 'my-app',
-  appSecret: process.env.NEXT_PUBLIC_APP_SECRET!,
+  getSessionToken: async () => {
+    const res = await fetch('/api/session', { method: 'POST' });
+    const data = await res.json();
+    return data.sessionToken as string;
+  },
 });
 
 function Chat() {
@@ -230,9 +272,24 @@ NEXT_PUBLIC_GEMINI_API_KEY=your-api-key
 # Server-side API routes
 GEMINI_API_KEY=your-api-key
 
-# Convex backend (for telemetry)
+# Convex backend (for telemetry + agent platform)
 NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
-NEXT_PUBLIC_APP_SECRET=your-app-secret
+# Server-only secret: never expose to the browser
+APP_SECRET=your-app-secret
+
+# LiveKit (for WebRTC voice agent)
+LIVEKIT_API_KEY=your-livekit-api-key
+LIVEKIT_API_SECRET=your-livekit-api-secret
+LIVEKIT_URL=https://your-app.livekit.cloud
+GOOGLE_API_KEY=your-gemini-api-key  # Used by the LiveKit agent's RealtimeModel
+
+# LiveKit agent → Convex transcription storage (optional)
+CONVEX_URL=https://your-deployment.convex.cloud
+APP_SLUG=my-app
+APP_SECRET=your-app-secret
+
+# LiveKit SIP (optional; for PSTN calls via SIP trunk)
+LIVEKIT_SIP_TRUNK_ID=ST_xxx
 ```
 
 ## Troubleshooting
@@ -241,12 +298,15 @@ NEXT_PUBLIC_APP_SECRET=your-app-secret
 - **Audio skips words**: increase `playbackStartDelayMs` (100-200ms) and `micResumeDelayMs` (400-800ms).
 - **1008 referer blocked**: check Google Cloud referrer restrictions or use ephemeral tokens.
 - **Mic blocked**: grant microphone permissions in browser settings.
+- **LiveKit agent can't hear user**: ensure `<LiveKitRoom audio={true}>` is set to publish the microphone.
+- **LiveKit "Missing or invalid default export"**: the agent entry file must have `export default` with the agent definition.
+- **LiveKit no transcriptions**: ensure `@google/genai` >= 1.0.0 is installed and `inputAudioTranscription` is enabled on the RealtimeModel (enabled by default).
 
 ## Requirements
 
 - Node.js 18+
 - React 18+
-- `@google/genai`
+- `@google/genai` >= 1.0.0
 - Gemini API key with Live API access
 
 ## License

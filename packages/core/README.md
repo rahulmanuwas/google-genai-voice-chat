@@ -19,6 +19,7 @@ npm install @genai-voice/core
 | `knowledge` | `KnowledgeDocument`, `KnowledgeGap`, `KnowledgeConfig` | RAG knowledge management |
 | `analytics` | `PeriodInsights`, `CSATRating`, `Experiment` | Analytics, CSAT, and A/B testing |
 | `persona` | `PersonaConfig`, `PersonaTone` | Brand voice and persona definition |
+| `livekit` | `LiveKitRoom`, `LiveKitAgentConfig`, `LiveKitTokenRequest` | LiveKit WebRTC room and agent configuration (includes Convex credentials for transcription storage) |
 
 ## Usage
 
@@ -30,6 +31,8 @@ import type {
   HandoffConfig,
   GuardrailRule,
   PersonaConfig,
+  LiveKitRoom,
+  LiveKitAgentConfig,
 } from '@genai-voice/core';
 ```
 
@@ -40,6 +43,7 @@ The platform supports four communication channels:
 | Channel | Value | Transport |
 |---|---|---|
 | Web chat/voice | `web` | Browser WebSocket via Gemini Live API |
+| WebRTC voice | `web` | LiveKit rooms with Gemini Live API agent |
 | Phone (PSTN) | `voice-pstn` | Telnyx or Twilio media streams |
 | SMS | `sms` | Twilio or Telnyx messaging |
 | Email | `email` | SendGrid, Resend, or similar |

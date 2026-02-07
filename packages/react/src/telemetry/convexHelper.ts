@@ -3,7 +3,10 @@
 export interface ConvexHelperConfig {
     url: string;
     appSlug: string;
-    appSecret: string;
+    /** @deprecated Use getSessionToken for browser clients */
+    appSecret?: string;
+    /** Async callback returning a short-lived session token (browser-safe) */
+    getSessionToken?: () => Promise<string>;
 }
 
 export interface EventPayload {
@@ -19,13 +22,43 @@ export interface MessagePayload {
 }
 
 export function createConvexHelper(config: ConvexHelperConfig) {
-    const { url, appSlug, appSecret } = config;
+    const { url, appSlug, appSecret, getSessionToken } = config;
+
+    // Cache the last resolved token for sendBeacon (sync, can't call async)
+    let cachedSessionToken: string | undefined;
+
+    /** Resolve auth credentials for a request body */
+    async function resolveAuth(): Promise<Record<string, string>> {
+        if (getSessionToken) {
+            const token = await getSessionToken();
+            cachedSessionToken = token;
+            return { sessionToken: token };
+        }
+        if (!appSecret) {
+            throw new Error('createConvexHelper: provide either getSessionToken() (recommended) or appSecret');
+        }
+        return { appSlug, appSecret };
+    }
+
+    /** Resolve auth credentials synchronously (for sendBeacon) using cached token */
+    function resolveAuthSync(): Record<string, string> {
+        if (cachedSessionToken) {
+            return { sessionToken: cachedSessionToken };
+        }
+        if (!appSecret) {
+            // Best-effort: sendBeacon can't await getSessionToken().
+            // Callers should ensure the token is fetched at least once before unload.
+            throw new Error('createConvexHelper: missing cached sessionToken and no appSecret provided');
+        }
+        return { appSlug, appSecret };
+    }
 
     async function fetchToken(): Promise<string> {
+        const auth = await resolveAuth();
         const res = await fetch(`${url}/api/token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ appSlug, appSecret }),
+            body: JSON.stringify(auth),
         });
 
         if (!res.ok) {
@@ -39,10 +72,11 @@ export function createConvexHelper(config: ConvexHelperConfig) {
 
     async function postEvents(sessionId: string, events: EventPayload[]) {
         try {
+            const auth = await resolveAuth();
             await fetch(`${url}/api/events`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ appSlug, appSecret, sessionId, events }),
+                body: JSON.stringify({ ...auth, sessionId, events }),
             });
         } catch {
             // Fire-and-forget: don't let event logging failures affect the user
@@ -55,10 +89,11 @@ export function createConvexHelper(config: ConvexHelperConfig) {
         startedAt: number
     ) {
         try {
+            const auth = await resolveAuth();
             await fetch(`${url}/api/conversations`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ appSlug, appSecret, sessionId, startedAt, messages }),
+                body: JSON.stringify({ ...auth, sessionId, startedAt, messages }),
             });
         } catch {
             // Fire-and-forget
@@ -67,8 +102,9 @@ export function createConvexHelper(config: ConvexHelperConfig) {
 
     function beaconEvents(sessionId: string, events: EventPayload[]) {
         if (typeof navigator === 'undefined' || !navigator.sendBeacon || events.length === 0) return;
+        const auth = resolveAuthSync();
         const blob = new Blob(
-            [JSON.stringify({ appSlug, appSecret, sessionId, events })],
+            [JSON.stringify({ ...auth, sessionId, events })],
             { type: 'application/json' }
         );
         navigator.sendBeacon(`${url}/api/events`, blob);
@@ -80,8 +116,9 @@ export function createConvexHelper(config: ConvexHelperConfig) {
         startedAt: number
     ) {
         if (typeof navigator === 'undefined' || !navigator.sendBeacon || messages.length === 0) return;
+        const auth = resolveAuthSync();
         const blob = new Blob(
-            [JSON.stringify({ appSlug, appSecret, sessionId, startedAt, messages })],
+            [JSON.stringify({ ...auth, sessionId, startedAt, messages })],
             { type: 'application/json' }
         );
         navigator.sendBeacon(`${url}/api/conversations`, blob);

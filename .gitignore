@@ -3,6 +3,7 @@ node_modules/
 *.log
 .env
 .env.local
+.env.*.local
 .opencode/
 skills/
 .github/skills/
@@ -11,6 +12,9 @@ skills/
 # Build artifacts
 dist/
 .turbo/
+.next/
+.vercel/
+coverage/
 
 # Convex generated
 packages/convex/convex/_generated/

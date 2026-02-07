@@ -7,12 +7,27 @@ import { createToken } from "./tokens";
 import { logEvents } from "./events";
 import { saveConversation } from "./conversations";
 
+// ─── Session auth ───────────────────────────────────────────────
+import { createSession } from "./sessions";
+
 // ─── Phase 1 handlers ───────────────────────────────────────────
 import { listTools, executeTool, registerTool } from "./tools";
 import { createHandoff, updateHandoff, listHandoffs } from "./handoffs";
 import { checkGuardrails, upsertRule, listRules } from "./guardrails";
 import { upsertDocument, searchKnowledge, listGaps } from "./knowledge";
 import { submitCSAT, getInsights, getOverview } from "./analytics";
+import {
+  generateToken as livekitToken,
+  createRoom as livekitCreateRoom,
+  listRooms as livekitListRooms,
+  handleWebhook as livekitWebhook,
+  endRoom as livekitEndRoom,
+} from "./livekit";
+
+// ─── New handlers ───────────────────────────────────────────────
+import { saveMessages, listMessages } from "./messages";
+import { getPersona, updatePersona } from "./persona";
+import { createExperiment, listExperiments, assignVariant } from "./experiments";
 
 const http = httpRouter();
 
@@ -22,18 +37,32 @@ const handleOptions = httpAction(async () => {
 });
 
 // Helpers to reduce boilerplate
+const registeredOptions = new Set<string>();
+function options(path: string) {
+  if (!registeredOptions.has(path)) {
+    http.route({ path, method: "OPTIONS", handler: handleOptions });
+    registeredOptions.add(path);
+  }
+}
 function post(path: string, handler: Parameters<typeof http.route>[0]["handler"]) {
   http.route({ path, method: "POST", handler });
-  http.route({ path, method: "OPTIONS", handler: handleOptions });
+  options(path);
 }
 function get(path: string, handler: Parameters<typeof http.route>[0]["handler"]) {
   http.route({ path, method: "GET", handler });
-  http.route({ path, method: "OPTIONS", handler: handleOptions });
+  options(path);
 }
 function patch(path: string, handler: Parameters<typeof http.route>[0]["handler"]) {
   http.route({ path, method: "PATCH", handler });
-  http.route({ path, method: "OPTIONS", handler: handleOptions });
+  options(path);
 }
+function del(path: string, handler: Parameters<typeof http.route>[0]["handler"]) {
+  http.route({ path, method: "DELETE", handler });
+  options(path);
+}
+
+// ─── Auth ──────────────────────────────────────────────────────
+post("/api/auth/session", createSession);
 
 // ─── Token (existing) ───────────────────────────────────────────
 post("/api/token", createToken);
@@ -68,5 +97,25 @@ get("/api/knowledge/gaps", listGaps);
 post("/api/csat", submitCSAT);
 get("/api/analytics/insights", getInsights);
 get("/api/analytics/overview", getOverview);
+
+// ─── LiveKit ────────────────────────────────────────────────────
+post("/api/livekit/token", livekitToken);
+post("/api/livekit/rooms", livekitCreateRoom);
+get("/api/livekit/rooms", livekitListRooms);
+post("/api/livekit/webhook", livekitWebhook);
+del("/api/livekit/rooms", livekitEndRoom);
+
+// ─── Messages (Transcription Storage) ───────────────────────────
+post("/api/messages", saveMessages);
+get("/api/messages", listMessages);
+
+// ─── Persona ────────────────────────────────────────────────────
+get("/api/persona", getPersona);
+patch("/api/persona", updatePersona);
+
+// ─── Experiments (A/B Testing) ──────────────────────────────────
+post("/api/experiments", createExperiment);
+get("/api/experiments", listExperiments);
+post("/api/experiments/assign", assignVariant);
 
 export default http;

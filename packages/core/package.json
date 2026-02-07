@@ -17,8 +17,14 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
+  "keywords": [
+    "genai-voice", "types", "conversation", "tools", "handoff",
+    "guardrails", "knowledge", "analytics", "livekit", "ai"
+  ],
+  "author": "Rahul Manuwas",
   "license": "MIT",
   "devDependencies": {
     "tsup": "^8.0.0",

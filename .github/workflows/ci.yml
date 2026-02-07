@@ -16,31 +16,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Test
-        run: npm test
+        run: pnpm run test
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Verify dist output
         run: |
-          test -f dist/index.js
-          test -f dist/index.mjs
-          test -f dist/index.d.ts
-          test -f dist/api.js
-          test -f dist/api.mjs
-          test -f dist/api.d.ts
+          test -f packages/react/dist/index.js
+          test -f packages/react/dist/index.mjs
+          test -f packages/react/dist/index.d.ts
+          test -f packages/react/dist/api.js
+          test -f packages/react/dist/api.mjs
+          test -f packages/react/dist/api.d.ts
+          test -f packages/core/dist/index.js
+          test -f packages/core/dist/index.d.ts
+          test -f packages/telephony/dist/index.js
+          test -f packages/telephony/dist/index.d.ts
+          test -f packages/livekit/dist/index.js
+          test -f packages/livekit/dist/server/index.js
+          test -f packages/livekit/dist/agent/index.js
+          test -f packages/livekit/dist/react/index.js
+          test -f apps/demo/.next/BUILD_ID

@@ -1,8 +1,8 @@
-# Sierra.ai Case Study Analysis & Recommendations for `google-genai-voice-chat`
+# Sierra.ai Case Study Analysis & Recommendations for `genai-voice`
 
 ## Overview
 
-Analysis of all 32 Sierra.ai customer case studies to identify capability gaps and recommend upgrades for the `google-genai-voice-chat` project.
+Analysis of all 32 Sierra.ai customer case studies to identify capability gaps and recommend upgrades for the `genai-voice` project.
 
 ---
 
@@ -298,3 +298,300 @@ interface OutboundConfig {
 | Response Time Improvement | Hours/days → seconds |
 | Seasonal Staffing Reduction | Often eliminated entirely |
 | Agent Time Saved | 15,000+ hours/year (Brex) |
+
+---
+---
+
+# LiveKit Telephony Survey & Integration Analysis
+
+## Date: February 2026
+
+## Context
+
+This survey evaluates whether LiveKit should replace our current direct Telnyx/Twilio telephony adapters in `packages/telephony`. The project currently has provider-specific adapters (Telnyx for voice, Twilio for voice + SMS) that handle SIP signaling, audio streaming, and call control directly. LiveKit offers an abstraction layer that sits between our application and these telephony providers.
+
+---
+
+## What LiveKit Is
+
+LiveKit is an **open-source (Apache 2.0) real-time communication platform** that provides:
+- WebRTC-based rooms for audio/video/data
+- SIP telephony bridging (PSTN calls ↔ LiveKit rooms)
+- An **Agents SDK** for building AI voice pipelines
+- Official plugins for Google Gemini, OpenAI, Deepgram, ElevenLabs, etc.
+- Self-hostable server + managed LiveKit Cloud
+
+**Key insight**: LiveKit doesn't replace Telnyx/Twilio — it **sits on top of them**. You still need a SIP trunk provider (Telnyx, Twilio, etc.) for actual PSTN connectivity. LiveKit handles the room abstraction, media routing, and agent framework.
+
+---
+
+## Architecture Comparison
+
+### Current: Direct Provider Adapters
+```
+Phone (PSTN) → Telnyx/Twilio SIP → Our Adapter → WebSocket → Gemini Live API
+                                         ↓
+                                   Call Control (transfer, hangup, DTMF)
+```
+- **Pros**: Minimal dependencies, full control, lower per-minute cost
+- **Cons**: Must implement WebSocket streaming, audio encoding, call control per provider; no built-in room/conference model
+
+### With LiveKit
+```
+Phone (PSTN) → Telnyx/Twilio SIP Trunk → LiveKit SIP Bridge → LiveKit Room
+                                                                    ↓
+                                                            LiveKit Agent (Gemini)
+                                                                    ↓
+                                                            Audio Pipeline (STT→LLM→TTS or Gemini Live)
+```
+- **Pros**: Unified room model, built-in agent framework, multi-participant support, official Gemini plugin
+- **Cons**: Extra infrastructure layer, additional latency (~10-20ms), LiveKit Cloud costs on top of SIP trunk costs
+
+---
+
+## LiveKit SIP Telephony Features
+
+### SIP Trunks
+- **Inbound**: Register SIP trunk with credentials/IP allowlist, LiveKit receives calls
+- **Outbound**: LiveKit originates calls via configured trunk to any PSTN number
+- Configure via `livekit-server-sdk` `SipClient`:
+  ```typescript
+  const sipClient = new SipClient(host, apiKey, apiSecret);
+  await sipClient.createSipInboundTrunk({ name: 'main', numbers: ['+1...'], ... });
+  await sipClient.createSipOutboundTrunk({ name: 'outbound', address: 'sip.telnyx.com', ... });
+  ```
+
+### Dispatch Rules
+- Route inbound calls to rooms based on: called number, caller ID, PIN codes
+- Can auto-create rooms or route to existing rooms
+- Supports regex matching on trunk/number patterns
+
+### Call Transfer
+- **Blind transfer**: `sipClient.transferSipParticipant(roomName, participantId, transferTo)`
+- **Attended transfer**: Place original call on hold, establish new call, bridge
+- Transfers to SIP URIs or PSTN numbers via `sip:+1234567890@provider`
+
+### DTMF Support
+- Send/receive DTMF tones programmatically
+- Handle IVR navigation, PIN entry, etc.
+- Via data channel messages in LiveKit rooms
+
+### Multi-Participant
+- Multiple callers in same LiveKit room (conference calls)
+- Mix AI agent + human agents + PSTN callers in one room
+- Ideal for warm transfers where AI briefs human agent before connecting
+
+---
+
+## LiveKit Agents SDK (TypeScript v1.0)
+
+### Voice Pipeline Architecture
+```typescript
+import { pipeline, AudioStream } from '@livekit/agents';
+import { STT } from '@livekit/agents-plugin-deepgram';
+import { LLM } from '@livekit/agents-plugin-openai';
+import { TTS } from '@livekit/agents-plugin-elevenlabs';
+
+const agent = new pipeline.VoicePipelineAgent({
+  stt: new STT(),
+  llm: new LLM({ model: 'gpt-4o' }),
+  tts: new TTS(),
+  turnDetection: new pipeline.turn_detector.EOUModel(),
+});
+```
+
+### Gemini Integration Modes
+
+1. **Full Gemini Live (Audio-to-Audio)**
+   - Uses `@livekit/agents-plugin-google` with `RealtimeModel`
+   - Direct audio in → Gemini Live API → audio out
+   - Lowest latency, best for natural conversation
+   - Uses Gemini's native voice (no separate TTS needed)
+   ```typescript
+   import { multimodal } from '@livekit/agents';
+   import { RealtimeModel } from '@livekit/agents-plugin-google';
+
+   const model = new RealtimeModel({ model: 'gemini-2.0-flash-exp' });
+   const agent = new multimodal.MultimodalAgent({ model });
+   ```
+
+2. **Half-Cascade**
+   - Gemini Live for STT + LLM, separate TTS (ElevenLabs, etc.)
+   - Better voice quality/customization while keeping Gemini's understanding
+
+3. **Full Pipeline**
+   - Separate STT (Deepgram) → Gemini LLM (text) → separate TTS
+   - Maximum flexibility, highest latency
+   - Best when you need specific STT/TTS providers
+
+### Agent Features
+- **Function Tools**: Register tools that the LLM can call (like Gemini function calling)
+- **Agent Handoff**: Transfer between specialized agents within a session
+- **Turn Detection**: Built-in end-of-utterance model (Silero VAD plugin) or Gemini's native
+- **Interruption Handling**: Automatic barge-in support
+- **Session Context**: Maintains conversation state across turns
+
+---
+
+## SDK Packages
+
+| Package | Purpose | Version |
+|---|---|---|
+| `livekit-server-sdk` | Server-side room/SIP/token management | Stable |
+| `@livekit/agents` | Agent framework (voice pipeline, multimodal) | 1.0 (TS) |
+| `@livekit/agents-plugin-google` | Gemini Live + Gemini LLM integration | 1.0 |
+| `@livekit/agents-plugin-silero` | VAD (Voice Activity Detection) | 1.0 |
+| `@livekit/rtc-node` | Low-level Node.js WebRTC client | Stable |
+| `livekit-client` | Browser-side WebRTC client | Stable |
+
+---
+
+## Pricing
+
+### LiveKit Cloud
+| Tier | Monthly | Included Minutes | Overage |
+|---|---|---|---|
+| **Free** | $0 | 1,000 | N/A |
+| **Ship** | $50 | 5,000 | ~$0.01/min |
+| **Scale** | $500 | 50,000 | ~$0.01/min |
+| **Enterprise** | Custom | Custom | Custom |
+
+### Self-Hosted
+- LiveKit server is **Apache 2.0** — fully self-hostable at zero license cost
+- Only pay for compute (a single server handles ~1,000 concurrent participants)
+- Agents framework also open-source
+- **Still need SIP trunk provider** (Telnyx/Twilio) for PSTN connectivity
+
+### Cost Comparison
+| Scenario | Direct Telnyx/Twilio | LiveKit Cloud + Trunk | LiveKit Self-Hosted + Trunk |
+|---|---|---|---|
+| 1,000 min/mo | ~$15-30 (trunk only) | $0 (free tier) + $15-30 trunk | $5-10 server + $15-30 trunk |
+| 10,000 min/mo | ~$150-300 | $50 + $150-300 trunk | $20-40 server + $150-300 trunk |
+| 100,000 min/mo | ~$1,500-3,000 | $500+ + $1,500-3,000 trunk | $100-200 server + $1,500-3,000 trunk |
+
+**Bottom line**: LiveKit adds $0-500/mo on top of existing trunk costs. For self-hosted, the overhead is minimal. The value proposition is developer productivity, not cost savings.
+
+---
+
+## Feature Comparison: Direct Adapters vs LiveKit
+
+| Feature | Our Current Adapters | LiveKit |
+|---|---|---|
+| **Inbound calls** | Yes (webhook-based) | Yes (SIP trunk + dispatch rules) |
+| **Outbound calls** | Manual via provider API | Yes (programmatic via SipClient) |
+| **Audio streaming** | WebSocket per provider | Unified room-based |
+| **Call transfer** | Basic (Twilio TwiML, Telnyx API) | Blind + attended transfer |
+| **Conference/multi-party** | Not supported | Native (rooms model) |
+| **AI agent framework** | Custom (direct Gemini API) | Built-in pipeline + multimodal |
+| **Gemini Live integration** | Direct (our core value) | Official plugin |
+| **Voice Activity Detection** | Gemini-native only | Silero VAD + Gemini-native |
+| **Recording** | Not implemented | Built-in room recording |
+| **DTMF** | Not implemented | Supported |
+| **Provider lock-in** | Telnyx or Twilio specific | Provider-agnostic SIP |
+| **Warm transfer (AI→human)** | Not implemented | Native (multi-participant rooms) |
+| **SMS** | Twilio adapter | Not included (still need Twilio) |
+| **Latency** | Lower (direct to provider) | +10-20ms (room routing) |
+| **Self-hostable** | N/A (SaaS providers) | Yes (Apache 2.0) |
+
+---
+
+## Limitations & Considerations
+
+1. **SMS not included**: LiveKit is audio/video/data only. SMS still requires direct Twilio/Telnyx integration.
+
+2. **Extra infrastructure**: LiveKit server (cloud or self-hosted) is another moving part to manage.
+
+3. **Latency trade-off**: The room abstraction adds ~10-20ms. For most voice AI, this is negligible, but worth measuring.
+
+4. **Learning curve**: New SDK, room model, SIP trunk configuration. Team needs to learn LiveKit concepts.
+
+5. **Gemini Live plugin maturity**: The `@livekit/agents-plugin-google` is v1.0 but relatively new. The Python SDK is more battle-tested.
+
+6. **Lock-in risk**: While open-source, deep integration with LiveKit's room model creates coupling. Mitigated by self-hosting option.
+
+7. **Overkill for simple use cases**: If you only need basic inbound call → AI response → hangup, direct adapters are simpler. LiveKit shines when you need rooms, transfers, recording, multi-participant.
+
+---
+
+## Recommendation
+
+### Replace telephony adapters with LiveKit: **Yes, for voice. Keep Twilio for SMS.**
+
+**Rationale**:
+- Our Sierra analysis identified **Human Handoff (Gap 2)** and **Multi-Channel (Gap 4)** as critical gaps. LiveKit's room model solves warm transfer natively — AI agent and human agent can coexist in the same room, with the AI briefing the human before connecting the caller.
+- The **Agents SDK** with official Gemini plugin gives us a production-grade voice pipeline instead of maintaining custom WebSocket streaming code.
+- **Outbound calling** (Gap 10: Proactive/Outbound) becomes trivial with LiveKit's `SipClient`.
+- **Recording** and **conference calling** come free with the room model.
+- The self-hosting option aligns with enterprise deployment requirements.
+
+### Proposed Monorepo Changes
+
+```
+packages/
+├── core/           # Unchanged — shared types
+├── react/          # Unchanged — React components
+├── convex/         # Unchanged — Convex backend
+├── telephony/      # Refactored
+│   ├── src/
+│   │   ├── livekit/
+│   │   │   ├── agent.ts        # LiveKit agent with Gemini pipeline
+│   │   │   ├── sip.ts          # SIP trunk + dispatch rule management
+│   │   │   ├── rooms.ts        # Room lifecycle (create, join, transfer)
+│   │   │   └── recording.ts    # Call recording via LiveKit Egress
+│   │   ├── sms/
+│   │   │   └── twilio.ts       # Keep Twilio for SMS (LiveKit doesn't do SMS)
+│   │   ├── types.ts            # Updated interfaces
+│   │   └── index.ts
+│   └── package.json            # Add livekit-server-sdk, @livekit/agents, plugins
+```
+
+### Migration Path
+1. **Phase 1**: Add LiveKit agent alongside existing adapters (feature flag)
+2. **Phase 2**: Migrate inbound voice to LiveKit SIP bridge
+3. **Phase 3**: Add outbound calling, recording, warm transfer
+4. **Phase 4**: Deprecate direct Telnyx/Twilio voice adapters (keep Twilio SMS)
+
+---
+
+## Conversation Summary (Feb 7, 2026)
+
+### Session 1: Monorepo + LiveKit Package
+
+1. **Monorepo restructure completed**: Moved from single-package to pnpm workspaces with `packages/core`, `packages/react`, `packages/convex`, `packages/telephony`. Fixed Turborepo config, TypeScript base config, CI/CD workflows.
+
+2. **Code audit & fixes**: Found and fixed 57+ issues across all packages:
+   - Convex backend (31 fixes): error handling, type safety, silent catches, incomplete implementations, unused variables, hardcoded values
+   - Telephony adapters (13 fixes): removed stubs, added validation, proper error handling
+   - CI/CD (2 fixes): pnpm migration, correct dist paths for monorepo
+   - All checks passing: typecheck 5/5, tests 63/63, lint clean, build 3/3
+
+3. **LiveKit survey completed**: Four parallel research agents investigated telephony features, Agents SDK, Node.js SDK, and pricing/competitive positioning.
+
+4. **LiveKit integration implemented**: New `@genai-voice/livekit` package with three subpath exports:
+   - `@genai-voice/livekit/server`: Token generation, webhook validation, room management via `livekit-server-sdk`
+   - `@genai-voice/livekit/agent`: Voice AI agent using `@livekit/agents` + Gemini Live API (`google.beta.realtime.RealtimeModel` with `gemini-2.5-flash-native-audio-preview-12-2025`)
+   - `@genai-voice/livekit/react`: `useLiveKitVoiceChat` hook, `LiveKitVoiceChat` component, `AudioVisualizerWrapper`
+   - Convex backend: 2 new tables (`livekitRooms`, `livekitParticipants`) and 5 HTTP endpoints under `/api/livekit/*`
+   - Dynamic tool loading from Convex via `createToolsFromConvex()`
+   - All checks passing: typecheck, tests (63/63), lint, build (4/4 packages)
+
+### Session 2: Deployment, Fixes & Live Demo
+
+5. **Convex "use node" fix**: Files with `"use node"` directive can only export `internalAction` in Convex. Split 4 `*Internal.ts` files into `*Internal.ts` (actions only) + `*Db.ts` (mutations/queries). Updated all cross-references in HTTP handler files.
+
+6. **Convex deployed**: Successfully deployed to Convex Cloud with all 32 indexes. Set environment variables (`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`). Seeded "demo" app via `seed:seedApp`.
+
+7. **LiveKit agent running**: Installed `@livekit/agents` and `@livekit/agents-plugin-google`. Fixed agent entry file to include required `export default`. Agent connects to LiveKit Cloud and joins rooms as a participant.
+
+8. **Microphone fix**: Added `audio={true}` to `<LiveKitRoom>` so the user's microphone is published and the agent can hear user speech. Without this, the agent triggered "User away timeout."
+
+9. **SDK update**: Updated `@google/genai` from v0.10.0 to v1.40.0 to support `inputAudioTranscription` parameter. Updated peer dependency to `>=1.0.0`.
+
+10. **Live transcription display**: Rewrote `AudioVisualizerWrapper.tsx` to use `useTranscriptions()` hook (replacing deprecated `useTrackTranscription`). Displays both user and agent transcriptions chronologically as chat bubbles, sorted by `streamInfo.timestamp` with participant identity from `participantInfo.identity`.
+
+### Current Status:
+- All packages build successfully (core, react, convex, telephony, livekit)
+- Convex backend deployed with 16 tables and 25+ HTTP endpoints
+- LiveKit voice agent running end-to-end with live transcriptions
+- Demo app tested on http://localhost:3100 (Google voice chat + LiveKit voice chat)
+- Commits created but **not pushed**
