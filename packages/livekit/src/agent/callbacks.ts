@@ -8,6 +8,8 @@
 
 /** Persona data returned by the backend */
 export interface AgentPersonaData {
+  /** Full system prompt / instructions from the app config */
+  systemPrompt?: string;
   personaName?: string;
   personaTone?: string;
   personaGreeting?: string;
@@ -79,11 +81,15 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
     },
 
     async persistMessages(messages: BufferedMessage[]): Promise<void> {
-      await fetch(`${convexUrl}/api/messages`, {
+      const res = await fetch(`${convexUrl}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appSlug, appSecret, messages }),
       });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`persistMessages failed (${res.status}): ${text}`);
+      }
     },
 
     async resolveConversation(
@@ -92,7 +98,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
       startedAt: number,
       messages?: Array<{ role: string; content: string; ts: number }>,
     ): Promise<void> {
-      await fetch(`${convexUrl}/api/conversations`, {
+      const res = await fetch(`${convexUrl}/api/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -105,6 +111,10 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
           channel,
         }),
       });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`resolveConversation failed (${res.status}): ${text}`);
+      }
     },
   };
 }

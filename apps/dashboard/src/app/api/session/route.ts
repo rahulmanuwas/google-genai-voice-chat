@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServerEnv } from '../../../server/env';
 
-export async function POST() {
+export async function POST(request: Request) {
   const convexUrl = getServerEnv('NEXT_PUBLIC_CONVEX_URL');
-  const appSlug = getServerEnv('NEXT_PUBLIC_APP_SLUG') ?? 'demo';
+  const defaultSlug = getServerEnv('NEXT_PUBLIC_APP_SLUG') ?? 'demo';
   const appSecret = getServerEnv('APP_SECRET');
 
   if (!convexUrl || !appSecret) {
@@ -11,6 +11,17 @@ export async function POST() {
       { error: 'Server misconfigured: missing NEXT_PUBLIC_CONVEX_URL or APP_SECRET' },
       { status: 500 },
     );
+  }
+
+  // Allow callers to specify an appSlug; fall back to env default
+  let appSlug = defaultSlug;
+  try {
+    const body = await request.json();
+    if (typeof body.appSlug === 'string' && body.appSlug) {
+      appSlug = body.appSlug;
+    }
+  } catch {
+    // No body or invalid JSON — use default slug
   }
 
   const res = await fetch(`${convexUrl}/api/auth/session`, {

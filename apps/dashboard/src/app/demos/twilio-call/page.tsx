@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 
 const CallRoom = dynamic(() => import('./CallRoom'), { ssr: false });
 
@@ -22,6 +24,8 @@ export default function TwilioCallDemo() {
   const [isStarting, setIsStarting] = useState(false);
   const [result, setResult] = useState<CallResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
+  const scenario = getScenarioById(scenarioId);
 
   const start = useCallback(async () => {
     setIsStarting(true);
@@ -32,7 +36,7 @@ export default function TwilioCallDemo() {
       const res = await fetch('/api/twilio/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to }),
+        body: JSON.stringify({ to, appSlug: scenario.appSlug }),
       });
 
       const data = await res.json();
@@ -51,7 +55,7 @@ export default function TwilioCallDemo() {
     } finally {
       setIsStarting(false);
     }
-  }, [to]);
+  }, [to, scenario.appSlug]);
 
   const endCall = useCallback(() => {
     setResult(null);
@@ -61,9 +65,12 @@ export default function TwilioCallDemo() {
     <div className="space-y-6 p-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <CardTitle>LiveKit SIP Outbound Call</CardTitle>
-            <Badge variant="secondary">Twilio Trunk</Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CardTitle>LiveKit SIP Outbound Call</CardTitle>
+              <Badge variant="secondary">Twilio Trunk</Badge>
+            </div>
+            <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
           </div>
           <CardDescription>
             Dials a phone number via LiveKit SIP using your configured Twilio SIP trunk,

@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 
 interface StartCallRequest {
   to: string;
+  appSlug?: string;
 }
 
 export async function POST(request: Request) {
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as Partial<StartCallRequest>;
     const to = typeof body.to === 'string' ? body.to.trim() : '';
+    const appSlug = typeof body.appSlug === 'string' && body.appSlug ? body.appSlug : undefined;
 
     if (!to || !to.startsWith('+')) {
       return NextResponse.json(
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
       apiKey: livekitApiKey,
       apiSecret: livekitApiSecret,
       maxParticipants: 4,
+      metadata: appSlug ? JSON.stringify({ appSlug }) : undefined,
     });
 
     const participant = await createSipParticipant({

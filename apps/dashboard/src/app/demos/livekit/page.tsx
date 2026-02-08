@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 
 const LiveKitVoiceChat = dynamic(
   () => import('@genai-voice/livekit').then((mod) => mod.LiveKitVoiceChat),
@@ -43,6 +45,8 @@ const {
 export default function LiveKitDemo() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
+  const scenario = getScenarioById(scenarioId);
 
   const missing = [
     !convexUrl && 'NEXT_PUBLIC_CONVEX_URL',
@@ -50,11 +54,15 @@ export default function LiveKitDemo() {
   ].filter(Boolean) as string[];
 
   const getSessionToken = useCallback(async () => {
-    const res = await fetch('/api/session', { method: 'POST' });
+    const res = await fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appSlug: scenario.appSlug }),
+    });
     if (!res.ok) throw new Error('Failed to get session token');
     const data = await res.json();
     return data.sessionToken as string;
-  }, []);
+  }, [scenario.appSlug]);
 
   if (missing.length > 0) {
     return (
@@ -68,9 +76,12 @@ export default function LiveKitDemo() {
     <div className="space-y-6 p-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <CardTitle>LiveKit Voice Agent</CardTitle>
-            <Badge variant="secondary">@genai-voice/livekit</Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CardTitle>LiveKit Voice Agent</CardTitle>
+              <Badge variant="secondary">@genai-voice/livekit</Badge>
+            </div>
+            <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
           </div>
           <CardDescription>
             Click &quot;Start Voice Chat&quot; to create a LiveKit room and connect.
@@ -80,8 +91,9 @@ export default function LiveKitDemo() {
         </CardHeader>
         <CardContent>
           <LiveKitVoiceChat
+            key={scenario.id}
             convexUrl={convexUrl!}
-            appSlug="demo"
+            appSlug={scenario.appSlug}
             getSessionToken={getSessionToken}
             serverUrl={livekitUrl}
           />

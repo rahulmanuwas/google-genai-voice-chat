@@ -19,6 +19,7 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 
 ```
 apps/
+├── dashboard/          Next.js admin dashboard + demo pages with scenario picker
 ├── console/            Next.js console app (chatbot, voice, LiveKit, Twilio pages)
 └── convex-backend/     Convex backend platform (18 tables, 33+ HTTP endpoints)
 
@@ -100,6 +101,41 @@ pnpm typecheck
 # Lint everything
 pnpm lint
 ```
+
+## Dashboard
+
+The admin dashboard (`apps/dashboard`) provides an analytics overview, platform management, and four interactive demo pages. Each demo page includes a **scenario picker** that switches between three realistic enterprise scenarios:
+
+| Scenario | App Slug | Persona | Description |
+|---|---|---|---|
+| Dentist Appointment | `demo-dentist` | Sarah | Patient rescheduling a dental cleaning |
+| Earnings Call Explainer | `demo-earnings` | Alex | Investor asking about Q4 2025 financials |
+| E-commerce Support | `demo-ecommerce` | Luna | Order tracking, returns, product questions |
+
+Switching scenarios changes the system prompt (ChatBot/Custom demos) or the Convex app slug (LiveKit/Twilio demos), loading the matching persona, tools, guardrails, and knowledge base from the backend.
+
+```bash
+pnpm install
+pnpm dev
+# Dashboard runs at http://localhost:3200
+```
+
+### Seeding Scenario Data
+
+Each scenario is backed by full Convex data (app config, tools, guardrail rules, and knowledge documents with vector embeddings). Seed all three with:
+
+```bash
+cd apps/convex-backend
+CONVEX_DEPLOY_KEY=... npx convex run seedScenarios:seedAll '{"secret":"your-app-secret"}'
+```
+
+This creates per-scenario:
+- **App record** with persona (name, greeting, tone) and guardrails enabled
+- **Tools**: 3 (dentist), 2 (earnings), 4 (e-commerce)
+- **Guardrail rules**: 2 (dentist), 3 (earnings), 3 (e-commerce)
+- **Knowledge docs**: 5 per scenario (15 total), with auto-generated embeddings
+
+All three scenario apps share the same `APP_SECRET` as the base `demo` app.
 
 ## Console App
 

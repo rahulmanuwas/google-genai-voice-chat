@@ -15,6 +15,7 @@ export const getPersona = httpAction(async (ctx, request) => {
   const { app } = auth;
 
   return jsonResponse({
+    systemPrompt: app.systemPrompt ?? null,
     personaName: app.personaName ?? null,
     personaGreeting: app.personaGreeting ?? null,
     personaTone: app.personaTone ?? null,

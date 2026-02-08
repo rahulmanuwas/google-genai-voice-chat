@@ -25,15 +25,30 @@ export interface AgentDefinitionOptions {
 }
 
 /**
- * Parse sessionId from room name (format: {appSlug}-{sessionId}-{timestamp}).
- * The sessionId itself may contain hyphens, so we drop the first and last segments.
+ * Parse appSlug and sessionId from room name.
+ * Room name format: {appSlug}-{sessionId}-{timestamp}
+ * SessionId format: session-{ts}-{random}
+ * Since sessionId always starts with "session-", we split on "-session-" to extract the appSlug.
  */
-function parseSessionIdFromRoom(roomName: string, appSlug: string): string {
-  const withoutPrefix = roomName.startsWith(appSlug + '-')
-    ? roomName.slice(appSlug.length + 1)
+function parseRoomName(roomName: string, fallbackAppSlug: string): { appSlug: string; sessionId: string } {
+  const marker = '-session-';
+  const markerIdx = roomName.indexOf(marker);
+  if (markerIdx > 0) {
+    const appSlug = roomName.slice(0, markerIdx);
+    const rest = roomName.slice(markerIdx + 1); // "session-{ts}-{random}-{roomTs}"
+    const lastDash = rest.lastIndexOf('-');
+    const sessionId = lastDash > 0 ? rest.slice(0, lastDash) : rest;
+    return { appSlug, sessionId };
+  }
+  // Fallback: use provided appSlug and strip prefix + timestamp
+  const withoutPrefix = roomName.startsWith(fallbackAppSlug + '-')
+    ? roomName.slice(fallbackAppSlug.length + 1)
     : roomName;
   const lastDash = withoutPrefix.lastIndexOf('-');
-  return lastDash > 0 ? withoutPrefix.slice(0, lastDash) : withoutPrefix;
+  return {
+    appSlug: fallbackAppSlug,
+    sessionId: lastDash > 0 ? withoutPrefix.slice(0, lastDash) : withoutPrefix,
+  };
 }
 
 /**
@@ -54,14 +69,18 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
     entry: async (ctx: JobContext) => {
       await ctx.connect();
 
-      // Resolve callbacks: use provided callbacks, or auto-create from env vars (backwards compat)
+      // Resolve callbacks: use provided callbacks, or auto-create from env vars.
+      // Parse appSlug from room name so the agent uses the correct app for each room
+      // (e.g. "demo-dentist" vs "demo") instead of always using the env APP_SLUG.
       let callbacks = options?.callbacks;
       if (!callbacks) {
         const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
-        const appSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG;
+        const envAppSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG;
         const appSecret = process.env.APP_SECRET;
-        if (convexUrl && appSlug && appSecret) {
-          callbacks = createConvexAgentCallbacks({ convexUrl, appSlug, appSecret });
+        if (convexUrl && envAppSlug && appSecret) {
+          const roomName = ctx.room.name ?? '';
+          const { appSlug: roomAppSlug } = parseRoomName(roomName, envAppSlug);
+          callbacks = createConvexAgentCallbacks({ convexUrl, appSlug: roomAppSlug, appSecret });
         }
       }
 
@@ -73,7 +92,9 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         try {
           const persona = await callbacks.loadPersona();
           if (persona) {
-            const parts: string[] = [config.instructions];
+            // Use the backend's systemPrompt as base if available, otherwise fall back to config
+            const base = persona.systemPrompt || config.instructions;
+            const parts: string[] = [base];
             if (persona.personaName) parts.push(`Your name is ${persona.personaName}.`);
             if (persona.personaTone) parts.push(`Speak in a ${persona.personaTone} tone.`);
             if (persona.preferredTerms) parts.push(`Preferred terms: ${persona.preferredTerms}.`);
@@ -131,11 +152,16 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
       await session.start({ agent, room: ctx.room });
 
-      // Set up transcription storage (only if persistMessages callback is available)
+      // Greet the user
+      session.generateReply();
+
+      // Set up transcription storage and keep entry alive until session closes.
+      // We must await the close cleanup here — if entry() returns early, the
+      // LiveKit framework may terminate the job before async cleanup finishes.
       if (callbacks?.persistMessages) {
-        const appSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG ?? '';
+        const envSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG ?? '';
         const roomName = ctx.room.name ?? '';
-        const sessionId = parseSessionIdFromRoom(roomName, appSlug);
+        const { sessionId } = parseRoomName(roomName, envSlug);
         const messageBuffer: BufferedMessage[] = [];
         // Keep a full transcript log for resolveConversation (separate from flush buffer)
         const allMessages: Array<{ role: string; content: string; ts: number }> = [];
@@ -151,8 +177,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           const batch = messageBuffer.splice(0);
           try {
             await persistMessages(batch);
-          } catch {
-            // Re-queue on failure
+          } catch (err) {
+            console.warn('[agent] Failed to persist messages, re-queuing:', err);
             messageBuffer.unshift(...batch);
           }
         };
@@ -169,6 +195,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           // Strip <noise> tags from Gemini transcription (common with telephony audio)
           const transcript = (ev.transcript ?? '').replace(/<noise>/gi, '').trim();
           if (!transcript || !ev.isFinal) return;
+          console.log(`[agent] User said: "${transcript}"`);
           const ts = ev.createdAt ?? Date.now();
           messageBuffer.push({
             sessionId,
@@ -188,6 +215,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           if (!item || item.role !== 'assistant') return;
           const text = item.textContent;
           if (!text) return;
+          console.log(`[agent] Agent said: "${text.slice(0, 80)}..."`);
           const ts = item.createdAt ?? Date.now();
           messageBuffer.push({
             sessionId,
@@ -201,27 +229,29 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           allMessages.push({ role: 'agent', content: text, ts });
         });
 
-        // On session close, flush remaining and update conversation
-        emitter.on('close', async () => {
-          if (flushTimer) {
-            clearInterval(flushTimer);
-            flushTimer = null;
-          }
-          await flushMessages();
-
-          // Update conversation status to resolved, include full transcript
-          if (resolveConversation) {
-            try {
-              await resolveConversation(sessionId, channel, sessionStart, allMessages);
-            } catch {
-              // Best-effort
+        // Await session close so entry() stays alive for the full cleanup
+        await new Promise<void>((resolve) => {
+          emitter.on('close', async () => {
+            console.log(`[agent] Session closed for ${roomName}, flushing ${messageBuffer.length} buffered + ${allMessages.length} total messages`);
+            if (flushTimer) {
+              clearInterval(flushTimer);
+              flushTimer = null;
             }
-          }
+            await flushMessages();
+
+            // Update conversation status to resolved, include full transcript
+            if (resolveConversation) {
+              try {
+                await resolveConversation(sessionId, channel, sessionStart, allMessages);
+                console.log(`[agent] Conversation resolved for session ${sessionId}`);
+              } catch (err) {
+                console.error('[agent] Failed to resolve conversation:', err);
+              }
+            }
+            resolve();
+          });
         });
       }
-
-      // Greet the user
-      session.generateReply();
     },
   });
 }

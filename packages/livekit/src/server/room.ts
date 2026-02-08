@@ -16,6 +16,8 @@ export interface CreateRoomOptions extends RoomOptions {
   maxParticipants?: number;
   /** Empty room timeout in seconds (default: 300) */
   emptyTimeout?: number;
+  /** Room metadata (JSON string) — available to agents via room.metadata */
+  metadata?: string;
 }
 
 function getClient(options?: RoomOptions): RoomServiceClient {
@@ -38,6 +40,7 @@ export async function createRoom(options: CreateRoomOptions) {
     name: options.roomName,
     maxParticipants: options.maxParticipants ?? 2,
     emptyTimeout: options.emptyTimeout ?? 300,
+    metadata: options.metadata,
   });
 }
 

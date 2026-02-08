@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 
 const ChatBot = dynamic(
   () => import('@genai-voice/react').then((mod) => mod.ChatBot),
@@ -22,6 +25,8 @@ const CODE_SNIPPET = `import { ChatBot } from '@genai-voice/react';
 
 export default function ChatBotDemo() {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
+  const scenario = getScenarioById(scenarioId);
 
   if (!apiKey) {
     return (
@@ -35,9 +40,12 @@ export default function ChatBotDemo() {
     <div className="space-y-6 p-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <CardTitle>Drop-in ChatBot Widget</CardTitle>
-            <Badge variant="secondary">@genai-voice/react</Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CardTitle>Drop-in ChatBot Widget</CardTitle>
+              <Badge variant="secondary">@genai-voice/react</Badge>
+            </div>
+            <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
           </div>
           <CardDescription>
             The floating chat widget is in the bottom-right corner. Click it to start a conversation.
@@ -51,13 +59,14 @@ export default function ChatBotDemo() {
       </Card>
 
       <ChatBot
+        key={scenario.id}
         apiKey={apiKey}
         config={{
-          systemPrompt: 'You are a helpful voice assistant. Keep responses concise.',
+          systemPrompt: scenario.systemPrompt,
           modelId: 'gemini-2.5-flash-native-audio-preview-12-2025',
           replyAsAudio: true,
-          welcomeMessage: 'Hello! Click the mic or type a message to get started.',
-          chatTitle: 'Demo Assistant',
+          welcomeMessage: scenario.welcomeMessage,
+          chatTitle: scenario.chatTitle,
         }}
       />
     </div>

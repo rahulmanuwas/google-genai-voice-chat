@@ -16,8 +16,9 @@ async function generateEmbedding(text: string): Promise<number[]> {
   const ai = getGenAI();
   try {
     const result = await ai.models.embedContent({
-      model: "text-embedding-004",
+      model: "gemini-embedding-001",
       contents: text,
+      config: { outputDimensionality: 768 },
     });
     const values = result.embeddings?.[0]?.values;
     if (!values || values.length === 0) {

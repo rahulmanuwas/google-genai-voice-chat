@@ -156,6 +156,27 @@ LIVEKIT_URL=https://your-app.livekit.cloud
 npx convex run seed:seedApp '{"slug":"my-app","name":"My App","secret":"...","modelId":"gemini-2.5-flash-native-audio-preview-12-2025","replyAsAudio":true,"systemPrompt":"You are a helpful assistant."}'
 ```
 
+### Seed Demo Scenarios
+
+Three pre-built enterprise scenarios are available for the dashboard demo pages. Each includes full app config, tools, guardrail rules, and knowledge documents with vector embeddings:
+
+| Scenario | Slug | Tools | Rules | Knowledge Docs |
+|---|---|---|---|---|
+| Dentist Appointment | `demo-dentist` | `check_availability`, `reschedule_appointment`, `cancel_appointment` | Block medical advice, block competitor referrals | Office hours, services/pricing, insurance, cancellation policy, provider bios |
+| Earnings Call Explainer | `demo-earnings` | `lookup_metric`, `compare_quarters` | Block insider info, block stock tips, log forward-looking statements | Q4 financials, segment breakdown, FY2026 guidance, FY2025 results, analyst consensus |
+| E-commerce Support | `demo-ecommerce` | `lookup_order`, `initiate_return`, `check_inventory`, `transfer_to_human` | Block competitor comparisons, warn high-value refunds, block internal pricing | Shipping policy, return policy, products, loyalty program, FAQ |
+
+```bash
+# All 3 scenarios share the same secret as your demo app
+CONVEX_DEPLOY_KEY=... npx convex run seedScenarios:seedAll '{"secret":"your-app-secret"}'
+```
+
+The seed script is idempotent — re-running it updates existing records and skips duplicate guardrail rules.
+
+**Files:**
+- `convex/seedScenarios.ts` — `"use node"` action with full scenario data + embedding generation
+- `convex/seedScenariosDb.ts` — mutation that upserts apps, tools, and guardrail rules
+
 ## Usage Examples
 
 ### Create a Session Token (Browser-Safe Auth)
@@ -404,7 +425,7 @@ Returns live metrics:
 
 ## Knowledge Management (RAG)
 
-The knowledge system uses Convex native vector search with Gemini `text-embedding-004` embeddings (768 dimensions).
+The knowledge system uses Convex native vector search with Gemini `gemini-embedding-001` embeddings (768 dimensions via `outputDimensionality`).
 
 **How it works:**
 1. Upload a document via `POST /api/knowledge` -- the backend auto-generates an embedding

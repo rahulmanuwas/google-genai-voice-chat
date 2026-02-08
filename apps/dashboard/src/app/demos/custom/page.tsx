@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { useVoiceChat } from '@genai-voice/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { DEFAULT_SCENARIO, getScenarioById, type Scenario } from '@/lib/scenarios';
 
 const CODE_SNIPPET = `import { useVoiceChat } from '@genai-voice/react';
 
@@ -23,6 +26,8 @@ const {
 
 export default function CustomDemo() {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
+  const scenario = getScenarioById(scenarioId);
 
   if (!apiKey) {
     return (
@@ -36,16 +41,19 @@ export default function CustomDemo() {
     <div className="space-y-6 p-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <CardTitle>Custom UI with useVoiceChat</CardTitle>
-            <Badge variant="secondary">@genai-voice/react</Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CardTitle>Custom UI with useVoiceChat</CardTitle>
+              <Badge variant="secondary">@genai-voice/react</Badge>
+            </div>
+            <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
           </div>
           <CardDescription>
             Full control over UI/UX by building custom components around the useVoiceChat hook.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <VoiceChatUI apiKey={apiKey} />
+          <VoiceChatUI key={scenario.id} apiKey={apiKey} scenario={scenario} />
         </CardContent>
       </Card>
 
@@ -63,7 +71,7 @@ export default function CustomDemo() {
   );
 }
 
-function VoiceChatUI({ apiKey }: { apiKey: string }) {
+function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario }) {
   const {
     messages,
     isConnected,
@@ -77,7 +85,7 @@ function VoiceChatUI({ apiKey }: { apiKey: string }) {
   } = useVoiceChat({
     apiKey,
     config: {
-      systemPrompt: 'You are a helpful voice assistant. Keep responses brief and conversational.',
+      systemPrompt: scenario.systemPrompt,
       modelId: 'gemini-2.5-flash-native-audio-preview-12-2025',
       replyAsAudio: true,
     },
