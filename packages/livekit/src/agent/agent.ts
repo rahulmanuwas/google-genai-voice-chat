@@ -6,7 +6,7 @@ import {
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
 import type { LiveKitAgentConfig } from '../types';
-import type { AgentCallbacks, BufferedMessage } from './callbacks';
+import type { AgentCallbacks, AgentEvent, BufferedMessage } from './callbacks';
 import { createConvexAgentCallbacks } from './callbacks';
 import { createToolsFromConvex } from './tools.js';
 
@@ -68,6 +68,19 @@ function hasRemoteParticipants(ctx: JobContext): boolean {
     return true;
   } catch {
     return true;
+  }
+}
+
+/** Map a session close reason to a conversation status + resolution */
+function mapCloseReasonToResolution(reason: string): { status: string; resolution: string } {
+  switch (reason) {
+    case 'error':
+      return { status: 'resolved', resolution: 'error' };
+    case 'job_shutdown':
+    case 'shutdown':
+      return { status: 'resolved', resolution: 'shutdown' };
+    default:
+      return { status: 'resolved', resolution: reason === 'unknown' ? 'completed' : reason };
   }
 }
 
@@ -203,12 +216,24 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // --- Shared state across reconnect sessions ---
         const sessionId = roomSessionId;
         const messageBuffer: BufferedMessage[] = [];
+        const eventBuffer: AgentEvent[] = [];
         const allMessages: Array<{ role: string; content: string; ts: number }> = [];
         const sessionStart = Date.now();
         const persistMessages = callbacks?.persistMessages;
         const resolveConversation = callbacks?.resolveConversation;
+        const emitEvents = callbacks?.emitEvents;
+        let lastCloseReason = 'unknown';
+        let conversationResolved = false;
 
-        // Flush timer runs across all sessions
+        const pushEvent = (eventType: string, data?: Record<string, unknown>) => {
+          eventBuffer.push({
+            eventType,
+            ts: Date.now(),
+            data: data ? JSON.stringify(data) : undefined,
+          });
+        };
+
+        // Flush helpers
         const flushMessages = async () => {
           if (messageBuffer.length === 0 || !persistMessages) return;
           const batch = messageBuffer.splice(0);
@@ -219,12 +244,55 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             messageBuffer.unshift(...batch);
           }
         };
-        const flushTimer = setInterval(flushMessages, 2000);
+
+        const flushEvents = async () => {
+          if (eventBuffer.length === 0 || !emitEvents) return;
+          const batch = eventBuffer.splice(0);
+          try {
+            await emitEvents(sessionId, batch);
+          } catch (err) {
+            console.warn('[agent] Failed to emit events, re-queuing:', err);
+            eventBuffer.unshift(...batch);
+          }
+        };
+
+        const flushAll = async () => {
+          await flushMessages();
+          await flushEvents();
+        };
+
+        const flushTimer = setInterval(flushAll, 2000);
 
         // Reusable agent config (stateless, can be reused across sessions)
         const agent = new voice.Agent({
           instructions,
           tools: loadedTools,
+        });
+
+        // --- SIGTERM safety: flush data + resolve conversation on shutdown ---
+        ctx.addShutdownCallback(async () => {
+          console.log('[agent] Shutdown callback triggered');
+          clearInterval(flushTimer);
+
+          pushEvent('session_ended', {
+            reason: 'shutdown',
+            totalMessages: allMessages.length,
+            durationMs: Date.now() - sessionStart,
+          });
+          await flushAll();
+
+          if (resolveConversation && !conversationResolved) {
+            conversationResolved = true;
+            try {
+              await resolveConversation(sessionId, channel, sessionStart, allMessages, {
+                status: 'resolved',
+                resolution: 'shutdown',
+              });
+              console.log('[agent] Conversation resolved (shutdown)');
+            } catch (err) {
+              console.error('[agent] Shutdown: failed to resolve conversation:', err);
+            }
+          }
         });
 
         // --- Session loop with auto-reconnect ---
@@ -285,6 +353,30 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               allMessages.push({ role: 'agent', content: text, ts });
             });
 
+            // Wire lifecycle event listeners
+            emitter.on('agent_state_changed', (state: string) => {
+              pushEvent('agent_state_changed', { state });
+            });
+
+            emitter.on('user_state_changed', (state: string) => {
+              pushEvent('user_state_changed', { state });
+            });
+
+            emitter.on('function_tools_executed', (ev: { toolNames?: string[] }) => {
+              pushEvent('function_tools_executed', { toolNames: ev.toolNames ?? [] });
+            });
+
+            emitter.on('metrics_collected', (metrics: Record<string, unknown>) => {
+              pushEvent('metrics_collected', { metrics });
+            });
+
+            emitter.on('error', (ev: { message?: string; recoverable?: boolean }) => {
+              pushEvent('agent_error', {
+                message: ev.message ?? 'unknown error',
+                recoverable: ev.recoverable ?? false,
+              });
+            });
+
             // Wait for this session to close and capture the reason
             const closeInfo = await new Promise<{ reason: string; error?: unknown }>((resolve) => {
               emitter.on('close', (info?: { reason?: string; error?: unknown }) => {
@@ -295,6 +387,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               });
             });
 
+            lastCloseReason = closeInfo.reason;
             console.log(`[agent] Session closed (reason: ${closeInfo.reason})`);
 
             // Decide whether to reconnect
@@ -320,16 +413,25 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             break;
           }
         } finally {
-          // Cleanup: stop flush timer, flush remaining, resolve conversation
+          // Cleanup: stop flush timer, emit final event, flush everything, resolve conversation
           clearInterval(flushTimer);
-          await flushMessages();
 
+          pushEvent('session_ended', {
+            reason: lastCloseReason,
+            totalMessages: allMessages.length,
+            reconnectAttempts: attempt,
+            durationMs: Date.now() - sessionStart,
+          });
+
+          await flushAll();
           console.log(`[agent] Cleanup for ${roomName}: flushed ${allMessages.length} total messages`);
 
-          if (resolveConversation) {
+          if (resolveConversation && !conversationResolved) {
+            conversationResolved = true;
+            const { status, resolution } = mapCloseReasonToResolution(lastCloseReason);
             try {
-              await resolveConversation(sessionId, channel, sessionStart, allMessages);
-              console.log(`[agent] Conversation resolved for session ${sessionId}`);
+              await resolveConversation(sessionId, channel, sessionStart, allMessages, { status, resolution });
+              console.log(`[agent] Conversation resolved: ${resolution}`);
             } catch (err) {
               console.error('[agent] Failed to resolve conversation:', err);
             }

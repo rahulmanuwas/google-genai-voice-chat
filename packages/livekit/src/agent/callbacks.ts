@@ -17,6 +17,14 @@ export interface AgentPersonaData {
   blockedTerms?: string;
 }
 
+/** A lifecycle event emitted by the agent (state changes, errors, metrics, etc.) */
+export interface AgentEvent {
+  eventType: string;
+  ts: number;
+  /** JSON-stringified payload */
+  data?: string;
+}
+
 /** A single transcription message to persist */
 export interface BufferedMessage {
   sessionId: string;
@@ -42,7 +50,11 @@ export interface AgentCallbacks {
     channel: string,
     startedAt: number,
     messages?: Array<{ role: string; content: string; ts: number }>,
+    options?: { status?: string; resolution?: string },
   ) => Promise<void>;
+
+  /** Emit lifecycle events (agent state, errors, metrics, tool calls) */
+  emitEvents?: (sessionId: string, events: AgentEvent[]) => Promise<void>;
 }
 
 /** Config for the built-in Convex callbacks factory */
@@ -97,6 +109,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
       channel: string,
       startedAt: number,
       messages?: Array<{ role: string; content: string; ts: number }>,
+      options?: { status?: string; resolution?: string },
     ): Promise<void> {
       const res = await fetch(`${convexUrl}/api/conversations`, {
         method: 'POST',
@@ -107,13 +120,27 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
           sessionId,
           startedAt,
           messages: messages ?? [],
-          status: 'resolved',
+          status: options?.status ?? 'resolved',
           channel,
+          ...(options?.resolution !== undefined && { resolution: options.resolution }),
         }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(`resolveConversation failed (${res.status}): ${text}`);
+      }
+    },
+
+    async emitEvents(sessionId: string, events: AgentEvent[]): Promise<void> {
+      if (events.length === 0) return;
+      const res = await fetch(`${convexUrl}/api/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appSlug, appSecret, sessionId, events }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`emitEvents failed (${res.status}): ${text}`);
       }
     },
   };

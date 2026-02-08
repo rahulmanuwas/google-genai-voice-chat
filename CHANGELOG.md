@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backend-agnostic via callback injection (`AgentCallbacks`, `LiveKitRoomCallbacks`) with `createConvexAgentCallbacks()` and `createConvexRoomCallbacks()` factories
 - **Live transcriptions**: Both user and agent speech are transcribed and displayed chronologically in the LiveKit voice chat UI via `useTranscriptions()` hook
 - **Input audio transcription**: Gemini Live sessions now include `inputAudioTranscription` for user speech-to-text alongside agent audio
+- **Agent lifecycle events**: New `AgentEvent` type and `emitEvents` callback for tracking agent state changes, errors, metrics, and tool executions. Events are buffered and flushed every 2s alongside transcription messages
+- **Conversation resolution codes**: `resolveConversation` now accepts `options?: { status, resolution }` to set meaningful resolution codes (`completed`, `error`, `shutdown`, `participant_disconnected`) instead of generic `resolved`
+- **Handoff status protection**: Conversations in `handed_off` status cannot be overwritten back to `resolved` by the agent's automatic resolution
+- **SIGTERM safety**: Agent registers `ctx.addShutdownCallback()` to flush pending messages/events and resolve conversations before process exit (e.g. Railway redeploy)
 
 ### Changed
 - Moved `src/` to `packages/react/src/` (published as `@genai-voice/react`)

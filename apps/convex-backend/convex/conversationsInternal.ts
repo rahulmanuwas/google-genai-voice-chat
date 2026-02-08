@@ -21,11 +21,15 @@ export const upsertConversation = internalMutation({
       .first();
 
     if (existing) {
+      // Don't overwrite handed_off status — handoffs are managed separately
+      const shouldUpdateStatus = args.status !== undefined
+        && !(existing.status === 'handed_off' && args.status === 'resolved');
+
       await ctx.db.patch(existing._id, {
         endedAt: Date.now(),
         messageCount: args.messageCount,
         transcript: args.transcript,
-        ...(args.status !== undefined && { status: args.status }),
+        ...(shouldUpdateStatus && { status: args.status }),
         ...(args.channel !== undefined && { channel: args.channel }),
         ...(args.resolution !== undefined && { resolution: args.resolution }),
       });

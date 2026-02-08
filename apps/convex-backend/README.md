@@ -129,6 +129,8 @@ Conversations track their status through the following states:
 | `resolved` | Agent session ends or explicitly set via `POST /api/conversations` |
 | `abandoned` | Explicitly set when conversation is abandoned |
 
+**Status guard**: Once a conversation is in `handed_off` status, it cannot be overwritten back to `resolved` by the agent's automatic resolution. This prevents accidental status downgrades — handoffs are managed separately via `PATCH /api/handoffs`.
+
 The status is used by `GET /api/analytics/overview` to compute resolution rate and other metrics.
 
 ## Setup
@@ -281,7 +283,8 @@ curl -X POST https://your-deployment.convex.cloud/api/conversations \
     "startedAt": 1700000000000,
     "messages": [{"role":"user","content":"Hello","ts":1700000000}],
     "status": "resolved",
-    "channel": "voice-webrtc"
+    "channel": "voice-webrtc",
+    "resolution": "completed"
   }'
 ```
 
@@ -482,7 +485,7 @@ The `messages` table stores real-time transcription data from voice conversation
 - `isFinal` flag (only final transcriptions are stored by default)
 - `createdAt` timestamp
 
-The LiveKit agent automatically streams transcriptions to `POST /api/messages` every 2 seconds during a conversation. On session close, remaining messages are flushed and the conversation status is updated to `resolved`.
+The LiveKit agent automatically streams transcriptions to `POST /api/messages` every 2 seconds during a conversation. On session close, remaining messages and lifecycle events are flushed, and the conversation is resolved with a meaningful `resolution` code (e.g. `completed`, `error`, `shutdown`, `participant_disconnected`).
 
 ## Agent Tool Loading
 

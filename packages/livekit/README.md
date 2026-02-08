@@ -139,12 +139,16 @@ APP_SECRET=your-app-secret
 Implement `AgentCallbacks` to use any backend:
 
 ```typescript
-import { createAgentDefinition, type AgentCallbacks } from '@genai-voice/livekit/agent';
+import { createAgentDefinition, type AgentCallbacks, type AgentEvent } from '@genai-voice/livekit/agent';
 
 const callbacks: AgentCallbacks = {
   loadPersona: async () => ({ personaName: 'Aria', personaTone: 'friendly' }),
   persistMessages: async (messages) => { /* your storage logic */ },
-  resolveConversation: async (sessionId, channel, startedAt) => { /* your logic */ },
+  resolveConversation: async (sessionId, channel, startedAt, messages, options) => {
+    // options?.status — e.g. 'resolved'
+    // options?.resolution — e.g. 'completed', 'error', 'shutdown', 'participant_disconnected'
+  },
+  emitEvents: async (sessionId, events) => { /* store lifecycle events */ },
 };
 
 createAgentDefinition({ instructions: '...', callbacks });
@@ -294,6 +298,31 @@ When the agent has `persistMessages` callback configured (via `createConvexAgent
 4. **Session cleanup** — on close, remaining messages are flushed and conversation status is set to `resolved`
 
 Stored messages can be retrieved via `GET /api/messages?sessionId=...` for review, analytics, or quality assurance.
+
+## Agent Lifecycle Events
+
+When `emitEvents` is configured, the agent emits lifecycle events (`AgentEvent`) to the backend for observability. Events are buffered and flushed every 2 seconds alongside transcription messages.
+
+| Event Type | Data | When |
+|---|---|---|
+| `agent_state_changed` | `{ state }` | Agent transitions (listening, speaking, thinking) |
+| `user_state_changed` | `{ state }` | User transitions (speaking, idle) |
+| `function_tools_executed` | `{ toolNames }` | After tool calls complete |
+| `metrics_collected` | `{ metrics }` | Timing/usage metrics from the session |
+| `agent_error` | `{ message, recoverable }` | When an error occurs during the session |
+| `session_ended` | `{ reason, totalMessages, reconnectAttempts, durationMs }` | Final event before cleanup |
+
+### Conversation Resolution
+
+When a session ends, the agent maps the close reason to a meaningful resolution:
+
+| Close Reason | Resolution |
+|---|---|
+| Normal close / user left | `completed` or `participant_disconnected` |
+| Gemini error (max reconnects exceeded) | `error` |
+| Process shutdown (SIGTERM) | `shutdown` |
+
+The agent also registers a `ctx.addShutdownCallback()` as a safety net — if the process is killed (e.g. Railway redeploy), pending messages and events are flushed and the conversation is resolved with `resolution: 'shutdown'` before exit. A `conversationResolved` flag prevents double-resolution between the normal `finally` block and the shutdown callback.
 
 ## Architecture
 
