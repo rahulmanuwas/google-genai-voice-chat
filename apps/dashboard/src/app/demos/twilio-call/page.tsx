@@ -23,6 +23,7 @@ export default function TwilioCallDemo() {
   const [to, setTo] = useState('');
   const [isStarting, setIsStarting] = useState(false);
   const [result, setResult] = useState<CallResult | null>(null);
+  const [callEnded, setCallEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
   const scenario = getScenarioById(scenarioId);
@@ -31,6 +32,7 @@ export default function TwilioCallDemo() {
     setIsStarting(true);
     setError(null);
     setResult(null);
+    setCallEnded(false);
 
     try {
       const res = await fetch('/api/twilio/call', {
@@ -57,8 +59,13 @@ export default function TwilioCallDemo() {
     }
   }, [to, scenario.appSlug]);
 
-  const endCall = useCallback(() => {
+  const onCallEnded = useCallback(() => {
+    setCallEnded(true);
+  }, []);
+
+  const resetCall = useCallback(() => {
     setResult(null);
+    setCallEnded(false);
   }, []);
 
   return (
@@ -95,15 +102,22 @@ export default function TwilioCallDemo() {
               <Button onClick={start} disabled={isStarting}>
                 {isStarting ? 'Starting...' : 'Start Call'}
               </Button>
+            ) : callEnded ? (
+              <Button onClick={resetCall}>New Call</Button>
             ) : (
-              <Button variant="destructive" onClick={endCall}>
+              <Button variant="destructive" onClick={resetCall}>
                 End Call
               </Button>
             )}
 
-            {result && (
+            {result && !callEnded && (
               <span className="text-sm text-green-500">
                 Connected to room: <code className="text-xs">{result.roomName}</code>
+              </span>
+            )}
+            {callEnded && (
+              <span className="text-sm text-muted-foreground">
+                Call ended
               </span>
             )}
           </div>
@@ -125,6 +139,7 @@ export default function TwilioCallDemo() {
             <CallRoom
               token={result.viewerToken}
               serverUrl={result.serverUrl}
+              onCallEnded={onCallEnded}
             />
           </CardContent>
         </Card>

@@ -17,12 +17,14 @@ export default function TwilioCallDemo() {
   const [to, setTo] = useState('');
   const [isStarting, setIsStarting] = useState(false);
   const [result, setResult] = useState<CallResult | null>(null);
+  const [callEnded, setCallEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const start = useCallback(async () => {
     setIsStarting(true);
     setError(null);
     setResult(null);
+    setCallEnded(false);
 
     try {
       const res = await fetch('/api/twilio/call', {
@@ -49,8 +51,13 @@ export default function TwilioCallDemo() {
     }
   }, [to]);
 
-  const endCall = useCallback(() => {
+  const onCallEnded = useCallback(() => {
+    setCallEnded(true);
+  }, []);
+
+  const resetCall = useCallback(() => {
     setResult(null);
+    setCallEnded(false);
   }, []);
 
   return (
@@ -117,9 +124,24 @@ export default function TwilioCallDemo() {
             >
               {isStarting ? 'Starting...' : 'Start Call'}
             </button>
+          ) : callEnded ? (
+            <button
+              onClick={resetCall}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 8,
+                border: 'none',
+                background: 'var(--accent)',
+                color: 'white',
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              New Call
+            </button>
           ) : (
             <button
-              onClick={endCall}
+              onClick={resetCall}
               style={{
                 padding: '10px 18px',
                 borderRadius: 8,
@@ -134,9 +156,14 @@ export default function TwilioCallDemo() {
             </button>
           )}
 
-          {result && (
+          {result && !callEnded && (
             <span style={{ fontSize: 13, color: '#22c55e' }}>
               Connected to room: <code>{result.roomName}</code>
+            </span>
+          )}
+          {callEnded && (
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+              Call ended
             </span>
           )}
         </div>
@@ -156,6 +183,7 @@ export default function TwilioCallDemo() {
           <CallRoom
             token={result.viewerToken}
             serverUrl={result.serverUrl}
+            onCallEnded={onCallEnded}
           />
         </div>
       )}

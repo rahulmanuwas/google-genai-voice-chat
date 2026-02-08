@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       fromNumber,
       participantIdentity: `pstn-${to}`,
       participantName: to,
-      waitUntilAnswered: false,
+      waitUntilAnswered: true,
     });
 
     const viewerIdentity = `viewer-${Math.random().toString(36).slice(2, 8)}`;

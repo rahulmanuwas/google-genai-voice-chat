@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       fromNumber,
       participantIdentity: `pstn-${to}`,
       participantName: to,
-      waitUntilAnswered: false,
+      waitUntilAnswered: true,
     });
 
     // Step 3: Generate a viewer token so the browser can join the room and see transcriptions

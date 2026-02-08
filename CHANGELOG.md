@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `@google/genai` peer dependency to `>=1.0.0` for `inputAudioTranscription` support
 
 ### Fixed
+- **SIP call timing**: Changed `waitUntilAnswered` to `true` so the agent only starts speaking after the callee answers (fixes silence-then-mid-sentence issue on outbound PSTN calls)
+- **Call-end detection**: Added `PstnParticipantWatcher` to detect when the phone callee hangs up, and `onDisconnected` fallback on `<LiveKitRoom>`, so the dashboard/console UI updates to show "Call ended" instead of staying stuck on "Connected"
 - **Convex "use node" constraint**: Split `*Internal.ts` files into `*Internal.ts` (actions only, `"use node"`) + `*Db.ts` (mutations/queries) to comply with Convex's requirement that Node.js modules can only export actions
 - **LiveKit agent default export**: Added required `export default` for `@livekit/agents` framework compatibility
 - **LiveKit microphone publishing**: Added `audio={true}` to `<LiveKitRoom>` so the agent can hear user speech
