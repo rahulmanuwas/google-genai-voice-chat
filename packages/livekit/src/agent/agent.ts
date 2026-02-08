@@ -22,6 +22,10 @@ export interface AgentDefinitionOptions {
   tools?: llm.ToolContext;
   /** Backend-agnostic lifecycle callbacks (persona, messages, conversation) */
   callbacks?: AgentCallbacks;
+  /** Max auto-reconnect attempts on Gemini errors (default: 5) */
+  maxReconnects?: number;
+  /** Delay between reconnect attempts in ms (default: 2000) */
+  reconnectDelayMs?: number;
 }
 
 /**
@@ -51,9 +55,27 @@ function parseRoomName(roomName: string, fallbackAppSlug: string): { appSlug: st
   };
 }
 
+/** Check if the room still has remote (non-agent) participants */
+function hasRemoteParticipants(ctx: JobContext): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const room = ctx.room as any;
+    if (room.remoteParticipants) {
+      return room.remoteParticipants.size > 0;
+    }
+    // Fallback: assume participants are still there
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Create a LiveKit agent definition using Gemini Live API (speech-to-speech).
  * Uses google.beta.realtime.RealtimeModel for low-latency voice conversations.
+ *
+ * Auto-reconnects when Gemini errors out, up to maxReconnects times.
+ * Does NOT reconnect when the user disconnects or room empties.
  *
  * @see https://docs.livekit.io/agents/models/realtime/plugins/gemini/
  */
@@ -64,6 +86,9 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
     instructions: options?.instructions ?? 'You are a helpful voice AI assistant.',
     temperature: options?.temperature ?? 0.8,
   };
+
+  const maxReconnects = options?.maxReconnects ?? 5;
+  const reconnectDelayMs = options?.reconnectDelayMs ?? 2000;
 
   return defineAgent({
     entry: async (ctx: JobContext) => {
@@ -83,8 +108,6 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         console.log(`[agent] Connected to room: ${roomName}`);
 
         // Resolve callbacks: use provided callbacks, or auto-create from env vars.
-        // Parse appSlug from room name so the agent uses the correct app for each room
-        // (e.g. "demo-dentist" vs "demo") instead of always using the env APP_SLUG.
         let callbacks = options?.callbacks;
         if (!callbacks) {
           const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -99,15 +122,12 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           }
         }
 
-        // Start persona loading in parallel with waiting for participant.
-        // For SIP/PSTN calls the wait can be 5-10s (ring time), so loading
-        // the persona concurrently eliminates that latency.
+        // Load persona in parallel with waiting for participant
         const personaPromise = (async (): Promise<string> => {
           if (!callbacks?.loadPersona) return config.instructions;
           try {
             const persona = await callbacks.loadPersona();
             if (persona) {
-              // Use the backend's systemPrompt as base if available, otherwise fall back to config
               const base = persona.systemPrompt || config.instructions;
               const parts: string[] = [base];
               if (persona.personaName) parts.push(`Your name is ${persona.personaName}.`);
@@ -128,17 +148,12 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         console.log(`[agent] Participant joined: ${participant.identity}`);
 
         // Detect SIP/PSTN participants for channel tagging
-        // ParticipantKind.SIP = 3 in @livekit/rtc-node
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isSipParticipant = (participant as any).kind === 3
           || participant.identity?.startsWith('sip_');
         const channel = isSipParticipant ? 'voice-sip' : 'voice-webrtc';
 
-        // For SIP/PSTN calls, the SIP participant joins the room as soon as the
-        // call is *placed* (ringing), not when the callee *answers*. The audio
-        // track is only published once the call connects. Wait for it so the
-        // agent doesn't greet an unanswered phone.
-        // For browser users this resolves near-instantly (mic already publishing).
+        // For SIP calls wait for audio track (call might still be ringing)
         if (participant.trackPublications.size === 0) {
           console.log('[agent] Waiting for participant audio track...');
           await new Promise<void>((resolve) => {
@@ -152,126 +167,144 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           console.log('[agent] Audio track published');
         }
 
-        // Persona should be loaded by now (fetched during the wait above)
         const instructions = await personaPromise;
         console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
 
-        console.log(`[agent] Creating agent session (model: ${config.model}, voice: ${config.voice})`);
+        // --- Shared state across reconnect sessions ---
+        const envSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG ?? '';
+        const { sessionId } = parseRoomName(roomName, envSlug);
+        const messageBuffer: BufferedMessage[] = [];
+        const allMessages: Array<{ role: string; content: string; ts: number }> = [];
+        const sessionStart = Date.now();
+        const persistMessages = callbacks?.persistMessages;
+        const resolveConversation = callbacks?.resolveConversation;
+
+        // Flush timer runs across all sessions
+        const flushMessages = async () => {
+          if (messageBuffer.length === 0 || !persistMessages) return;
+          const batch = messageBuffer.splice(0);
+          try {
+            await persistMessages(batch);
+          } catch (err) {
+            console.warn('[agent] Failed to persist messages, re-queuing:', err);
+            messageBuffer.unshift(...batch);
+          }
+        };
+        const flushTimer = setInterval(flushMessages, 2000);
+
+        // Reusable agent config (stateless, can be reused across sessions)
         const agent = new voice.Agent({
           instructions,
           tools: options?.tools,
         });
 
-        const session = new voice.AgentSession({
-          llm: new google.beta.realtime.RealtimeModel({
-            model: config.model,
-            voice: config.voice,
-            temperature: config.temperature,
-            instructions,
-          }),
-        });
+        // --- Session loop with auto-reconnect ---
+        let attempt = 0;
+        let isFirstSession = true;
 
-        await session.start({ agent, room: ctx.room });
-        console.log('[agent] Session started, generating greeting');
+        try {
+          while (attempt <= maxReconnects) {
+            console.log(`[agent] Creating agent session (model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
 
-        // Greet the user
-        session.generateReply();
+            const session = new voice.AgentSession({
+              llm: new google.beta.realtime.RealtimeModel({
+                model: config.model,
+                voice: config.voice,
+                temperature: config.temperature,
+                instructions,
+              }),
+            });
 
-        // Set up transcription storage and keep entry alive until session closes.
-        // We must await the close cleanup here — if entry() returns early, the
-        // LiveKit framework may terminate the job before async cleanup finishes.
-        if (callbacks?.persistMessages) {
-          const envSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG ?? '';
-          const { sessionId } = parseRoomName(roomName, envSlug);
-          const messageBuffer: BufferedMessage[] = [];
-          // Keep a full transcript log for resolveConversation (separate from flush buffer)
-          const allMessages: Array<{ role: string; content: string; ts: number }> = [];
-          const sessionStart = Date.now();
-          let flushTimer: ReturnType<typeof setInterval> | null = null;
+            await session.start({ agent, room: ctx.room });
+            console.log('[agent] Session started');
 
-          // Capture callback refs for use in closures
-          const persistMessages = callbacks.persistMessages;
-          const resolveConversation = callbacks.resolveConversation;
-
-          const flushMessages = async () => {
-            if (messageBuffer.length === 0) return;
-            const batch = messageBuffer.splice(0);
-            try {
-              await persistMessages(batch);
-            } catch (err) {
-              console.warn('[agent] Failed to persist messages, re-queuing:', err);
-              messageBuffer.unshift(...batch);
+            if (isFirstSession) {
+              session.generateReply();
+              console.log('[agent] Greeting generated');
+              isFirstSession = false;
             }
-          };
 
-          // Flush every 2 seconds
-          flushTimer = setInterval(flushMessages, 2000);
+            // Wire transcription listeners for this session
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const emitter = session as any;
 
-          // Use the emitter with string event names (enum values resolve to these strings)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const emitter = session as any;
-
-          // Capture user speech transcriptions
-          emitter.on('user_input_transcribed', (ev: { transcript: string; isFinal: boolean; createdAt: number }) => {
-            // Strip <noise> tags from Gemini transcription (common with telephony audio)
-            const transcript = (ev.transcript ?? '').replace(/<noise>/gi, '').trim();
-            if (!transcript || !ev.isFinal) return;
-            console.log(`[agent] User said: "${transcript}"`);
-            const ts = ev.createdAt ?? Date.now();
-            messageBuffer.push({
-              sessionId,
-              roomName,
-              participantIdentity: 'user',
-              role: 'user',
-              content: transcript,
-              isFinal: true,
-              createdAt: ts,
+            emitter.on('user_input_transcribed', (ev: { transcript: string; isFinal: boolean; createdAt: number }) => {
+              const transcript = (ev.transcript ?? '').replace(/<noise>/gi, '').trim();
+              if (!transcript || !ev.isFinal) return;
+              console.log(`[agent] User said: "${transcript}"`);
+              const ts = ev.createdAt ?? Date.now();
+              messageBuffer.push({
+                sessionId, roomName,
+                participantIdentity: 'user', role: 'user',
+                content: transcript, isFinal: true, createdAt: ts,
+              });
+              allMessages.push({ role: 'user', content: transcript, ts });
             });
-            allMessages.push({ role: 'user', content: transcript, ts });
-          });
 
-          // Capture agent responses
-          emitter.on('conversation_item_added', (ev: { item: { role: string; textContent?: string; createdAt: number } }) => {
-            const item = ev.item;
-            if (!item || item.role !== 'assistant') return;
-            const text = item.textContent;
-            if (!text) return;
-            console.log(`[agent] Agent said: "${text.slice(0, 80)}..."`);
-            const ts = item.createdAt ?? Date.now();
-            messageBuffer.push({
-              sessionId,
-              roomName,
-              participantIdentity: 'agent',
-              role: 'agent',
-              content: text,
-              isFinal: true,
-              createdAt: ts,
+            emitter.on('conversation_item_added', (ev: { item: { role: string; textContent?: string; createdAt: number } }) => {
+              const item = ev.item;
+              if (!item || item.role !== 'assistant') return;
+              const text = item.textContent;
+              if (!text) return;
+              console.log(`[agent] Agent said: "${text.slice(0, 80)}..."`);
+              const ts = item.createdAt ?? Date.now();
+              messageBuffer.push({
+                sessionId, roomName,
+                participantIdentity: 'agent', role: 'agent',
+                content: text, isFinal: true, createdAt: ts,
+              });
+              allMessages.push({ role: 'agent', content: text, ts });
             });
-            allMessages.push({ role: 'agent', content: text, ts });
-          });
 
-          // Await session close so entry() stays alive for the full cleanup
-          await new Promise<void>((resolve) => {
-            emitter.on('close', async () => {
-              console.log(`[agent] Session closed for ${roomName}, flushing ${messageBuffer.length} buffered + ${allMessages.length} total messages`);
-              if (flushTimer) {
-                clearInterval(flushTimer);
-                flushTimer = null;
+            // Wait for this session to close and capture the reason
+            const closeInfo = await new Promise<{ reason: string; error?: unknown }>((resolve) => {
+              emitter.on('close', (info?: { reason?: string; error?: unknown }) => {
+                resolve({
+                  reason: info?.reason ?? 'unknown',
+                  error: info?.error,
+                });
+              });
+            });
+
+            console.log(`[agent] Session closed (reason: ${closeInfo.reason})`);
+
+            // Decide whether to reconnect
+            if (closeInfo.reason === 'error') {
+              // Check if anyone is still in the room
+              if (!hasRemoteParticipants(ctx)) {
+                console.log('[agent] No remote participants left — not reconnecting');
+                break;
               }
-              await flushMessages();
 
-              // Update conversation status to resolved, include full transcript
-              if (resolveConversation) {
-                try {
-                  await resolveConversation(sessionId, channel, sessionStart, allMessages);
-                  console.log(`[agent] Conversation resolved for session ${sessionId}`);
-                } catch (err) {
-                  console.error('[agent] Failed to resolve conversation:', err);
-                }
+              attempt++;
+              if (attempt > maxReconnects) {
+                console.error(`[agent] Max reconnects (${maxReconnects}) exceeded — giving up`);
+                break;
               }
-              resolve();
-            });
-          });
+
+              console.log(`[agent] Gemini error, reconnecting in ${reconnectDelayMs}ms (attempt ${attempt}/${maxReconnects})...`);
+              await new Promise((r) => setTimeout(r, reconnectDelayMs));
+              continue;
+            }
+
+            // Normal close (user left, room ended, etc.) — exit loop
+            break;
+          }
+        } finally {
+          // Cleanup: stop flush timer, flush remaining, resolve conversation
+          clearInterval(flushTimer);
+          await flushMessages();
+
+          console.log(`[agent] Cleanup for ${roomName}: flushed ${allMessages.length} total messages`);
+
+          if (resolveConversation) {
+            try {
+              await resolveConversation(sessionId, channel, sessionStart, allMessages);
+              console.log(`[agent] Conversation resolved for session ${sessionId}`);
+            } catch (err) {
+              console.error('[agent] Failed to resolve conversation:', err);
+            }
+          }
         }
       } catch (err) {
         console.error(`[agent] FATAL error in entry() for room ${roomName}:`, err);
