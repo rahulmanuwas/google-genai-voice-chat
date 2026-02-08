@@ -103,6 +103,9 @@ export interface VoiceChatConfig {
     /** Timeout for initial connection (ms) */
     connectTimeoutMs?: number;
 
+    /** Max retries for initial connect() before giving up */
+    connectMaxRetries?: number;
+
     /** Max reconnection attempts before giving up */
     reconnectMaxRetries?: number;
 
@@ -159,6 +162,12 @@ export interface VoiceChatConfig {
 
     /** Drop policy when input queue overflows */
     inputDropPolicy?: AudioDropPolicy;
+
+    /** Keepalive check interval in ms (default: 15000). 0 disables keepalive. */
+    keepaliveIntervalMs?: number;
+
+    /** Max time without a message before assuming connection is dead (ms, default: 30000) */
+    keepaliveTimeoutMs?: number;
 
     /** Clear stored session handle on mount (default: true) */
     clearSessionOnMount?: boolean;

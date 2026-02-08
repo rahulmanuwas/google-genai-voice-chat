@@ -69,6 +69,8 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     const lastDisconnectRef = useRef<{ code: number; reason: string } | null>(null);
     const apiKeyRef = useRef(apiKey);
     const getApiKeyRef = useRef(getApiKey);
+    const lastMessageAtRef = useRef<number>(0);
+    const keepaliveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Keep callbacks in refs to avoid stale closures
     const onMessageRef = useRef(onMessage);
@@ -203,6 +205,49 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             void attemptReconnectionRef.current();
         }, Math.max(0, finalDelay));
     }, [clearReconnectTimer, emitEvent, getJitteredDelay]);
+
+    const clearKeepaliveTimer = useCallback(() => {
+        if (keepaliveTimerRef.current) {
+            clearInterval(keepaliveTimerRef.current);
+            keepaliveTimerRef.current = null;
+        }
+    }, []);
+
+    const startKeepaliveTimer = useCallback(() => {
+        clearKeepaliveTimer();
+        const intervalMs = config.keepaliveIntervalMs ?? 15000;
+        const timeoutMs = config.keepaliveTimeoutMs ?? 30000;
+        if (intervalMs <= 0) return;
+
+        lastMessageAtRef.current = Date.now();
+        keepaliveTimerRef.current = setInterval(() => {
+            if (!isConnectedRef.current) {
+                clearKeepaliveTimer();
+                return;
+            }
+            const elapsed = Date.now() - lastMessageAtRef.current;
+            if (elapsed >= timeoutMs) {
+                console.warn(`Keepalive timeout: no message received in ${elapsed}ms`);
+                emitEvent('session_keepalive_timeout', { elapsedMs: elapsed, timeoutMs });
+                clearKeepaliveTimer();
+
+                // Force close the stale session and trigger reconnect
+                if (sessionRef.current) {
+                    try {
+                        sessionRef.current.close();
+                    } catch {
+                        // Ignore
+                    }
+                    sessionRef.current = null;
+                }
+                setIsConnected(false);
+
+                if (shouldReconnectRef.current && !isReconnectingRef.current) {
+                    scheduleReconnect('keepalive_timeout', getBackoffDelay(1));
+                }
+            }
+        }, intervalMs);
+    }, [config.keepaliveIntervalMs, config.keepaliveTimeoutMs, clearKeepaliveTimer, emitEvent, scheduleReconnect, getBackoffDelay]);
 
     const handleInternalMessage = useCallback((msg: LiveServerMessage) => {
         // Handle session resumption updates
@@ -341,11 +386,13 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                         clearReconnectTimer();
                         shouldReconnectRef.current = true;
                         offlineRef.current = false;
+                        startKeepaliveTimer();
                         emitEvent('session_connected');
                         onConnectedRef.current?.();
                     },
                     onmessage: (msg: LiveServerMessage) => {
                         if (isStale()) return;
+                        lastMessageAtRef.current = Date.now();
                         handleInternalMessage(msg);
                     },
                     onerror: (err: Event | string) => {
@@ -357,6 +404,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                     },
                     onclose: (event) => {
                         if (isStale()) return;
+                        clearKeepaliveTimer();
                         const code = event?.code || 0;
                         const reason = event?.reason || '';
                         const closeReason = closeReasonRef.current;
@@ -455,7 +503,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             onErrorRef.current?.(`Failed to initialize: ${(err as Error).message}`);
             return false;
         }
-    }, [config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext, emitEvent, scheduleReconnect, clearReconnectTimer, resolveApiKey, getBackoffDelay]);
+    }, [config, handleInternalMessage, clearSessionHandle, ensurePlaybackContext, emitEvent, scheduleReconnect, clearReconnectTimer, resolveApiKey, getBackoffDelay, startKeepaliveTimer, clearKeepaliveTimer]);
 
     const initializeSessionWithFallback = useCallback(async (resumptionHandle?: string | null): Promise<boolean> => {
         const hadHandle = !!resumptionHandle;
@@ -541,8 +589,9 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     useEffect(() => {
         return () => {
             clearReconnectTimer();
+            clearKeepaliveTimer();
         };
-    }, [clearReconnectTimer]);
+    }, [clearReconnectTimer, clearKeepaliveTimer]);
 
     // Network status handling
     useEffect(() => {
@@ -560,6 +609,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             offlineRef.current = true;
             emitEvent('network_offline');
             clearReconnectTimer();
+            clearKeepaliveTimer();
 
             if (sessionRef.current) {
                 closeReasonRef.current = 'offline';
@@ -583,7 +633,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [emitEvent, scheduleReconnect, clearReconnectTimer]);
+    }, [emitEvent, scheduleReconnect, clearReconnectTimer, clearKeepaliveTimer]);
 
     // Page lifecycle handling (Safari/iOS BFCache)
     useEffect(() => {
@@ -592,6 +642,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         const handlePageHide = (event: PageTransitionEvent) => {
             emitEvent('page_hide', { persisted: event.persisted });
             clearReconnectTimer();
+            clearKeepaliveTimer();
             shouldReconnectRef.current = true;
 
             if (sessionRef.current) {
@@ -623,7 +674,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             window.removeEventListener('pagehide', handlePageHide);
             window.removeEventListener('pageshow', handlePageShow);
         };
-    }, [emitEvent, scheduleReconnect, clearReconnectTimer, getBackoffDelay]);
+    }, [emitEvent, scheduleReconnect, clearReconnectTimer, clearKeepaliveTimer, getBackoffDelay]);
 
     const connect = useCallback(async (): Promise<void> => {
         if (connectPromiseRef.current) {
@@ -632,10 +683,30 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         }
         if (isConnectedRef.current) return;
 
+        const maxRetries = Math.max(1, config.connectMaxRetries ?? 3);
+
         const connectTask = (async () => {
             // Try to unlock audio on a user gesture
             ensurePlaybackContext();
-            await initializeSessionWithFallback(sessionHandleRef.current);
+
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                const success = await initializeSessionWithFallback(sessionHandleRef.current);
+                if (success || isConnectedRef.current) return;
+
+                if (attempt < maxRetries) {
+                    const delayMs = getBackoffDelay(attempt);
+                    console.log(`Initial connect attempt ${attempt}/${maxRetries} failed, retrying in ${Math.round(delayMs)}ms...`);
+                    emitEvent('session_connect_retry', { attempt, maxRetries, delayMs });
+                    onSystemMessageRef.current?.(`Connecting... (attempt ${attempt + 1}/${maxRetries})`);
+                    await new Promise(r => setTimeout(r, delayMs));
+
+                    // Bail if disconnected intentionally during wait
+                    if (closeReasonRef.current === 'intentional') return;
+                }
+            }
+
+            // All attempts exhausted
+            emitEvent('session_connect_exhausted', { maxRetries });
         })();
 
         connectPromiseRef.current = connectTask;
@@ -644,13 +715,14 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         } finally {
             connectPromiseRef.current = null;
         }
-    }, [ensurePlaybackContext, initializeSessionWithFallback]);
+    }, [ensurePlaybackContext, initializeSessionWithFallback, config.connectMaxRetries, getBackoffDelay, emitEvent]);
 
     const disconnect = useCallback(async (): Promise<void> => {
         console.log('Disconnecting session...');
         closeReasonRef.current = 'intentional';
         shouldReconnectRef.current = false;
         clearReconnectTimer();
+        clearKeepaliveTimer();
         activeAttemptRef.current += 1;
         reconnectAttemptsRef.current = 0;
 
@@ -686,7 +758,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         setIsConnected(false);
         setIsReconnecting(false);
         isReconnectingRef.current = false;
-    }, [config.useClientVAD, clearReconnectTimer]);
+    }, [config.useClientVAD, clearReconnectTimer, clearKeepaliveTimer]);
 
     const sendText = useCallback((text: string): void => {
         if (!sessionRef.current || !text.trim()) return;

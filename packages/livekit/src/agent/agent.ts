@@ -261,7 +261,21 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           await flushEvents();
         };
 
+        // Sync the conversation record periodically so dashboard stays current
+        let lastSyncedMessageCount = 0;
+        const syncConversation = async () => {
+          if (!resolveConversation || conversationResolved) return;
+          if (allMessages.length === lastSyncedMessageCount) return;
+          lastSyncedMessageCount = allMessages.length;
+          try {
+            await resolveConversation(sessionId, channel, sessionStart, allMessages, { status: 'active' });
+          } catch (err) {
+            console.warn('[agent] Failed to sync conversation:', err);
+          }
+        };
+
         const flushTimer = setInterval(flushAll, 2000);
+        const syncTimer = setInterval(syncConversation, 5000);
 
         // Reusable agent config (stateless, can be reused across sessions)
         const agent = new voice.Agent({
@@ -273,6 +287,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         ctx.addShutdownCallback(async () => {
           console.log('[agent] Shutdown callback triggered');
           clearInterval(flushTimer);
+          clearInterval(syncTimer);
 
           pushEvent('session_ended', {
             reason: 'shutdown',
@@ -319,6 +334,13 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               session.generateReply();
               console.log('[agent] Greeting generated');
               isFirstSession = false;
+
+              // Create conversation entry immediately so it appears in dashboard
+              if (resolveConversation) {
+                resolveConversation(sessionId, channel, sessionStart, [], { status: 'active' })
+                  .then(() => console.log('[agent] Conversation created (active)'))
+                  .catch((err) => console.warn('[agent] Failed to create initial conversation:', err));
+              }
             }
 
             // Wire transcription listeners for this session
@@ -415,6 +437,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         } finally {
           // Cleanup: stop flush timer, emit final event, flush everything, resolve conversation
           clearInterval(flushTimer);
+          clearInterval(syncTimer);
 
           pushEvent('session_ended', {
             reason: lastCloseReason,
