@@ -38,7 +38,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const roomName = `pstn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Room name must include appSlug + "-session-" marker so the agent's
+    // parseRoomName() can extract the correct appSlug for persona loading.
+    const slug = appSlug ?? process.env.NEXT_PUBLIC_APP_SLUG ?? 'demo';
+    const roomName = `${slug}-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-pstn`;
 
     await createRoom({
       roomName,
