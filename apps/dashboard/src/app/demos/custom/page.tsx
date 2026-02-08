@@ -31,17 +31,17 @@ export default function CustomDemo() {
 
   if (!apiKey) {
     return (
-      <div className="p-6">
+      <div>
         <MissingEnvCard vars={['NEXT_PUBLIC_GEMINI_API_KEY']} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <CardTitle>Custom UI with useVoiceChat</CardTitle>
               <Badge variant="secondary">@genai-voice/react</Badge>
@@ -140,7 +140,7 @@ function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario 
             <div
               key={i}
               className={cn(
-                'max-w-[80%] rounded-xl px-3.5 py-2 text-sm',
+                'max-w-[90%] md:max-w-[80%] rounded-xl px-3.5 py-2 text-sm',
                 msg.role === 'user'
                   ? 'self-end bg-primary text-primary-foreground'
                   : 'self-start bg-muted',

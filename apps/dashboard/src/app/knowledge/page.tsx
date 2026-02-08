@@ -69,7 +69,7 @@ export default function KnowledgePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{documents.length} documents &middot; {gaps.length} gaps</p>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
@@ -142,7 +142,8 @@ export default function KnowledgePage() {
             <CardTitle className="text-sm font-medium">Documents</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
@@ -163,6 +164,22 @@ export default function KnowledgePage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="divide-y divide-border md:hidden">
+              {documents.map((d) => (
+                <div key={d._id} className="space-y-1.5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{d.title}</span>
+                    <Badge variant="secondary" className="text-xs">{d.category}</Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{d.sourceType}</span>
+                    <span>{timeAgo(d.lastUpdated)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

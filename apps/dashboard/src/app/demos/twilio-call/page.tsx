@@ -62,10 +62,10 @@ export default function TwilioCallDemo() {
   }, []);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <CardTitle>LiveKit SIP Outbound Call</CardTitle>
               <Badge variant="secondary">Twilio Trunk</Badge>

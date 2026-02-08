@@ -21,7 +21,7 @@ export function ScenarioPicker({ value, onChange }: ScenarioPickerProps) {
         Scenario
       </label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-[280px]">
+        <SelectTrigger className="w-full sm:w-[280px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

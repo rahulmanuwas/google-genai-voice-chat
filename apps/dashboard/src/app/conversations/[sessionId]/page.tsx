@@ -140,7 +140,7 @@ export default function ConversationDetailPage({
                     {m.role}
                   </Badge>
                   <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                    className={`max-w-[90%] md:max-w-[80%] rounded-lg px-3 py-2 text-sm ${
                       m.role === 'agent'
                         ? 'bg-muted text-foreground'
                         : 'bg-primary text-primary-foreground'

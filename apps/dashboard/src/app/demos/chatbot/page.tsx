@@ -30,17 +30,17 @@ export default function ChatBotDemo() {
 
   if (!apiKey) {
     return (
-      <div className="p-6">
+      <div>
         <MissingEnvCard vars={['NEXT_PUBLIC_GEMINI_API_KEY']} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <CardTitle>Drop-in ChatBot Widget</CardTitle>
               <Badge variant="secondary">@genai-voice/react</Badge>

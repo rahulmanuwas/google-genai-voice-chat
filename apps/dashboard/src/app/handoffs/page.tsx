@@ -36,7 +36,7 @@ export default function HandoffsPage() {
   return (
     <div className="space-y-6">
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="claimed">Claimed</TabsTrigger>
           <TabsTrigger value="resolved">Resolved</TabsTrigger>

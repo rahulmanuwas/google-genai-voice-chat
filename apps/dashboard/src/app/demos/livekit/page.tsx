@@ -66,17 +66,17 @@ export default function LiveKitDemo() {
 
   if (missing.length > 0) {
     return (
-      <div className="p-6">
+      <div>
         <MissingEnvCard vars={missing} hint="This demo requires a deployed Convex backend with LiveKit endpoints and a LiveKit Cloud account." />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <CardTitle>LiveKit Voice Agent</CardTitle>
               <Badge variant="secondary">@genai-voice/livekit</Badge>

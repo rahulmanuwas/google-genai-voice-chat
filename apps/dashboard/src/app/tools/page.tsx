@@ -56,7 +56,7 @@ export default function ToolsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{tools.length} tools &middot; {executions.length} executions</p>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -130,7 +130,8 @@ export default function ToolsPage() {
             <CardTitle className="text-sm font-medium">Recent Executions</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
@@ -157,6 +158,25 @@ export default function ToolsPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="divide-y divide-border md:hidden">
+              {executions.slice(0, 20).map((e) => (
+                <div key={e._id} className="space-y-1.5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{e.toolName}</span>
+                    <Badge variant={e.status === 'success' ? 'secondary' : 'destructive'} className="text-xs">
+                      {e.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{formatDuration(e.durationMs)}</span>
+                    <span className="font-mono">{e.sessionId.slice(0, 12)}...</span>
+                    <span>{timeAgo(e.executedAt)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

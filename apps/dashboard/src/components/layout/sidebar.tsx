@@ -47,21 +47,28 @@ const NAV_ITEMS: NavEntry[] = [
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-30 flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
-        collapsed ? 'w-16' : 'w-64',
+        'fixed left-0 top-0 flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
+        // Mobile: slide-in drawer, always w-64
+        'z-50 w-64 -translate-x-full md:translate-x-0',
+        mobileOpen && 'translate-x-0',
+        // Desktop: respect collapsed state
+        'md:z-30',
+        collapsed && 'md:w-16',
       )}
     >
-      <div className={cn('flex h-14 items-center border-b border-sidebar-border px-4', collapsed ? 'justify-center' : 'justify-between')}>
-        {!collapsed && (
-          <span className="text-sm font-semibold text-sidebar-foreground">
+      <div className={cn('flex h-14 items-center border-b border-sidebar-border px-4', collapsed ? 'md:justify-center' : 'justify-between')}>
+        {(!collapsed || mobileOpen) && (
+          <span className={cn('text-sm font-semibold text-sidebar-foreground', collapsed && 'md:hidden')}>
             GenAI Voice
           </span>
         )}
@@ -69,7 +76,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           variant="ghost"
           size="icon"
           onClick={onToggle}
-          className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent"
+          className="hidden h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent md:inline-flex"
         >
           {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </Button>
@@ -80,12 +87,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           if (item.type === 'separator') {
             return (
               <div key={item.label} className="pt-4 pb-1">
-                {!collapsed ? (
-                  <span className="px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                {(!collapsed || mobileOpen) ? (
+                  <span className={cn('px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40', collapsed && 'md:hidden')}>
                     {item.label}
                   </span>
                 ) : (
-                  <div className="mx-3 border-t border-sidebar-border" />
+                  <div className="mx-3 border-t border-sidebar-border hidden md:block" />
+                )}
+                {/* Always show label on mobile */}
+                {collapsed && (
+                  <span className="px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40 md:hidden">
+                    {item.label}
+                  </span>
                 )}
               </div>
             );
@@ -97,16 +110,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <Link
               key={href}
               href={href}
+              onClick={onMobileClose}
               className={cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 active
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                collapsed && 'justify-center px-0',
+                collapsed && 'md:justify-center md:px-0',
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{label}</span>}
+              {/* Always show label on mobile, respect collapsed on desktop */}
+              <span className={cn(collapsed && 'md:hidden')}>{label}</span>
             </Link>
           );
 
@@ -114,7 +129,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             return (
               <Tooltip key={href} delayDuration={0}>
                 <TooltipTrigger asChild>{link}</TooltipTrigger>
-                <TooltipContent side="right">{label}</TooltipContent>
+                <TooltipContent side="right" className="hidden md:block">{label}</TooltipContent>
               </Tooltip>
             );
           }

@@ -110,7 +110,7 @@ export default function ConversationsPage() {
                   .map((m) => (
                     <div key={m._id} className={`flex gap-3 ${m.role === 'agent' ? '' : 'flex-row-reverse'}`}>
                       <Badge variant={m.role === 'agent' ? 'secondary' : 'outline'} className="h-6 shrink-0 text-xs">{m.role}</Badge>
-                      <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.role === 'agent' ? 'bg-muted text-foreground' : 'bg-primary text-primary-foreground'}`}>
+                      <div className={`max-w-[90%] md:max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.role === 'agent' ? 'bg-muted text-foreground' : 'bg-primary text-primary-foreground'}`}>
                         {m.content}
                       </div>
                     </div>
@@ -122,7 +122,7 @@ export default function ConversationsPage() {
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="active">Active</TabsTrigger>
           <TabsTrigger value="resolved">Resolved</TabsTrigger>
@@ -136,7 +136,8 @@ export default function ConversationsPage() {
           ) : (
             <Card>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                {/* Desktop table */}
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-muted-foreground">
@@ -175,6 +176,28 @@ export default function ConversationsPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile card list */}
+                <div className="divide-y divide-border md:hidden">
+                  {conversations.map((c) => (
+                    <div key={c._id} className="space-y-1.5 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant="secondary" className="text-xs">{c.appSlug}</Badge>
+                        <Badge variant="outline" className={`text-xs ${STATUS_COLORS[c.status ?? 'active'] ?? ''}`}>
+                          {c.status ?? 'active'}
+                        </Badge>
+                      </div>
+                      <Link href={`/conversations/${c.sessionId}`} className="block text-blue-400 hover:underline text-xs">
+                        {getTranscriptPreview(c)}
+                      </Link>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>{c.messageCount} msgs</span>
+                        <span>{c.endedAt ? formatDuration(c.endedAt - c.startedAt) : 'ongoing'}</span>
+                        <span>{timeAgo(c.startedAt)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

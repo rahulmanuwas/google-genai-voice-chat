@@ -68,8 +68,8 @@ export default function GuardrailsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-4">
           <p className="text-sm text-muted-foreground">{rules.length} rules</p>
           {overview && (
             <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export default function GuardrailsPage() {
           ) : (
             <div className="space-y-3">
               {rules.map((r) => (
-                <div key={r._id} className="flex items-center justify-between rounded-md border border-border p-3">
+                <div key={r._id} className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-xs">{r.type}</Badge>
@@ -163,7 +163,8 @@ export default function GuardrailsPage() {
             <CardTitle className="text-sm font-medium">Recent Violations</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
@@ -188,6 +189,26 @@ export default function GuardrailsPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="divide-y divide-border md:hidden">
+              {violations.slice(0, 20).map((v) => (
+                <div key={v._id} className="space-y-1.5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">{v.type}</Badge>
+                      <Badge variant="outline" className={`text-xs ${ACTION_COLORS[v.action] ?? ''}`}>{v.action}</Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{v.direction}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{v.content}</p>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="font-mono">{v.sessionId.slice(0, 12)}...</span>
+                    <span>{timeAgo(v.createdAt)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
