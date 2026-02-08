@@ -8,6 +8,7 @@ import * as google from '@livekit/agents-plugin-google';
 import type { LiveKitAgentConfig } from '../types';
 import type { AgentCallbacks, BufferedMessage } from './callbacks';
 import { createConvexAgentCallbacks } from './callbacks';
+import { createToolsFromConvex } from './tools.js';
 
 export interface AgentDefinitionOptions {
   /** Gemini native audio model for speech-to-speech (default: "gemini-2.5-flash-native-audio-preview-12-2025") */
@@ -107,14 +108,19 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         roomName = ctx.room.name ?? 'unknown';
         console.log(`[agent] Connected to room: ${roomName}`);
 
+        // Resolve env vars once for callbacks and tool loading
+        const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
+        const envAppSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG;
+        const appSecret = process.env.APP_SECRET;
+        const { appSlug: roomAppSlug, sessionId: roomSessionId } = parseRoomName(
+          roomName,
+          envAppSlug ?? '',
+        );
+
         // Resolve callbacks: use provided callbacks, or auto-create from env vars.
         let callbacks = options?.callbacks;
         if (!callbacks) {
-          const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
-          const envAppSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG;
-          const appSecret = process.env.APP_SECRET;
           if (convexUrl && envAppSlug && appSecret) {
-            const { appSlug: roomAppSlug } = parseRoomName(roomName, envAppSlug);
             callbacks = createConvexAgentCallbacks({ convexUrl, appSlug: roomAppSlug, appSecret });
             console.log(`[agent] Created Convex callbacks for app: ${roomAppSlug}`);
           } else {
@@ -122,7 +128,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           }
         }
 
-        // Load persona in parallel with waiting for participant
+        // Load persona and tools in parallel with waiting for participant
         const personaPromise = (async (): Promise<string> => {
           if (!callbacks?.loadPersona) return config.instructions;
           try {
@@ -140,6 +146,29 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             console.warn('[agent] Failed to load persona, using default instructions:', err);
           }
           return config.instructions;
+        })();
+
+        // Load tools from Convex (runs in parallel with persona and waitForParticipant)
+        const toolsPromise = (async (): Promise<llm.ToolContext> => {
+          if (!convexUrl || !roomAppSlug || !appSecret) {
+            console.warn('[agent] Skipping tool loading — missing Convex env vars');
+            return options?.tools ?? {};
+          }
+          try {
+            const convexTools = await createToolsFromConvex({
+              convexUrl,
+              appSlug: roomAppSlug,
+              appSecret,
+              sessionId: roomSessionId,
+            });
+            const toolCount = Object.keys(convexTools).length;
+            console.log(`[agent] Loaded ${toolCount} tools from Convex for app: ${roomAppSlug}`);
+            // Merge: options?.tools take precedence over Convex tools
+            return { ...convexTools, ...(options?.tools ?? {}) };
+          } catch (err) {
+            console.warn('[agent] Failed to load tools from Convex, using defaults:', err);
+            return options?.tools ?? {};
+          }
         })();
 
         // Wait for a real participant (browser user or SIP callee) to join
@@ -167,12 +196,12 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           console.log('[agent] Audio track published');
         }
 
-        const instructions = await personaPromise;
+        const [instructions, loadedTools] = await Promise.all([personaPromise, toolsPromise]);
         console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
+        console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
 
         // --- Shared state across reconnect sessions ---
-        const envSlug = process.env.APP_SLUG ?? process.env.NEXT_PUBLIC_APP_SLUG ?? '';
-        const { sessionId } = parseRoomName(roomName, envSlug);
+        const sessionId = roomSessionId;
         const messageBuffer: BufferedMessage[] = [];
         const allMessages: Array<{ role: string; content: string; ts: number }> = [];
         const sessionStart = Date.now();
@@ -195,7 +224,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // Reusable agent config (stateless, can be reused across sessions)
         const agent = new voice.Agent({
           instructions,
-          tools: options?.tools,
+          tools: loadedTools,
         });
 
         // --- Session loop with auto-reconnect ---

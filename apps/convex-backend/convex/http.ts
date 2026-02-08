@@ -28,6 +28,7 @@ import {
 import { saveMessages, listMessages } from "./messages";
 import { getPersona, updatePersona } from "./persona";
 import { createExperiment, listExperiments, assignVariant } from "./experiments";
+import { getScenarioState, resetScenarioState } from "./scenarioState";
 
 const http = httpRouter();
 
@@ -122,5 +123,9 @@ patch("/api/persona", updatePersona);
 post("/api/experiments", createExperiment);
 get("/api/experiments", listExperiments);
 post("/api/experiments/assign", assignVariant);
+
+// ─── Scenario State (Live Demo Data) ───────────────────────────
+get("/api/scenario-state", getScenarioState);
+post("/api/scenario-state/reset", resetScenarioState);
 
 export default http;

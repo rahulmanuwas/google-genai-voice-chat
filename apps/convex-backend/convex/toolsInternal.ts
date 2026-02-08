@@ -3,6 +3,7 @@
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { handleInternalTool, getInitialState } from "./toolHandlers";
 
 /** Execute a tool by calling its registered endpoint */
 export const executeToolAction = internalAction({
@@ -37,6 +38,57 @@ export const executeToolAction = internalAction({
     }
 
     if (!fullTool.endpoint) {
+      // Try internal mock handler for demo tools
+      let parsedParams: Record<string, unknown> = {};
+      try {
+        parsedParams = JSON.parse(args.parameters);
+      } catch { /* use empty params */ }
+
+      // Read current scenario state
+      const stateRow = await ctx.runQuery(internal.scenarioStateDb.getState, {
+        appSlug: args.appSlug,
+      });
+      let currentState: Record<string, unknown> | undefined;
+      if (stateRow) {
+        try {
+          currentState = JSON.parse(stateRow.state);
+        } catch { /* ignore parse errors */ }
+      } else {
+        // Auto-initialize state if it doesn't exist yet
+        const initial = getInitialState(args.appSlug);
+        if (initial) {
+          currentState = initial;
+          await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+            appSlug: args.appSlug,
+            state: JSON.stringify(initial),
+          });
+        }
+      }
+
+      const handlerResult = handleInternalTool(args.toolName, parsedParams, currentState);
+      if (handlerResult) {
+        // Persist state update if the handler produced one
+        if (handlerResult.stateUpdate) {
+          await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+            appSlug: args.appSlug,
+            state: JSON.stringify(handlerResult.stateUpdate),
+          });
+        }
+
+        await ctx.runMutation(internal.toolsDb.logExecution, {
+          appSlug: args.appSlug,
+          sessionId: args.sessionId,
+          toolName: args.toolName,
+          parameters: args.parameters,
+          result: JSON.stringify(handlerResult.result),
+          status: "success",
+          executedAt: startedAt,
+          durationMs: Date.now() - startedAt,
+        });
+        return handlerResult.result;
+      }
+
+      // No mock handler — return error as before
       const result = { success: false, error: `Tool "${args.toolName}" has no endpoint configured` };
       await ctx.runMutation(internal.toolsDb.logExecution, {
         appSlug: args.appSlug,

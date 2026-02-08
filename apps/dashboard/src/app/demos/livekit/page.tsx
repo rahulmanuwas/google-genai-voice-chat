@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 
 const LiveKitVoiceChat = dynamic(
@@ -72,33 +73,41 @@ export default function LiveKitDemo() {
     );
   }
 
+  const hasStatePanel = scenario.id === 'dentist' || scenario.id === 'ecommerce';
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <CardTitle>LiveKit Voice Agent</CardTitle>
-              <Badge variant="secondary">@genai-voice/livekit</Badge>
+      <div className={`grid grid-cols-1 gap-6 ${hasStatePanel ? 'lg:grid-cols-2' : ''}`}>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle>LiveKit Voice Agent</CardTitle>
+                <Badge variant="secondary">@genai-voice/livekit</Badge>
+              </div>
+              <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
             </div>
-            <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
-          </div>
-          <CardDescription>
-            Click &quot;Start Voice Chat&quot; to create a LiveKit room and connect.
-            A server-side AI agent (powered by Gemini Live API) will join the room
-            and respond with speech.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LiveKitVoiceChat
-            key={scenario.id}
-            convexUrl={convexUrl!}
-            appSlug={scenario.appSlug}
-            getSessionToken={getSessionToken}
-            serverUrl={livekitUrl}
-          />
-        </CardContent>
-      </Card>
+            <CardDescription>
+              Click &quot;Start Voice Chat&quot; to create a LiveKit room and connect.
+              A server-side AI agent (powered by Gemini Live API) will join the room
+              and respond with speech.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LiveKitVoiceChat
+              key={scenario.id}
+              convexUrl={convexUrl!}
+              appSlug={scenario.appSlug}
+              getSessionToken={getSessionToken}
+              serverUrl={livekitUrl}
+            />
+          </CardContent>
+        </Card>
+
+        {hasStatePanel && (
+          <ScenarioStatePanel key={scenario.id} scenario={scenario} />
+        )}
+      </div>
 
       <Card>
         <CardHeader>

@@ -3,6 +3,7 @@
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { getInitialState } from "./toolHandlers";
 
 // ────────────────────────────────────────────────────────────────
 // Scenario Data
@@ -849,6 +850,16 @@ export const seedAll = internalAction({
       }
 
       results.push(`[OK] ${scenario.slug}: ${scenario.knowledgeDocs.length} knowledge docs`);
+
+      // Seed scenario state (if applicable)
+      const initialState = getInitialState(scenario.slug);
+      if (initialState) {
+        await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+          appSlug: scenario.slug,
+          state: JSON.stringify(initialState),
+        });
+        results.push(`[OK] ${scenario.slug}: scenario state seeded`);
+      }
     }
 
     return results.join("\n");

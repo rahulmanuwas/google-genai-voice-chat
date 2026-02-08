@@ -2,7 +2,7 @@
 
 Convex backend platform for genai-voice. Extends the base telemetry backend into a full AI agent platform with tool execution, human handoff, guardrails, knowledge management (RAG), analytics, persona management, A/B testing, and real-time transcription storage.
 
-## Tables (18)
+## Tables (19)
 
 | Table | Purpose |
 |---|---|
@@ -24,8 +24,9 @@ Convex backend platform for genai-voice. Extends the base telemetry backend into
 | `sessions` | Short-lived auth tokens for browser-safe access |
 | `livekitRooms` | LiveKit room lifecycle (waiting → active → ended) |
 | `livekitParticipants` | Participants in LiveKit rooms (user, agent, observer) |
+| `scenarioState` | Mutable demo state (appointments, orders) that tools read/write live |
 
-## HTTP Endpoints (33+)
+## HTTP Endpoints (35+)
 
 ### Auth
 | Method | Path | Description |
@@ -44,7 +45,7 @@ Convex backend platform for genai-voice. Extends the base telemetry backend into
 |---|---|---|
 | GET | `/api/tools` | List active tools for an app |
 | POST | `/api/tools` | Register a new tool (requires `endpoint`) |
-| POST | `/api/tools/execute` | Execute a tool call (calls external API, logs result) |
+| POST | `/api/tools/execute` | Execute a tool call (external API or built-in mock handler, logs result) |
 
 ### Handoffs
 | Method | Path | Description |
@@ -92,6 +93,12 @@ Convex backend platform for genai-voice. Extends the base telemetry backend into
 | POST | `/api/experiments` | Create an experiment with weighted variants |
 | GET | `/api/experiments` | List experiments for an app |
 | POST | `/api/experiments/assign` | Assign a variant (weighted random, sticky per session) |
+
+### Scenario State (Live Demo Data)
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/scenario-state` | Get current mutable state (appointments, orders) for a demo app |
+| POST | `/api/scenario-state/reset` | Reset state to initial values |
 
 ### LiveKit
 | Method | Path | Description |
@@ -176,6 +183,7 @@ The seed script is idempotent — re-running it updates existing records and ski
 **Files:**
 - `convex/seedScenarios.ts` — `"use node"` action with full scenario data + embedding generation
 - `convex/seedScenariosDb.ts` — mutation that upserts apps, tools, and guardrail rules
+- `convex/toolHandlers.ts` — built-in mock handlers for all 9 demo tools (no endpoint required)
 
 ## Usage Examples
 
@@ -224,6 +232,24 @@ curl -X POST https://your-deployment.convex.cloud/api/tools/execute \
     "parameters": {"orderId": "ORD-456"}
   }'
 ```
+
+#### Built-in Mock Handlers
+
+All 9 seeded demo tools have built-in mock handlers that activate when a tool has no external `endpoint`. This means demo scenarios work out of the box without external API infrastructure:
+
+| Scenario | Tool | Mock Behavior |
+|---|---|---|
+| Dentist | `check_availability` | Returns 3-4 slots, rotates providers (Dr. Chen, Dr. Park, Lisa Thompson) |
+| Dentist | `reschedule_appointment` | Confirms reschedule with appointment details |
+| Dentist | `cancel_appointment` | Confirms cancellation, mentions $50 fee if <24h notice |
+| Earnings | `lookup_metric` | Returns hardcoded financials matching knowledge docs (Q4 2025, FY2025, etc.) |
+| Earnings | `compare_quarters` | Computes delta and % change between two periods |
+| E-commerce | `lookup_order` | Returns mock order with 2 items, UPS tracking, "shipped" status |
+| E-commerce | `initiate_return` | Returns return authorization with prepaid label |
+| E-commerce | `check_inventory` | Returns stock status for Coastal Breeze products |
+| E-commerce | `transfer_to_human` | Returns handoff confirmation with queue position |
+
+Mock executions are logged to `toolExecutions` with `status: "success"` just like real tool calls. To switch to a real endpoint, simply set the tool's `endpoint` field.
 
 ### Create a Handoff
 
@@ -457,3 +483,30 @@ The `messages` table stores real-time transcription data from voice conversation
 - `createdAt` timestamp
 
 The LiveKit agent automatically streams transcriptions to `POST /api/messages` every 2 seconds during a conversation. On session close, remaining messages are flushed and the conversation status is updated to `resolved`.
+
+## Agent Tool Loading
+
+When the LiveKit agent connects to a room, it automatically loads tool definitions from `GET /api/tools` (in parallel with persona loading). Each tool is converted to a LiveKit `llm.tool()` with:
+- The tool's `parametersSchema` (JSON Schema → Zod conversion)
+- An `execute` callback that calls `POST /api/tools/execute` on Convex
+
+This means seeded demo tools work end-to-end: the agent exposes tools to Gemini, Gemini generates function calls, and the agent executes them via Convex (which uses built-in mock handlers for tools without endpoints).
+
+## Scenario State (Live Demo Data)
+
+Demo tools are **state-aware**: the `scenarioState` table stores mutable data (appointments, orders, inventory) per app slug. When a tool executes, it reads the current state and can return a `stateUpdate` that gets persisted.
+
+**Dentist** — 4 appointments (confirmed → rescheduled/cancelled by tools)
+**E-commerce** — 2 orders + 21 inventory items (shipped → return_initiated by tools)
+**Earnings** — no mutable state (metrics are hardcoded)
+
+| Tool | State Behavior |
+|---|---|
+| `check_availability` | Read-only: filters out booked slots |
+| `reschedule_appointment` | Updates appointment date/time/status to "rescheduled" |
+| `cancel_appointment` | Sets appointment status to "cancelled" |
+| `lookup_order` | Read-only: returns order from state |
+| `initiate_return` | Sets order status to "return_initiated", adds returnId |
+| `check_inventory` | Read-only: uses stock levels from state |
+
+State auto-initializes on first tool call if no row exists. Use `POST /api/scenario-state/reset` to restore initial values. The dashboard polls `GET /api/scenario-state` every 2 seconds to show live updates.

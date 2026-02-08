@@ -1,0 +1,68 @@
+import { httpAction } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { jsonResponse, authenticateRequest } from "./helpers";
+import { getInitialState } from "./toolHandlers";
+
+/** GET /api/scenario-state — Get current scenario state for an app */
+export const getScenarioState = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const appSlug = url.searchParams.get("appSlug") ?? undefined;
+  const appSecret = url.searchParams.get("appSecret") ?? undefined;
+  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const slug = auth.app.slug;
+
+  const stateRow = await ctx.runQuery(internal.scenarioStateDb.getState, {
+    appSlug: slug,
+  });
+
+  if (stateRow) {
+    try {
+      return jsonResponse({
+        appSlug: slug,
+        state: JSON.parse(stateRow.state),
+        updatedAt: stateRow.updatedAt,
+      });
+    } catch {
+      return jsonResponse({ appSlug: slug, state: null, updatedAt: null });
+    }
+  }
+
+  // Return initial state if no row exists (but don't persist — that happens on first tool call)
+  const initial = getInitialState(slug);
+  return jsonResponse({
+    appSlug: slug,
+    state: initial,
+    updatedAt: null,
+  });
+});
+
+/** POST /api/scenario-state/reset — Reset scenario state to initial values */
+export const resetScenarioState = httpAction(async (ctx, request) => {
+  const body = await request.json();
+  const { appSlug, appSecret, sessionToken } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
+  };
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const slug = auth.app.slug;
+  const initial = getInitialState(slug);
+
+  if (!initial) {
+    return jsonResponse({ ok: true, message: "No mutable state for this scenario" });
+  }
+
+  await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+    appSlug: slug,
+    state: JSON.stringify(initial),
+  });
+
+  return jsonResponse({ ok: true, state: initial });
+});

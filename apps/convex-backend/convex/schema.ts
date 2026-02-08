@@ -279,4 +279,12 @@ export default defineSchema({
   })
     .index("by_room", ["roomId"])
     .index("by_identity", ["identity"]),
+
+  // ─── Scenario State (Live Demo Data) ──────────────────────────
+
+  scenarioState: defineTable({
+    appSlug: v.string(),
+    state: v.string(), // JSON blob
+    updatedAt: v.float64(),
+  }).index("by_app", ["appSlug"]),
 });
