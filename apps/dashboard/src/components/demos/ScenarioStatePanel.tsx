@@ -131,12 +131,15 @@ function EcommerceStateView({ orders }: { orders: Order[] }) {
                 <StatusBadge status={order.status} />
               </div>
             </div>
-            <div className="mt-2 flex flex-wrap gap-1">
+            <div className="mt-2 space-y-1">
               {order.items.map((item) => (
-                <Badge key={item.sku} variant="secondary" className="text-xs font-normal">
-                  {item.name}
-                  {item.quantity > 1 ? ` x${item.quantity}` : ''}
-                </Badge>
+                <div key={item.sku} className="flex items-center gap-2 text-xs">
+                  <Badge variant="secondary" className="font-normal">
+                    {item.name}
+                    {item.quantity > 1 ? ` x${item.quantity}` : ''}
+                  </Badge>
+                  <span className="font-mono text-muted-foreground">SKU: {item.sku}</span>
+                </div>
               ))}
             </div>
             {order.returnId && (
