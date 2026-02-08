@@ -3,13 +3,22 @@ import {
   useVoiceAssistant,
   useTranscriptions,
   BarVisualizer,
+  useMaybeRoomContext,
 } from '@livekit/components-react';
 
 /**
  * Wrapper around LiveKit's BarVisualizer that shows the voice agent's
  * audio track with a state indicator and live transcriptions.
+ *
+ * Guards against being rendered outside a LiveKitRoom context.
  */
 export function AudioVisualizerWrapper() {
+  const room = useMaybeRoomContext();
+  if (!room) return null;
+  return <AudioVisualizerInner />;
+}
+
+function AudioVisualizerInner() {
   const { state, audioTrack, agent } = useVoiceAssistant();
   const transcriptions = useTranscriptions();
   const scrollRef = useRef<HTMLDivElement>(null);
