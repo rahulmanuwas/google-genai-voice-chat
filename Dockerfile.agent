@@ -20,6 +20,10 @@ RUN pnpm turbo run build --filter=@genai-voice/livekit...
 
 # ---- runner ----
 FROM node:20-slim AS runner
+
+# @livekit/rtc-node native binary needs CA certs for HTTPS region lookup
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 ENV NODE_ENV=production
 
