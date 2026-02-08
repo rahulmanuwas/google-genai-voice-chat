@@ -12,6 +12,10 @@ const TITLES: Record<string, string> = {
   '/persona': 'Persona',
   '/experiments': 'Experiments',
   '/settings': 'Settings',
+  '/demos/chatbot': 'Demo: Voice Chat Widget',
+  '/demos/custom': 'Demo: Custom UI',
+  '/demos/livekit': 'Demo: LiveKit Agent',
+  '/demos/twilio-call': 'Demo: PSTN Call',
 };
 
 export function Header() {

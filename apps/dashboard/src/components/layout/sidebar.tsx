@@ -14,21 +14,34 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeft,
+  Bot,
+  Palette,
+  AudioLines,
+  Phone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-const NAV_ITEMS = [
-  { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/conversations', label: 'Conversations', icon: MessageSquare },
-  { href: '/handoffs', label: 'Handoffs', icon: ArrowRightLeft },
-  { href: '/tools', label: 'Tools', icon: Wrench },
-  { href: '/guardrails', label: 'Guardrails', icon: Shield },
-  { href: '/knowledge', label: 'Knowledge', icon: BookOpen },
-  { href: '/persona', label: 'Persona', icon: User },
-  { href: '/experiments', label: 'Experiments', icon: FlaskConical },
-  { href: '/settings', label: 'Settings', icon: Settings },
+type NavEntry =
+  | { type: 'link'; href: string; label: string; icon: typeof LayoutDashboard }
+  | { type: 'separator'; label: string };
+
+const NAV_ITEMS: NavEntry[] = [
+  { type: 'link', href: '/', label: 'Overview', icon: LayoutDashboard },
+  { type: 'link', href: '/conversations', label: 'Conversations', icon: MessageSquare },
+  { type: 'link', href: '/handoffs', label: 'Handoffs', icon: ArrowRightLeft },
+  { type: 'link', href: '/tools', label: 'Tools', icon: Wrench },
+  { type: 'link', href: '/guardrails', label: 'Guardrails', icon: Shield },
+  { type: 'link', href: '/knowledge', label: 'Knowledge', icon: BookOpen },
+  { type: 'link', href: '/persona', label: 'Persona', icon: User },
+  { type: 'link', href: '/experiments', label: 'Experiments', icon: FlaskConical },
+  { type: 'link', href: '/settings', label: 'Settings', icon: Settings },
+  { type: 'separator', label: 'Demos' },
+  { type: 'link', href: '/demos/chatbot', label: 'Voice Chat', icon: Bot },
+  { type: 'link', href: '/demos/custom', label: 'Custom UI', icon: Palette },
+  { type: 'link', href: '/demos/livekit', label: 'LiveKit Agent', icon: AudioLines },
+  { type: 'link', href: '/demos/twilio-call', label: 'PSTN Call', icon: Phone },
 ];
 
 interface SidebarProps {
@@ -62,8 +75,23 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1 p-2">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+        {NAV_ITEMS.map((item) => {
+          if (item.type === 'separator') {
+            return (
+              <div key={item.label} className="pt-4 pb-1">
+                {!collapsed ? (
+                  <span className="px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                    {item.label}
+                  </span>
+                ) : (
+                  <div className="mx-3 border-t border-sidebar-border" />
+                )}
+              </div>
+            );
+          }
+
+          const { href, label, icon: Icon } = item as Extract<NavEntry, { type: 'link' }>;
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
           const link = (
             <Link
