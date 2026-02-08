@@ -14,6 +14,7 @@ const TITLES: Record<string, string> = {
   '/persona': 'Persona',
   '/experiments': 'Experiments',
   '/settings': 'Settings',
+  '/docs': 'API Reference',
   '/demos/chatbot': 'Demo: Voice Chat Widget',
   '/demos/custom': 'Demo: Custom UI',
   '/demos/livekit': 'Demo: LiveKit Agent',

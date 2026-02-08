@@ -114,6 +114,8 @@ The admin dashboard (`apps/dashboard`) provides an analytics overview, platform 
 
 Switching scenarios changes the system prompt (ChatBot/Custom demos) or the Convex app slug (LiveKit/Twilio demos), loading the matching persona, tools, guardrails, and knowledge base from the backend.
 
+The dashboard also includes an **API Reference** page at `/docs` with interactive documentation for all 38 HTTP endpoints.
+
 ```bash
 pnpm install
 pnpm dev
@@ -304,32 +306,46 @@ export const POST = createChatHandler({
 
 ## Environment Variables
 
+Key variables for local development (`apps/dashboard/.env.local`):
+
+| Variable | Where | Description |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_GEMINI_API_KEY` | Browser | Gemini API key for voice/chat |
+| `NEXT_PUBLIC_CONVEX_URL` | Browser | Convex deployment URL |
+| `NEXT_PUBLIC_APP_SLUG` | Browser | App identifier (default: `demo`) |
+| `NEXT_PUBLIC_LIVEKIT_URL` | Browser | LiveKit WebSocket URL |
+| `APP_SECRET` | Server | Server-only Convex auth secret |
+| `LIVEKIT_URL` | Server | LiveKit API URL (HTTPS) |
+| `LIVEKIT_API_KEY` | Server | LiveKit API key |
+| `LIVEKIT_API_SECRET` | Server | LiveKit API secret |
+| `GOOGLE_API_KEY` | Agent | Gemini key for LiveKit agent (same as `NEXT_PUBLIC_GEMINI_API_KEY`) |
+
+For the full reference including Railway, Convex Cloud, and telephony variables, see **[docs/env-vars.md](./docs/env-vars.md)**.
+
+## Deployment
+
+### Railway
+
+The dashboard and agent are deployed as separate Railway services:
+
 ```bash
-# Client-side (Next.js)
-NEXT_PUBLIC_GEMINI_API_KEY=your-api-key
+# Dashboard (Next.js standalone)
+railway up --detach --service dashboard
 
-# Server-side API routes
-GEMINI_API_KEY=your-api-key
-
-# Convex backend (for telemetry + agent platform)
-NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
-# Server-only secret: never expose to the browser
-APP_SECRET=your-app-secret
-
-# LiveKit (for WebRTC voice agent)
-LIVEKIT_API_KEY=your-livekit-api-key
-LIVEKIT_API_SECRET=your-livekit-api-secret
-LIVEKIT_URL=https://your-app.livekit.cloud
-GOOGLE_API_KEY=your-gemini-api-key  # Used by the LiveKit agent's RealtimeModel
-
-# LiveKit agent → Convex transcription storage (optional)
-CONVEX_URL=https://your-deployment.convex.cloud
-APP_SLUG=my-app
-APP_SECRET=your-app-secret
-
-# LiveKit SIP (optional; for PSTN calls via SIP trunk)
-LIVEKIT_SIP_TRUNK_ID=ST_xxx
+# Agent (LiveKit agent process)
+railway up --detach --service agent
 ```
+
+Both use Docker (`Dockerfile.dashboard` and `Dockerfile.agent`). `NEXT_PUBLIC_*` variables must be set as Railway env vars before building (they're inlined at build time).
+
+The Convex backend stays on Convex Cloud:
+
+```bash
+cd apps/convex-backend
+CONVEX_DEPLOY_KEY=... npx convex deploy --typecheck disable -y
+```
+
+See **[docs/env-vars.md](./docs/env-vars.md)** for per-service variable requirements.
 
 ## Troubleshooting
 
