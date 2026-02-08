@@ -71,7 +71,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
         );
         if (!res.ok) return null;
         const persona = await res.json();
-        if (persona.personaName || persona.personaTone || persona.personaGreeting) {
+        if (persona.systemPrompt || persona.personaName || persona.personaTone || persona.personaGreeting) {
           return persona as AgentPersonaData;
         }
         return null;

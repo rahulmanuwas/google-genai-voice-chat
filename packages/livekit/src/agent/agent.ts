@@ -67,8 +67,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
   return defineAgent({
     entry: async (ctx: JobContext) => {
-      const roomName = ctx.room.name ?? 'unknown';
-      console.log(`[agent] Job started for room: ${roomName}`);
+      let roomName = 'unknown';
+      console.log('[agent] Job received, connecting to room...');
 
       try {
         // Validate GOOGLE_API_KEY before doing anything else
@@ -76,9 +76,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           throw new Error('GOOGLE_API_KEY env var is not set — cannot create Gemini RealtimeModel');
         }
 
-        console.log('[agent] Connecting to room...');
         await ctx.connect();
-        console.log('[agent] Connected to room');
+
+        // Room name is only available after connect()
+        roomName = ctx.room.name ?? 'unknown';
+        console.log(`[agent] Connected to room: ${roomName}`);
 
         // Resolve callbacks: use provided callbacks, or auto-create from env vars.
         // Parse appSlug from room name so the agent uses the correct app for each room
@@ -152,6 +154,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         // Persona should be loaded by now (fetched during the wait above)
         const instructions = await personaPromise;
+        console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
 
         console.log(`[agent] Creating agent session (model: ${config.model}, voice: ${config.voice})`);
         const agent = new voice.Agent({
