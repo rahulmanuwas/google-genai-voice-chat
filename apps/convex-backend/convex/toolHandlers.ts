@@ -182,6 +182,48 @@ export function getInitialState(appSlug: string): ScenarioState | null {
 const PROVIDERS = ["Dr. Emily Chen", "Dr. James Park", "Lisa Thompson"];
 const SLOT_TIMES = ["9:00 AM", "10:30 AM", "1:00 PM", "2:30 PM", "4:00 PM"];
 
+function handleLookupAppointment(params: ToolParams, state?: ScenarioState): HandlerResult {
+  const patientName = params.patientName as string | undefined;
+
+  if (!state?.appointments) {
+    return {
+      result: { success: true, data: { found: false, message: "No appointment data available." } },
+    };
+  }
+
+  const appointments = state.appointments as Array<Record<string, string>>;
+  const active = appointments.filter((a) => a.status !== "cancelled");
+
+  if (!patientName) {
+    return {
+      result: { success: true, data: { found: false, message: "Please provide the patient's name to look up their appointment." } },
+    };
+  }
+
+  const matches = active.filter((a) =>
+    a.patient.toLowerCase().includes(patientName.toLowerCase()),
+  );
+
+  if (matches.length === 0) {
+    return {
+      result: {
+        success: true,
+        data: {
+          found: false,
+          message: `No upcoming appointments found for "${patientName}".`,
+        },
+      },
+    };
+  }
+
+  return {
+    result: {
+      success: true,
+      data: { found: true, appointments: matches },
+    },
+  };
+}
+
 function handleCheckAvailability(params: ToolParams, state?: ScenarioState): HandlerResult {
   const startDate = params.startDate ?? new Date().toISOString().slice(0, 10);
   const provider = params.provider as string | undefined;
@@ -825,6 +867,7 @@ type StatefulHandler = (params: ToolParams, state?: ScenarioState) => HandlerRes
 
 const HANDLERS: Record<string, StatefulHandler> = {
   // Dentist
+  lookup_appointment: handleLookupAppointment,
   check_availability: handleCheckAvailability,
   reschedule_appointment: handleRescheduleAppointment,
   cancel_appointment: handleCancelAppointment,
