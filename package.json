@@ -20,7 +20,7 @@
     "dev:all": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "test": "turbo run test --filter=./packages/*",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
