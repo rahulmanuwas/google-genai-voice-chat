@@ -1,0 +1,61 @@
+# ---- deps ----
+FROM node:20-alpine AS deps
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
+WORKDIR /app
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY packages/core/package.json packages/core/package.json
+COPY packages/react/package.json packages/react/package.json
+COPY packages/livekit/package.json packages/livekit/package.json
+COPY apps/dashboard/package.json apps/dashboard/package.json
+# Console is referenced in workspace — include its manifest so pnpm resolves
+COPY apps/console/package.json apps/console/package.json
+COPY apps/convex-backend/package.json apps/convex-backend/package.json
+
+RUN pnpm install --frozen-lockfile
+
+# ---- build ----
+FROM node:20-alpine AS build
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
+WORKDIR /app
+
+# NEXT_PUBLIC_ vars must be present at build time (inlined into client bundle)
+ARG NEXT_PUBLIC_CONVEX_URL
+ARG NEXT_PUBLIC_APP_SLUG
+ARG NEXT_PUBLIC_GEMINI_API_KEY
+ARG NEXT_PUBLIC_LIVEKIT_URL
+ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
+ENV NEXT_PUBLIC_APP_SLUG=$NEXT_PUBLIC_APP_SLUG
+ENV NEXT_PUBLIC_GEMINI_API_KEY=$NEXT_PUBLIC_GEMINI_API_KEY
+ENV NEXT_PUBLIC_LIVEKIT_URL=$NEXT_PUBLIC_LIVEKIT_URL
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/core/node_modules ./packages/core/node_modules
+COPY --from=deps /app/packages/react/node_modules ./packages/react/node_modules
+COPY --from=deps /app/packages/livekit/node_modules ./packages/livekit/node_modules
+COPY --from=deps /app/apps/dashboard/node_modules ./apps/dashboard/node_modules
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig.base.json ./
+COPY packages/core packages/core
+COPY packages/react packages/react
+COPY packages/livekit packages/livekit
+COPY apps/dashboard apps/dashboard
+# Convex + console manifests for workspace resolution
+COPY apps/console/package.json apps/console/package.json
+COPY apps/convex-backend/package.json apps/convex-backend/package.json
+
+RUN pnpm turbo run build --filter=@genai-voice/dashboard...
+
+# ---- runner ----
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=build /app/apps/dashboard/.next/standalone ./
+COPY --from=build /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "apps/dashboard/server.js"]
