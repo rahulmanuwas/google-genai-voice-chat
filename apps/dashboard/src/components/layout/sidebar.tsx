@@ -29,7 +29,7 @@ type NavEntry =
   | { type: 'separator'; label: string };
 
 const NAV_ITEMS: NavEntry[] = [
-  { type: 'link', href: '/', label: 'Overview', icon: LayoutDashboard },
+  { type: 'link', href: '/overview', label: 'Overview', icon: LayoutDashboard },
   { type: 'link', href: '/conversations', label: 'Conversations', icon: MessageSquare },
   { type: 'link', href: '/handoffs', label: 'Handoffs', icon: ArrowRightLeft },
   { type: 'link', href: '/tools', label: 'Tools', icon: Wrench },
@@ -107,7 +107,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           }
 
           const { href, label, icon: Icon } = item as Extract<NavEntry, { type: 'link' }>;
-          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          const active = pathname === href || pathname.startsWith(href + '/');
           const link = (
             <Link
               key={href}
