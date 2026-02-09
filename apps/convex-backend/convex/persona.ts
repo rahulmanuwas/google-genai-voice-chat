@@ -2,13 +2,31 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
 
-/** GET /api/persona — Get persona config for an app */
+/** GET /api/persona — Get persona config for an app (resolves personaId if set) */
 export const getPersona = httpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const { app } = auth;
 
+  // If app has a linked persona, resolve it
+  if (app.personaId) {
+    const persona = await ctx.runQuery(internal.personasDb.getPersonaById, {
+      id: app.personaId as any,
+    });
+    if (persona && persona.isActive) {
+      return jsonResponse({
+        systemPrompt: persona.systemPrompt ?? null,
+        personaName: persona.personaName ?? null,
+        personaGreeting: persona.personaGreeting ?? null,
+        personaTone: persona.personaTone ?? null,
+        preferredTerms: persona.preferredTerms ?? null,
+        blockedTerms: persona.blockedTerms ?? null,
+      });
+    }
+  }
+
+  // Fallback to embedded app fields
   return jsonResponse({
     systemPrompt: app.systemPrompt ?? null,
     personaName: app.personaName ?? null,

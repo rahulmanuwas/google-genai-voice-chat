@@ -13,6 +13,7 @@ import type {
   KnowledgeGap,
   KnowledgeDocument,
   PersonaConfig,
+  Persona,
   Experiment,
   Message,
   Conversation,
@@ -100,6 +101,10 @@ export function useKnowledgeDocuments() {
 
 export function usePersona() {
   return useApiSWR<PersonaConfig>('/api/persona');
+}
+
+export function usePersonas() {
+  return useApiSWR<{ personas: Persona[] }>('/api/personas');
 }
 
 // ─── Experiments ───────────────────────────────────────────────

@@ -51,6 +51,10 @@ export class ApiClient {
   patch<T>(path: string, body?: Record<string, unknown>): Promise<T> {
     return this.request<T>('PATCH', path, body);
   }
+
+  delete<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+    return this.request<T>('DELETE', path, body);
+  }
 }
 
 export class UnauthorizedError extends Error {

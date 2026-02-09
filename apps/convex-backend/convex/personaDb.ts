@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 /** Update persona fields on an app */
@@ -28,5 +28,41 @@ export const updatePersona = internalMutation({
         updatedAt: Date.now(),
       });
     }
+  },
+});
+
+/** Assign a persona to an app */
+export const assignPersonaToApp = internalMutation({
+  args: {
+    appId: v.id("apps"),
+    personaId: v.id("personas"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.appId, {
+      personaId: args.personaId,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/** Clear persona assignment from an app */
+export const clearAppPersona = internalMutation({
+  args: { appId: v.id("apps") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.appId, {
+      personaId: undefined,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/** Look up any app by slug (for persona assignment) */
+export const getAppBySlug = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("apps")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .unique();
   },
 });

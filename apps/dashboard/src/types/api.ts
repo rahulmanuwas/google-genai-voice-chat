@@ -107,6 +107,20 @@ export interface PersonaConfig {
   blockedTerms: string | null;
 }
 
+export interface Persona {
+  _id: string;
+  name: string;
+  systemPrompt: string;
+  personaName?: string;
+  personaGreeting?: string;
+  personaTone?: string;
+  preferredTerms?: string;
+  blockedTerms?: string;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ─── Experiments ───────────────────────────────────────────────
 export interface ExperimentVariant {
   id: string;

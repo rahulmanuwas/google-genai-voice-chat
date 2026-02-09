@@ -27,6 +27,13 @@ import {
 // ─── New handlers ───────────────────────────────────────────────
 import { saveMessages, listMessages } from "./messages";
 import { getPersona, updatePersona } from "./persona";
+import {
+  listPersonas,
+  createPersona,
+  updatePersona as updatePersonaById,
+  deletePersona,
+  assignPersona,
+} from "./personas";
 import { createExperiment, listExperiments, assignVariant } from "./experiments";
 import { getScenarioState, resetScenarioState } from "./scenarioState";
 
@@ -118,6 +125,13 @@ get("/api/messages", listMessages);
 // ─── Persona ────────────────────────────────────────────────────
 get("/api/persona", getPersona);
 patch("/api/persona", updatePersona);
+
+// ─── Personas (Library) ─────────────────────────────────────────
+get("/api/personas", listPersonas);
+post("/api/personas", createPersona);
+patch("/api/personas", updatePersonaById);
+del("/api/personas", deletePersona);
+patch("/api/personas/assign", assignPersona);
 
 // ─── Experiments (A/B Testing) ──────────────────────────────────
 post("/api/experiments", createExperiment);

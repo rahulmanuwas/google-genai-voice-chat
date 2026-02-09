@@ -15,6 +15,7 @@ export default defineSchema({
     systemPrompt: v.string(),
     tokenExpireMinutes: v.optional(v.float64()),
     // Persona (brand voice)
+    personaId: v.optional(v.id("personas")),
     personaName: v.optional(v.string()),
     personaGreeting: v.optional(v.string()),
     personaTone: v.optional(v.string()),
@@ -279,6 +280,21 @@ export default defineSchema({
   })
     .index("by_room", ["roomId"])
     .index("by_identity", ["identity"]),
+
+  // ─── Personas (Reusable Brand Voices) ─────────────────────────
+
+  personas: defineTable({
+    name: v.string(),
+    systemPrompt: v.string(),
+    personaName: v.optional(v.string()),
+    personaGreeting: v.optional(v.string()),
+    personaTone: v.optional(v.string()),
+    preferredTerms: v.optional(v.string()),
+    blockedTerms: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+  }).index("by_active", ["isActive"]),
 
   // ─── Scenario State (Live Demo Data) ──────────────────────────
 
