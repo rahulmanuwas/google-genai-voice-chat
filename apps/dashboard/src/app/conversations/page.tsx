@@ -11,14 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search } from 'lucide-react';
 import { timeAgo, formatDuration } from '@/lib/utils';
+import { PageHeader } from '@/components/layout/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import type { Conversation } from '@/types/api';
-
-const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-green-500/20 text-green-400 border-green-500/30',
-  resolved: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  handed_off: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  abandoned: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-};
 
 /** Parse transcript JSON and return the first user message as a preview */
 function getTranscriptPreview(c: Conversation): string {
@@ -69,6 +64,8 @@ export default function ConversationsPage() {
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Conversations" count={conversations.length} />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">Lookup by Session ID</CardTitle>
@@ -162,9 +159,7 @@ export default function ConversationsPage() {
                             </Link>
                           </td>
                           <td className="p-3">
-                            <Badge variant="outline" className={`text-xs ${STATUS_COLORS[c.status ?? 'active'] ?? ''}`}>
-                              {c.status ?? 'active'}
-                            </Badge>
+                            <StatusBadge value={c.status ?? 'active'} />
                           </td>
                           <td className="p-3 text-muted-foreground">{c.channel ?? '—'}</td>
                           <td className="p-3">{c.messageCount}</td>
@@ -184,9 +179,7 @@ export default function ConversationsPage() {
                     <div key={c._id} className="space-y-1.5 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <Badge variant="secondary" className="text-xs">{c.appSlug}</Badge>
-                        <Badge variant="outline" className={`text-xs ${STATUS_COLORS[c.status ?? 'active'] ?? ''}`}>
-                          {c.status ?? 'active'}
-                        </Badge>
+                        <StatusBadge value={c.status ?? 'active'} />
                       </div>
                       <Link href={`/conversations/${c.sessionId}`} className="block text-blue-400 hover:underline text-xs">
                         {getTranscriptPreview(c)}

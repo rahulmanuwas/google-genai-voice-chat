@@ -12,6 +12,7 @@ import {
   type Category,
 } from '@/lib/api-reference';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/layout/page-header';
 
 function EndpointCard({ endpoint }: { endpoint: EndpointDef }) {
   const [open, setOpen] = useState(false);
@@ -160,14 +161,11 @@ export default function DocsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <p className="text-sm text-muted-foreground">
-          {ALL_ENDPOINTS.length} endpoints across {CATEGORIES.length} categories.
-          All Convex endpoints support CORS and accept either{' '}
-          <code className="text-xs">appSlug+appSecret</code> or{' '}
-          <code className="text-xs">sessionToken</code> for authentication.
-        </p>
-      </div>
+      <PageHeader
+        title="API Reference"
+        count={ALL_ENDPOINTS.length}
+        description={`${CATEGORIES.length} categories. All endpoints accept appSlug+appSecret or sessionToken auth.`}
+      />
 
       {/* Search */}
       <div className="relative max-w-md">

@@ -7,6 +7,7 @@ import { KPICards } from '@/components/overview/kpi-cards';
 import { ToolUsageChart } from '@/components/overview/tool-usage-chart';
 import { InsightsChart } from '@/components/overview/insights-chart';
 import { ActivityFeed } from '@/components/overview/activity-feed';
+import { PageHeader } from '@/components/layout/page-header';
 
 const TIME_RANGES = [
   { label: '1h', ms: 3_600_000 },
@@ -45,9 +46,7 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* Time range selector */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Overview</h2>
+      <PageHeader title="Overview">
         <div className="inline-flex items-center rounded-lg border bg-muted p-0.5 text-sm">
           {TIME_RANGES.map((r) => (
             <button
@@ -63,7 +62,7 @@ export default function OverviewPage() {
             </button>
           ))}
         </div>
-      </div>
+      </PageHeader>
 
       <KPICards data={overview} />
       <div className="grid gap-6 lg:grid-cols-2">

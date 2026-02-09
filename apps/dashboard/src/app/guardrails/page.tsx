@@ -23,8 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Shield } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { formatNumber, timeAgo } from '@/lib/utils';
+import { PageHeader } from '@/components/layout/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 export default function GuardrailsPage() {
   const { api, ready } = useSession();
@@ -60,26 +62,13 @@ export default function GuardrailsPage() {
   const rules = data?.rules ?? [];
   const violations = violationsData?.violations ?? [];
 
-  const ACTION_COLORS: Record<string, string> = {
-    block: 'bg-red-500/20 text-red-400 border-red-500/30',
-    warn: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    log: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-4">
-          <p className="text-sm text-muted-foreground">{rules.length} rules</p>
-          {overview && (
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {formatNumber(overview.totalGuardrailViolations)} total violations
-              </span>
-            </div>
-          )}
-        </div>
+      <PageHeader
+        title="Guardrails"
+        count={rules.length}
+        description={overview ? `${formatNumber(overview.totalGuardrailViolations)} total violations` : undefined}
+      >
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="mr-2 h-4 w-4" />Add Rule</Button>
@@ -126,7 +115,7 @@ export default function GuardrailsPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageHeader>
 
       <Card>
         <CardHeader>
@@ -147,7 +136,7 @@ export default function GuardrailsPage() {
                     {r.userMessage && <p className="text-xs text-muted-foreground">{r.userMessage}</p>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={ACTION_COLORS[r.action] ?? ''}>{r.action}</Badge>
+                    <StatusBadge value={r.action} type="action" />
                     <span className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
                   </div>
                 </div>
@@ -180,7 +169,7 @@ export default function GuardrailsPage() {
                   {violations.slice(0, 20).map((v) => (
                     <tr key={v._id} className="border-b border-border last:border-0">
                       <td className="p-3"><Badge variant="secondary" className="text-xs">{v.type}</Badge></td>
-                      <td className="p-3"><Badge variant="outline" className={`text-xs ${ACTION_COLORS[v.action] ?? ''}`}>{v.action}</Badge></td>
+                      <td className="p-3"><StatusBadge value={v.action} type="action" /></td>
                       <td className="p-3 text-muted-foreground">{v.direction}</td>
                       <td className="p-3 text-muted-foreground max-w-xs truncate">{v.content}</td>
                       <td className="p-3 font-mono text-xs text-muted-foreground">{v.sessionId.slice(0, 12)}...</td>
@@ -198,7 +187,7 @@ export default function GuardrailsPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-xs">{v.type}</Badge>
-                      <Badge variant="outline" className={`text-xs ${ACTION_COLORS[v.action] ?? ''}`}>{v.action}</Badge>
+                      <StatusBadge value={v.action} type="action" />
                     </div>
                     <span className="text-xs text-muted-foreground">{v.direction}</span>
                   </div>

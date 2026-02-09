@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
+import { PageHeader } from '@/components/layout/page-header';
 
 const CallRoom = dynamic(() => import('./CallRoom'), { ssr: false });
 
@@ -70,6 +71,8 @@ export default function TwilioCallDemo() {
 
   return (
     <div className="space-y-6">
+      <PageHeader title="PSTN Call" description="LiveKit SIP outbound call via Twilio trunk" />
+
       <Card>
         <CardHeader>
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">

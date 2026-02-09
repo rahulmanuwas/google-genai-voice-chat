@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
+import { PageHeader } from '@/components/layout/page-header';
 
 const LiveKitVoiceChat = dynamic(
   () => import('@genai-voice/livekit').then((mod) => mod.LiveKitVoiceChat),
@@ -77,6 +78,8 @@ export default function LiveKitDemo() {
 
   return (
     <div className="space-y-6">
+      <PageHeader title="LiveKit Agent" description="Server-side AI agent powered by Gemini Live API" />
+
       <div className={`grid grid-cols-1 gap-6 ${hasStatePanel ? 'lg:grid-cols-2' : ''}`}>
         <Card>
           <CardHeader>

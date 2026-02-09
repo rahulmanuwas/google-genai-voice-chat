@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Trash2 } from 'lucide-react';
 import { timeAgo } from '@/lib/utils';
+import { PageHeader } from '@/components/layout/page-header';
 
 interface VariantInput {
   id: string;
@@ -64,8 +65,7 @@ export default function ExperimentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{experiments.length} experiments</p>
+      <PageHeader title="Experiments" count={experiments.length}>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="mr-2 h-4 w-4" />Create Experiment</Button>
@@ -116,7 +116,7 @@ export default function ExperimentsPage() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageHeader>
 
       <div className="space-y-4">
         {experiments.length === 0 ? (

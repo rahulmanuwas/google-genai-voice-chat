@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { PriorityBadge } from './priority-badge';
 import { timeAgo } from '@/lib/utils';
 import type { Handoff } from '@/types/api';
@@ -25,7 +26,7 @@ export function HandoffCard({ handoff, onClaim, onResolve }: HandoffCardProps) {
         </div>
         <div className="flex items-center gap-2">
           <PriorityBadge priority={handoff.priority} />
-          <Badge variant="outline" className="text-xs">{handoff.status}</Badge>
+          <StatusBadge value={handoff.status} />
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

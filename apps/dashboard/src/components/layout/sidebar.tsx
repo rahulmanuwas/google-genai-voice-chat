@@ -70,8 +70,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
     >
       <div className={cn('flex h-14 items-center border-b border-sidebar-border px-4', collapsed ? 'md:justify-center' : 'justify-between')}>
         {(!collapsed || mobileOpen) && (
-          <span className={cn('text-sm font-semibold text-sidebar-foreground', collapsed && 'md:hidden')}>
-            GenAI Voice
+          <span className={cn('text-base font-medium tracking-tight text-sidebar-foreground', collapsed && 'md:hidden')}>
+            <span className="text-[hsl(200_80%_55%)]">.</span>Riyaan
           </span>
         )}
         <Button
@@ -116,8 +116,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
               className={cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                  ? 'bg-[hsl(200_80%_55%/0.1)] text-[hsl(200_80%_55%)]'
+                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent',
                 collapsed && 'md:justify-center md:px-0',
               )}
             >

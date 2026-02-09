@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default function SettingsPage() {
   const appSlug = process.env.NEXT_PUBLIC_APP_SLUG ?? 'demo';
@@ -9,6 +10,8 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <PageHeader title="Settings" />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">App Configuration</CardTitle>

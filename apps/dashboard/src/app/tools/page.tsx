@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus } from 'lucide-react';
 import { timeAgo, formatDuration } from '@/lib/utils';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default function ToolsPage() {
   const { api, ready } = useSession();
@@ -56,8 +57,7 @@ export default function ToolsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{tools.length} tools &middot; {executions.length} executions</p>
+      <PageHeader title="Tools" count={tools.length} description={`${executions.length} executions`}>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="mr-2 h-4 w-4" />Register Tool</Button>
@@ -92,7 +92,7 @@ export default function ToolsPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

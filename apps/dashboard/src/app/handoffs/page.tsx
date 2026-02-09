@@ -5,6 +5,7 @@ import { useHandoffs } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
 import { HandoffCard } from '@/components/handoffs/handoff-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default function HandoffsPage() {
   const { api, ready } = useSession();
@@ -35,6 +36,8 @@ export default function HandoffsPage() {
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Handoffs" count={handoffs.length} />
+
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="pending">Pending</TabsTrigger>

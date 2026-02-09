@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
+import { PageHeader } from '@/components/layout/page-header';
 
 const ChatBot = dynamic(
   () => import('@genai-voice/react').then((mod) => mod.ChatBot),
@@ -38,6 +39,8 @@ export default function ChatBotDemo() {
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Voice Chat" description="Drop-in ChatBot widget demo" />
+
       <Card>
         <CardHeader>
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">

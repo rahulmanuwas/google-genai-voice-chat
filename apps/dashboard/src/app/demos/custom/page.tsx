@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { DEFAULT_SCENARIO, getScenarioById, type Scenario } from '@/lib/scenarios';
+import { PageHeader } from '@/components/layout/page-header';
 
 const CODE_SNIPPET = `import { useVoiceChat } from '@genai-voice/react';
 
@@ -39,6 +40,8 @@ export default function CustomDemo() {
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Custom UI" description="Full control with the useVoiceChat hook" />
+
       <Card>
         <CardHeader>
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -48,9 +51,6 @@ export default function CustomDemo() {
             </div>
             <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
           </div>
-          <CardDescription>
-            Full control over UI/UX by building custom components around the useVoiceChat hook.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <VoiceChatUI key={scenario.id} apiKey={apiKey} scenario={scenario} />

@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDuration, timeAgo } from '@/lib/utils';
 import { Sparkles, ThumbsUp, ThumbsDown, Minus, ArrowUpDown } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 interface TranscriptMessage {
   id: string;
@@ -126,6 +128,8 @@ export default function ConversationDetailPage({
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Conversation" description={`Session ${sessionId.slice(0, 16)}...`} />
+
       {/* Conversation metadata */}
       {conversation && (
         <Card>
@@ -137,7 +141,7 @@ export default function ConversationDetailPage({
               </div>
               <div>
                 <span className="text-muted-foreground">Status: </span>
-                <Badge variant="outline" className="text-xs">{conversation.status ?? 'active'}</Badge>
+                <StatusBadge value={conversation.status ?? 'active'} />
               </div>
               {conversation.channel && (
                 <div>

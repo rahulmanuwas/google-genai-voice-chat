@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, Save } from 'lucide-react';
 import { SCENARIOS } from '@/lib/scenarios';
+import { PageHeader } from '@/components/layout/page-header';
 import type { Persona } from '@/types/api';
 
 const EMPTY_FORM = {
@@ -134,20 +135,19 @@ export default function PersonaPage() {
 
   return (
     <div className="space-y-8">
+      <PageHeader
+        title="Persona"
+        description="Create and manage reusable personas. Assign them to apps below."
+        count={personas.length}
+      >
+        <Button size="sm" onClick={openCreate}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          New Persona
+        </Button>
+      </PageHeader>
+
       {/* ─── Section 1: Persona Library ─────────────────────────── */}
       <div>
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-medium">Persona Library</h2>
-            <p className="text-xs text-muted-foreground">
-              Create and manage reusable personas. Assign them to apps below.
-            </p>
-          </div>
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New Persona
-          </Button>
-        </div>
 
         {personas.length === 0 ? (
           <Card>

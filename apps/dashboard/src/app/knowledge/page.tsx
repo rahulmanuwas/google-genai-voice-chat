@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Search } from 'lucide-react';
 import { timeAgo } from '@/lib/utils';
+import { PageHeader } from '@/components/layout/page-header';
 import type { KnowledgeSearchResult } from '@/types/api';
 
 export default function KnowledgePage() {
@@ -69,8 +70,7 @@ export default function KnowledgePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{documents.length} documents &middot; {gaps.length} gaps</p>
+      <PageHeader title="Knowledge" count={documents.length} description={`${gaps.length} gaps`}>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="mr-2 h-4 w-4" />Add Document</Button>
@@ -97,7 +97,7 @@ export default function KnowledgePage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageHeader>
 
       <Card>
         <CardHeader>
