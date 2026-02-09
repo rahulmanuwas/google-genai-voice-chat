@@ -36,8 +36,10 @@ function useApiSWR<T>(path: string | null, opts?: SWRConfiguration) {
 
 // ─── Overview ──────────────────────────────────────────────────
 
-export function useOverview() {
-  return useApiSWR<OverviewData>('/api/analytics/overview?all=true');
+export function useOverview(since?: number) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (since) params.set('since', String(since));
+  return useApiSWR<OverviewData>(`/api/analytics/overview?${params}`);
 }
 
 // ─── Insights ──────────────────────────────────────────────────

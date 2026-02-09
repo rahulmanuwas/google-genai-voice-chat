@@ -1,6 +1,5 @@
 'use client';
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ToolUsageChartProps {
@@ -12,6 +11,8 @@ export function ToolUsageChart({ toolUsage }: ToolUsageChartProps) {
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
+
+  const max = data.length > 0 ? data[0].count : 0;
 
   if (data.length === 0) {
     return (
@@ -32,21 +33,26 @@ export function ToolUsageChart({ toolUsage }: ToolUsageChartProps) {
         <CardTitle className="text-sm font-medium">Tool Usage</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} layout="vertical" margin={{ left: 20 }}>
-            <XAxis type="number" stroke="hsl(0 0% 63.9%)" fontSize={12} />
-            <YAxis type="category" dataKey="name" stroke="hsl(0 0% 63.9%)" fontSize={12} width={100} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'hsl(0 0% 3.9%)',
-                border: '1px solid hsl(0 0% 14.9%)',
-                borderRadius: '0.5rem',
-                color: 'hsl(0 0% 98%)',
-              }}
-            />
-            <Bar dataKey="count" fill="hsl(220 70% 50%)" radius={[0, 4, 4, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="space-y-3">
+          {data.map((d) => (
+            <div key={d.name} className="flex items-center gap-3">
+              <span className="w-[45%] truncate text-sm text-muted-foreground" title={d.name}>
+                {d.name}
+              </span>
+              <div className="flex-1">
+                <div className="h-2 rounded-full bg-muted">
+                  <div
+                    className="h-2 rounded-full bg-blue-500"
+                    style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <span className="w-8 text-right text-sm font-medium tabular-nums">
+                {d.count}
+              </span>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );

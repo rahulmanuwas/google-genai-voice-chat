@@ -9,13 +9,20 @@ export class ApiClient {
     body?: Record<string, unknown>,
   ): Promise<T> {
     const url = new URL(path, CONVEX_URL);
+    // Use query-param auth for GET (avoids CORS preflight) and body auth for
+    // POST/PATCH. Will switch to header-based auth once the backend CORS
+    // allowlist is deployed.
     if (method === 'GET') {
       url.searchParams.set('sessionToken', this.sessionToken);
     }
 
+    const headers: Record<string, string> = {};
+
     const res = await fetch(url.toString(), {
       method,
-      headers: method !== 'GET' ? { 'Content-Type': 'application/json' } : undefined,
+      headers: method !== 'GET'
+        ? { ...headers, 'Content-Type': 'application/json' }
+        : headers,
       body: method !== 'GET'
         ? JSON.stringify({ ...body, sessionToken: this.sessionToken })
         : undefined,

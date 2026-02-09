@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import { useOverview, useInsights } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
 import { KPICards } from '@/components/overview/kpi-cards';
@@ -7,9 +8,23 @@ import { ToolUsageChart } from '@/components/overview/tool-usage-chart';
 import { InsightsChart } from '@/components/overview/insights-chart';
 import { ActivityFeed } from '@/components/overview/activity-feed';
 
+const TIME_RANGES = [
+  { label: '1h', ms: 3_600_000 },
+  { label: '1d', ms: 86_400_000 },
+  { label: '1w', ms: 604_800_000 },
+  { label: 'All', ms: 0 },
+] as const;
+
 export default function OverviewPage() {
   const { ready } = useSession();
-  const { data: overview, isLoading: overviewLoading } = useOverview();
+  const [rangeMs, setRangeMs] = useState(0);
+
+  const since = useMemo(
+    () => (rangeMs > 0 ? Date.now() - rangeMs : undefined),
+    [rangeMs],
+  );
+
+  const { data: overview, isLoading: overviewLoading } = useOverview(since);
   const { data: insightsData } = useInsights();
 
   if (!ready || overviewLoading) {
@@ -30,6 +45,26 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
+      {/* Time range selector */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Overview</h2>
+        <div className="inline-flex items-center rounded-lg border bg-muted p-0.5 text-sm">
+          {TIME_RANGES.map((r) => (
+            <button
+              key={r.label}
+              onClick={() => setRangeMs(r.ms)}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                rangeMs === r.ms
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <KPICards data={overview} />
       <div className="grid gap-6 lg:grid-cols-2">
         <InsightsChart insights={insightsData?.insights ?? []} />

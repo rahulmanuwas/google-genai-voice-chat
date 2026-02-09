@@ -26,7 +26,14 @@ export async function POST(request: Request) {
 
   const res = await fetch(`${convexUrl}/api/auth/session`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // Avoid putting app secrets in bodies/URLs where possible.
+      Authorization: `Bearer ${appSecret}`,
+      'X-App-Slug': appSlug,
+    },
+    // Backwards compatible: send appSlug + appSecret in body too for
+    // deployments that don't yet parse Authorization/X-App-Slug headers.
     body: JSON.stringify({ appSlug, appSecret }),
   });
 
