@@ -64,26 +64,20 @@ export default function ConversationsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Conversations" count={conversations.length} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Lookup by Session ID</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter session ID..."
-              value={sessionId}
-              onChange={(e) => setSessionId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <Button size="sm" variant="outline" onClick={handleSearch}>
-              <Search className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <PageHeader title="Conversations" count={conversations.length}>
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Session ID lookup..."
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            className="h-8 w-48 text-xs sm:w-64"
+          />
+          <Button size="sm" variant="outline" onClick={handleSearch} className="h-8 w-8 p-0">
+            <Search className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </PageHeader>
 
       {searchId && (
         <Card>

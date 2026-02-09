@@ -3,27 +3,12 @@
 import { useState } from 'react';
 import { useVoiceChat } from '@genai-voice/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { DEFAULT_SCENARIO, getScenarioById, type Scenario } from '@/lib/scenarios';
 import { PageHeader } from '@/components/layout/page-header';
-
-const CODE_SNIPPET = `import { useVoiceChat } from '@genai-voice/react';
-
-const {
-  messages, isConnected, isListening, isAISpeaking,
-  connect, disconnect, sendText, toggleMic,
-} = useVoiceChat({
-  apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY!,
-  config: {
-    systemPrompt: 'You are a helpful voice assistant.',
-    modelId: 'gemini-2.5-flash-native-audio-preview-12-2025',
-    replyAsAudio: true,
-  },
-});`;
 
 export default function CustomDemo() {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -40,31 +25,13 @@ export default function CustomDemo() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Custom UI" description="Full control with the useVoiceChat hook" />
+      <PageHeader title="Custom UI" description="Full control with the useVoiceChat hook">
+        <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
+      </PageHeader>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <CardTitle>Custom UI with useVoiceChat</CardTitle>
-              <Badge variant="secondary">@genai-voice/react</Badge>
-            </div>
-            <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <VoiceChatUI key={scenario.id} apiKey={apiKey} scenario={scenario} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Code</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="overflow-auto rounded-lg border bg-muted/50 p-4 text-xs">
-            {CODE_SNIPPET}
-          </pre>
         </CardContent>
       </Card>
     </div>

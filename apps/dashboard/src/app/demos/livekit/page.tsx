@@ -3,7 +3,6 @@
 import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
@@ -13,36 +12,6 @@ const LiveKitVoiceChat = dynamic(
   () => import('@genai-voice/livekit').then((mod) => mod.LiveKitVoiceChat),
   { ssr: false },
 );
-
-const COMPONENT_SNIPPET = `import { LiveKitVoiceChat } from '@genai-voice/livekit';
-
-const getSessionToken = async () => {
-  const res = await fetch('/api/session', { method: 'POST' });
-  const { sessionToken } = await res.json();
-  return sessionToken;
-};
-
-<LiveKitVoiceChat
-  convexUrl="https://your-deployment.convex.cloud"
-  appSlug="demo"
-  getSessionToken={getSessionToken}
-  serverUrl="wss://your-app.livekit.cloud"
-/>`;
-
-const HOOK_SNIPPET = `import { useLiveKitVoiceChat } from '@genai-voice/livekit';
-
-const {
-  token, roomName, serverUrl,
-  isReady, isConnecting, error,
-  connect, disconnect,
-} = useLiveKitVoiceChat({
-  convexUrl: '...',
-  appSlug: 'demo',
-  getSessionToken: async () => { ... },
-  serverUrl: 'wss://your-app.livekit.cloud',
-});
-
-// Pass token + serverUrl to <LiveKitRoom>`;
 
 export default function LiveKitDemo() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -78,25 +47,13 @@ export default function LiveKitDemo() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="LiveKit Agent" description="Server-side AI agent powered by Gemini Live API" />
+      <PageHeader title="LiveKit Agent" description="Click Start Voice Chat to connect to a server-side AI agent.">
+        <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
+      </PageHeader>
 
       <div className={`grid grid-cols-1 gap-6 ${hasStatePanel ? 'lg:grid-cols-2' : ''}`}>
         <Card>
-          <CardHeader>
-            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <CardTitle>LiveKit Voice Agent</CardTitle>
-                <Badge variant="secondary">@genai-voice/livekit</Badge>
-              </div>
-              <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
-            </div>
-            <CardDescription>
-              Click &quot;Start Voice Chat&quot; to create a LiveKit room and connect.
-              A server-side AI agent (powered by Gemini Live API) will join the room
-              and respond with speech.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <LiveKitVoiceChat
               key={scenario.id}
               convexUrl={convexUrl!}
@@ -111,28 +68,6 @@ export default function LiveKitDemo() {
           <ScenarioStatePanel key={scenario.id} scenario={scenario} />
         )}
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Component Usage</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="overflow-auto rounded-lg border bg-muted/50 p-4 text-xs">
-            {COMPONENT_SNIPPET}
-          </pre>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Hook Usage (Custom UI)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="overflow-auto rounded-lg border bg-muted/50 p-4 text-xs">
-            {HOOK_SNIPPET}
-          </pre>
-        </CardContent>
-      </Card>
     </div>
   );
 }

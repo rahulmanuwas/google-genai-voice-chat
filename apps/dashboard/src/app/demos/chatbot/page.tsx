@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 import { PageHeader } from '@/components/layout/page-header';
@@ -12,17 +11,6 @@ const ChatBot = dynamic(
   () => import('@genai-voice/react').then((mod) => mod.ChatBot),
   { ssr: false },
 );
-
-const CODE_SNIPPET = `import { ChatBot } from '@genai-voice/react';
-
-<ChatBot
-  apiKey={process.env.NEXT_PUBLIC_GEMINI_API_KEY!}
-  config={{
-    systemPrompt: 'You are a helpful assistant.',
-    modelId: 'gemini-2.5-flash-native-audio-preview-12-2025',
-    replyAsAudio: true,
-  }}
-/>`;
 
 export default function ChatBotDemo() {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -39,27 +27,9 @@ export default function ChatBotDemo() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Voice Chat" description="Drop-in ChatBot widget demo" />
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <CardTitle>Drop-in ChatBot Widget</CardTitle>
-              <Badge variant="secondary">@genai-voice/react</Badge>
-            </div>
-            <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
-          </div>
-          <CardDescription>
-            The floating chat widget is in the bottom-right corner. Click it to start a conversation.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <pre className="overflow-auto rounded-lg border bg-muted/50 p-4 text-xs">
-            {CODE_SNIPPET}
-          </pre>
-        </CardContent>
-      </Card>
+      <PageHeader title="Voice Chat" description="The floating chat widget appears in the bottom-right corner.">
+        <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
+      </PageHeader>
 
       <ChatBot
         key={scenario.id}
