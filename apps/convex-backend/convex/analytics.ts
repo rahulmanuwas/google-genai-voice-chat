@@ -1,6 +1,6 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
 
 /** POST /api/csat — Submit a CSAT rating */
 export const submitCSAT = httpAction(async (ctx, request) => {
@@ -38,13 +38,10 @@ export const submitCSAT = httpAction(async (ctx, request) => {
 /** GET /api/analytics/insights — Get insights for a period */
 export const getInsights = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug") ?? undefined;
-  const appSecret = url.searchParams.get("appSecret") ?? undefined;
-  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const period = url.searchParams.get("period");
   const all = url.searchParams.get("all") === "true";
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   if (period) {
@@ -66,13 +63,10 @@ export const getInsights = httpAction(async (ctx, request) => {
 /** GET /api/analytics/overview — Live overview stats */
 export const getOverview = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug") ?? undefined;
-  const appSecret = url.searchParams.get("appSecret") ?? undefined;
-  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const since = url.searchParams.get("since");
   const all = url.searchParams.get("all") === "true";
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const overview = await ctx.runQuery(

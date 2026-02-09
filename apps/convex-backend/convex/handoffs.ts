@@ -1,6 +1,6 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
 
 /** POST /api/handoffs — Create a new handoff request */
 export const createHandoff = httpAction(async (ctx, request) => {
@@ -107,13 +107,10 @@ export const updateHandoff = httpAction(async (ctx, request) => {
 /** GET /api/handoffs — List handoffs (filtered by status) */
 export const listHandoffs = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug") ?? undefined;
-  const appSecret = url.searchParams.get("appSecret") ?? undefined;
-  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const status = url.searchParams.get("status");
   const all = url.searchParams.get("all") === "true";
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const handoffs = await ctx.runQuery(

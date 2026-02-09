@@ -1,15 +1,10 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
 
 /** GET /api/tools?appSlug=...&appSecret=...  or  ?sessionToken=... — List active tools for an app */
 export const listTools = httpAction(async (ctx, request) => {
-  const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug") ?? undefined;
-  const appSecret = url.searchParams.get("appSecret") ?? undefined;
-  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
-
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const tools = await ctx.runQuery(internal.toolsDb.getActiveTools, {
@@ -63,12 +58,9 @@ export const executeTool = httpAction(async (ctx, request) => {
 /** GET /api/tools/executions — List recent tool executions */
 export const listExecutions = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug") ?? undefined;
-  const appSecret = url.searchParams.get("appSecret") ?? undefined;
-  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const all = url.searchParams.get("all") === "true";
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const executions = await ctx.runQuery(
@@ -82,12 +74,9 @@ export const listExecutions = httpAction(async (ctx, request) => {
 /** GET /api/tools/all — List all tools (including inactive) for dashboard */
 export const listAllTools = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug") ?? undefined;
-  const appSecret = url.searchParams.get("appSecret") ?? undefined;
-  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
   const all = url.searchParams.get("all") === "true";
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const tools = await ctx.runQuery(

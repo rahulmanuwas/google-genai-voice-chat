@@ -56,6 +56,17 @@ function resolveAuth(config: ConvexToolsConfig): Record<string, string> {
   return { appSlug: config.appSlug!, appSecret: config.appSecret! };
 }
 
+/** Build auth headers for GET endpoints (avoid secrets in query strings). */
+function resolveAuthHeaders(config: ConvexToolsConfig): Record<string, string> {
+  if (config.sessionToken) {
+    return { Authorization: `Bearer ${config.sessionToken}` };
+  }
+  return {
+    Authorization: `Bearer ${config.appSecret!}`,
+    'X-App-Slug': config.appSlug!,
+  };
+}
+
 /**
  * Fetch tool definitions from the Convex backend and convert them
  * to a LiveKit ToolContext (name-keyed record of FunctionTools).
@@ -64,12 +75,9 @@ export async function createToolsFromConvex(
   config: ConvexToolsConfig,
 ): Promise<llm.ToolContext> {
   const url = new URL('/api/tools', config.convexUrl);
-  const authParams = resolveAuth(config);
-  for (const [key, value] of Object.entries(authParams)) {
-    url.searchParams.set(key, value);
-  }
-
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    headers: resolveAuthHeaders(config),
+  });
   if (!response.ok) {
     throw new Error(`Failed to fetch tools: ${response.statusText}`);
   }

@@ -19,10 +19,13 @@ export async function GET(request: Request) {
   }
 
   const target = new URL('/api/scenario-state', convexUrl);
-  target.searchParams.set('appSlug', appSlug);
-  target.searchParams.set('appSecret', appSecret);
-
-  const res = await fetch(target.toString());
+  // Avoid putting app secrets in query strings.
+  const res = await fetch(target.toString(), {
+    headers: {
+      Authorization: `Bearer ${appSecret}`,
+      'X-App-Slug': appSlug,
+    },
+  });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }

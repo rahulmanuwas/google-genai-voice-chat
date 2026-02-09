@@ -1,6 +1,6 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
 
 /** POST /api/livekit/token — Generate a LiveKit access token */
 export const generateToken = httpAction(async (ctx, request) => {
@@ -80,12 +80,7 @@ export const createRoom = httpAction(async (ctx, request) => {
 
 /** GET /api/livekit/rooms — List active rooms */
 export const listRooms = httpAction(async (ctx, request) => {
-  const url = new URL(request.url);
-  const appSlug = url.searchParams.get("appSlug") ?? undefined;
-  const appSecret = url.searchParams.get("appSecret") ?? undefined;
-  const sessionToken = url.searchParams.get("sessionToken") ?? undefined;
-
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const rooms = await ctx.runQuery(internal.livekitDb.listActiveRooms, {

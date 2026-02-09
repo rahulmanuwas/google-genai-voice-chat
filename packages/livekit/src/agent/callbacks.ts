@@ -78,9 +78,12 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
   return {
     async loadPersona(): Promise<AgentPersonaData | null> {
       try {
-        const res = await fetch(
-          `${convexUrl}/api/persona?appSlug=${encodeURIComponent(appSlug)}&appSecret=${encodeURIComponent(appSecret)}`,
-        );
+        const res = await fetch(`${convexUrl}/api/persona`, {
+          headers: {
+            Authorization: `Bearer ${appSecret}`,
+            "X-App-Slug": appSlug,
+          },
+        });
         if (!res.ok) return null;
         const persona = await res.json();
         if (persona.systemPrompt || persona.personaName || persona.personaTone || persona.personaGreeting) {
