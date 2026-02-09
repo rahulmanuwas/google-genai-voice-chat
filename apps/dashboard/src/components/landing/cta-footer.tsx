@@ -7,10 +7,10 @@ export function CTAFooter() {
       <section className="py-24 sm:py-32 border-t border-border">
         <div className="max-w-3xl mx-auto px-6 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-6">
-            Ready to give your product a voice?
+            Ready to deploy AI that works?
           </h2>
           <p className="text-muted-foreground text-lg mb-10 max-w-xl mx-auto">
-            Start building with the dashboard, explore the demos, or dive into the API docs.
+            Explore the dashboard, try live demos, or dive into the API docs.
           </p>
           <Link
             href="/overview"
@@ -28,7 +28,7 @@ export function CTAFooter() {
             <span className="text-[hsl(200_80%_55%)]">.</span>Riyaan
           </span>
           <p className="text-xs text-muted-foreground">
-            AI voice agent platform — built with Gemini, LiveKit &amp; Convex
+            Enterprise AI platform — built with Gemini, LiveKit &amp; Convex
           </p>
         </div>
       </footer>

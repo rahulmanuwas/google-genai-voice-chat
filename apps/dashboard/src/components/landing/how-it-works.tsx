@@ -33,7 +33,7 @@ export function HowItWorks() {
             Three steps to production
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Go from zero to a deployed voice agent without stitching together a dozen services.
+            Go from zero to production without stitching together a dozen services.
           </p>
         </div>
 
