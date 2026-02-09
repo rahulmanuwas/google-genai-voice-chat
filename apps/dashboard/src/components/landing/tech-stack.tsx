@@ -26,10 +26,10 @@ const STACK = [
 
 export function TechStack() {
   return (
-    <section className="py-24 sm:py-32 border-t border-border">
+    <section className="py-16 sm:py-24 lg:py-32 border-t border-border">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+        <div className="text-center mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Built on the modern stack
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
@@ -37,7 +37,7 @@ export function TechStack() {
           </p>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-4 sm:gap-6">
           {STACK.map(({ icon: Icon, name, role, description }, i) => (
             <div key={name} className="contents">
               <div className="w-full md:w-72 rounded-xl border border-border bg-card/50 p-6 text-center backdrop-blur-sm">

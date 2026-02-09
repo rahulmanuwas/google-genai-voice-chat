@@ -130,22 +130,22 @@ export function DemoShowcase() {
           <div className="mx-5 sm:mx-6 border-t border-[hsl(0_0%_100%/0.06)]" />
 
           {/* Conversation area */}
-          <div className="px-5 sm:px-6 py-6 min-h-[160px]">
-            <p className="text-[15px] sm:text-base leading-relaxed text-foreground/90 transition-opacity duration-200">
+          <div className="px-5 sm:px-6 py-5 sm:py-6 min-h-[140px] sm:min-h-[160px]">
+            <p className="text-sm sm:text-base leading-relaxed text-foreground/90 transition-opacity duration-200">
               {scenario.text}
             </p>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-t border-[hsl(0_0%_100%/0.06)] bg-[hsl(0_0%_4%)]">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3 sm:py-4 border-t border-[hsl(0_0%_100%/0.06)] bg-[hsl(0_0%_4%)]">
+            <div className="min-w-0 flex-1 text-xs text-muted-foreground truncate sm:whitespace-normal">
               <span>{scenario.context}</span>
-              <span className="hidden sm:inline">·</span>
+              <span className="mx-1.5">·</span>
               <span className="text-[hsl(200_80%_55%/0.7)]">{scenario.capability}</span>
             </div>
             <Link
               href={scenario.href}
-              className="group inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background transition-all hover:opacity-90"
+              className="group inline-flex items-center gap-1.5 rounded-full bg-foreground px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-background transition-all hover:opacity-90 shrink-0"
             >
               Try it live
               <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />

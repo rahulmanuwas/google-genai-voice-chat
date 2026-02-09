@@ -33,16 +33,16 @@ function Navbar() {
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen flex flex-col overflow-hidden">
+    <section className="relative min-h-[100svh] flex flex-col overflow-hidden">
       <DotGrid />
       <Navbar />
 
       {/* Centered content */}
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-16">
-        <div className="max-w-4xl mx-auto text-center mb-12 sm:mb-16">
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-5 sm:px-6 pt-20 sm:pt-24 pb-12 sm:pb-16">
+        <div className="max-w-4xl mx-auto text-center mb-10 sm:mb-16">
           {/* Badge */}
           <div
-            className="inline-flex items-center rounded-full border border-[hsl(200_80%_55%/0.25)] bg-[hsl(200_80%_55%/0.06)] px-4 py-1.5 text-sm text-[hsl(200_80%_55%)] mb-8 backdrop-blur-sm"
+            className="inline-flex items-center rounded-full border border-[hsl(200_80%_55%/0.25)] bg-[hsl(200_80%_55%/0.06)] px-3 py-1 text-xs sm:px-4 sm:py-1.5 sm:text-sm text-[hsl(200_80%_55%)] mb-6 sm:mb-8 backdrop-blur-sm"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.1s both' }}
           >
             <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[hsl(200_80%_55%)] animate-pulse" />
@@ -51,7 +51,7 @@ export function Hero() {
 
           {/* Headline */}
           <h1
-            className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.08]"
+            className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.08]"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.15s both' }}
           >
             Enterprise AI{' '}
@@ -63,7 +63,7 @@ export function Hero() {
 
           {/* Tagline */}
           <p
-            className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
+            className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.25s both' }}
           >
             Automate customer conversations, control physical systems, and deploy

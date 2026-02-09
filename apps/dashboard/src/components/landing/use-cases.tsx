@@ -96,10 +96,10 @@ function CaseCard({
 
 export function UseCases() {
   return (
-    <section className="py-24 sm:py-32 border-t border-border">
+    <section className="py-16 sm:py-24 lg:py-32 border-t border-border">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+        <div className="text-center mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Solving real problems{' '}
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-[hsl(200_80%_55%)] to-[hsl(160_60%_45%)]">
               across industries
