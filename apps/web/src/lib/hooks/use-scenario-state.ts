@@ -2,7 +2,6 @@
 
 import useSWR from 'swr';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface ScenarioStateResponse {
   appSlug: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

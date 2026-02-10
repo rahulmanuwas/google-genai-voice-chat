@@ -61,7 +61,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
       () => resolvePersistence(config.persistence),
       [config.persistence],
     );
-    const persistenceKey = config.sessionStorageKey ?? 'genai-voice-chat-messages';
+    const persistenceKey = `${config.sessionStorageKey}:messages`;
     const persistenceLoadedRef = useRef(false);
 
     // Load persisted messages on mount
@@ -132,40 +132,6 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     // Input transcription handling (user's speech)
     const currentInputTranscriptRef = useRef('');
     const streamingInputMsgIdRef = useRef<string | null>(null);
-    const pendingUpdatesRef = useRef(false);
-    
-    // Throttled UI updates for streaming text
-    useEffect(() => {
-        const interval = setInterval(() => {
-            if (pendingUpdatesRef.current) {
-                pendingUpdatesRef.current = false;
-                
-                updateMessages(prev => {
-                    let next = prev;
-                    
-                    // Update model streaming message
-                    if (streamingMsgIdRef.current) {
-                        const id = streamingMsgIdRef.current;
-                        const content = limitText(currentTranscriptRef.current);
-                        // Only update if content changed or it's a new message not yet in state
-                        // Actually, just mapping is safer to ensure sync
-                        next = next.map(m => m.id === id ? { ...m, content } : m);
-                    }
-                    
-                    // Update user streaming message
-                    if (streamingInputMsgIdRef.current) {
-                        const id = streamingInputMsgIdRef.current;
-                        const content = limitText(currentInputTranscriptRef.current);
-                        next = next.map(m => m.id === id ? { ...m, content } : m);
-                    }
-                    
-                    return next;
-                });
-            }
-        }, 50);
-        return () => clearInterval(interval);
-    }, [updateMessages, limitText]);
-
     const pendingMicResumeRef = useRef(false);
     const sessionConnectedRef = useRef(false);
     const welcomeSentRef = useRef(false);

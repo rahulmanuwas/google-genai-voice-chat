@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useOverview, useInsights } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
 import { KPICards } from '@/components/overview/kpi-cards';
@@ -19,11 +19,12 @@ const TIME_RANGES = [
 export default function OverviewPage() {
   const { ready } = useSession();
   const [rangeMs, setRangeMs] = useState(0);
+  const [since, setSince] = useState<number | undefined>(undefined);
 
-  const since = useMemo(
-    () => (rangeMs > 0 ? Date.now() - rangeMs : undefined),
-    [rangeMs],
-  );
+  const selectRange = useCallback((ms: number) => {
+    setRangeMs(ms);
+    setSince(ms > 0 ? Date.now() - ms : undefined);
+  }, []);
 
   const { data: overview, isLoading: overviewLoading } = useOverview(since);
   const { data: insightsData } = useInsights();
@@ -51,7 +52,7 @@ export default function OverviewPage() {
           {TIME_RANGES.map((r) => (
             <button
               key={r.label}
-              onClick={() => setRangeMs(r.ms)}
+              onClick={() => selectRange(r.ms)}
               className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
                 rangeMs === r.ms
                   ? 'bg-background text-foreground shadow-sm'

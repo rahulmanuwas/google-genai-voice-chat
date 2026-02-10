@@ -23,23 +23,50 @@ interface ConvexToolRecord {
   name: string;
   description: string;
   parametersSchema: string;
+  requiresConfirmation?: boolean;
+}
+
+/** Result of loading tools from Convex — includes the ToolContext and confirmation metadata */
+export interface ConvexToolsResult {
+  tools: llm.ToolContext;
+  /** Tool names that require verbal user confirmation before execution */
+  confirmationRequired: string[];
 }
 
 /**
  * Convert a JSON schema property to a zod schema.
- * Handles basic types: string, number, integer, boolean, array.
+ * Handles: string, number, integer, boolean, array, object, oneOf/anyOf.
  */
 function jsonSchemaToZod(schema: Record<string, unknown>): z.ZodType {
+  // Handle oneOf / anyOf as unions
+  const alternatives = (schema.oneOf ?? schema.anyOf) as Record<string, unknown>[] | undefined;
+  if (alternatives && alternatives.length > 0) {
+    if (alternatives.length === 1) return jsonSchemaToZod(alternatives[0]);
+    const schemas = alternatives.map(jsonSchemaToZod);
+    return z.union([schemas[0], schemas[1], ...schemas.slice(2)] as [z.ZodType, z.ZodType, ...z.ZodType[]]);
+  }
+
   const type = schema.type as string;
 
   switch (type) {
-    case 'string':
-      return schema.enum
-        ? z.enum(schema.enum as [string, ...string[]])
-        : z.string();
+    case 'string': {
+      if (schema.enum) return z.enum(schema.enum as [string, ...string[]]);
+      let s = z.string();
+      if (typeof schema.minLength === 'number') s = s.min(schema.minLength);
+      if (typeof schema.maxLength === 'number') s = s.max(schema.maxLength);
+      if (typeof schema.pattern === 'string') s = s.regex(new RegExp(schema.pattern));
+      return s;
+    }
     case 'number':
-    case 'integer':
-      return z.number();
+    case 'integer': {
+      let n = z.number();
+      if (type === 'integer') n = n.int();
+      if (typeof schema.minimum === 'number') n = n.min(schema.minimum);
+      if (typeof schema.maximum === 'number') n = n.max(schema.maximum);
+      if (typeof schema.exclusiveMinimum === 'number') n = n.gt(schema.exclusiveMinimum);
+      if (typeof schema.exclusiveMaximum === 'number') n = n.lt(schema.exclusiveMaximum);
+      return n;
+    }
     case 'boolean':
       return z.boolean();
     case 'array':
@@ -48,6 +75,17 @@ function jsonSchemaToZod(schema: Record<string, unknown>): z.ZodType {
           ? jsonSchemaToZod(schema.items as Record<string, unknown>)
           : z.unknown()
       );
+    case 'object': {
+      const props = schema.properties as Record<string, Record<string, unknown>> | undefined;
+      if (!props) return z.record(z.string(), z.unknown());
+      const shape: Record<string, z.ZodType> = {};
+      const req = new Set((schema.required as string[]) ?? []);
+      for (const [key, prop] of Object.entries(props)) {
+        const zodType = jsonSchemaToZod(prop);
+        shape[key] = req.has(key) ? zodType : zodType.optional();
+      }
+      return z.object(shape);
+    }
     default:
       return z.unknown();
   }
@@ -78,7 +116,7 @@ function resolveAuthHeaders(config: ConvexToolsConfig): Record<string, string> {
  */
 export async function createToolsFromConvex(
   config: ConvexToolsConfig,
-): Promise<llm.ToolContext> {
+): Promise<ConvexToolsResult> {
   const url = new URL('/api/tools', config.convexUrl);
   const response = await fetch(url.toString(), {
     headers: resolveAuthHeaders(config),
@@ -159,5 +197,9 @@ export async function createToolsFromConvex(
     });
   }
 
-  return toolContext;
+  const confirmationRequired = tools
+    .filter(t => t.requiresConfirmation)
+    .map(t => t.name);
+
+  return { tools: toolContext, confirmationRequired };
 }

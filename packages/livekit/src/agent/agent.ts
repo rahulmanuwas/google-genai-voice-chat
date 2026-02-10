@@ -8,9 +8,29 @@ import * as google from '@livekit/agents-plugin-google';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import type { LiveKitAgentConfig } from '../types';
 import crypto from 'node:crypto';
-import type { AgentCallbacks, AgentEvent, BufferedMessage } from './callbacks';
+import type { AgentCallbacks, AgentEvent, BufferedMessage, GuardrailResult } from './callbacks';
 import { createConvexAgentCallbacks } from './callbacks';
 import { createToolsFromConvex } from './tools.js';
+
+const GUARDRAIL_TIMEOUT_MS = 3000;
+
+/** Await input guardrail check with timeout. Returns null on timeout or error (fail-open). */
+async function checkInputGuardrail(
+  checkGuardrails: NonNullable<AgentCallbacks['checkGuardrails']>,
+  transcript: string,
+  sessionId: string,
+  traceId: string | undefined,
+): Promise<GuardrailResult | null> {
+  try {
+    return await Promise.race([
+      checkGuardrails(transcript, 'input', sessionId, traceId),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), GUARDRAIL_TIMEOUT_MS)),
+    ]);
+  } catch (err) {
+    console.warn('[agent] Input guardrail check failed:', err);
+    return null; // fail-open
+  }
+}
 
 export interface AgentDefinitionOptions {
   /** Gemini native audio model for speech-to-speech (default: "gemini-2.5-flash-native-audio-preview-12-2025") */
@@ -176,13 +196,13 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         }
 
         // Load tools from Convex (runs in parallel with persona and waitForParticipant)
-        const toolsPromise = (async (): Promise<llm.ToolContext> => {
+        const toolsPromise = (async (): Promise<{ tools: llm.ToolContext; confirmationRequired: string[] }> => {
           if (!convexUrl || !roomAppSlug || !appSecret) {
             console.warn('[agent] Skipping tool loading — missing Convex env vars');
-            return options?.tools ?? {};
+            return { tools: options?.tools ?? {}, confirmationRequired: [] };
           }
           try {
-            const convexTools = await createToolsFromConvex({
+            const { tools: convexTools, confirmationRequired } = await createToolsFromConvex({
               convexUrl,
               appSlug: roomAppSlug,
               appSecret,
@@ -207,10 +227,10 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             const toolCount = Object.keys(convexTools).length;
             console.log(`[agent] Loaded ${toolCount} tools from Convex for app: ${roomAppSlug}`);
             // Merge: options?.tools take precedence over Convex tools
-            return { ...convexTools, ...(options?.tools ?? {}) };
+            return { tools: { ...convexTools, ...(options?.tools ?? {}) }, confirmationRequired };
           } catch (err) {
             console.warn('[agent] Failed to load tools from Convex, using defaults:', err);
-            return options?.tools ?? {};
+            return { tools: options?.tools ?? {}, confirmationRequired: [] };
           }
         })();
 
@@ -223,7 +243,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isSipParticipant = (participant as any).kind === 3
           || participant.identity?.startsWith('sip_');
-        const channel = isSipParticipant ? 'voice-sip' : 'voice-webrtc';
+        const channel = isSipParticipant ? 'voice-pstn' : 'voice-webrtc';
 
         // For SIP calls wait for audio track (call might still be ringing)
         if (participant.trackPublications.size === 0) {
@@ -239,13 +259,19 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           console.log('[agent] Audio track published');
         }
 
-        const [baseInstructions, loadedTools] = await Promise.all([personaPromise, toolsPromise]);
+        const [baseInstructions, toolsResult] = await Promise.all([personaPromise, toolsPromise]);
+        const { tools: loadedTools, confirmationRequired } = toolsResult;
 
         // Append tool-acknowledgment instructions when tools are loaded
         const hasTools = Object.keys(loadedTools).length > 0;
-        const instructions = hasTools
+        let instructions = hasTools
           ? baseInstructions + ' When you need to use a tool or look something up, always briefly tell the user what you are about to do before executing (e.g. "Let me check that for you", "One moment while I look that up"). Never go silent while waiting for a tool result.'
           : baseInstructions;
+
+        if (confirmationRequired.length > 0) {
+          instructions += ` IMPORTANT: The following tools require explicit user confirmation before execution: [${confirmationRequired.join(', ')}]. For these tools, you MUST describe what you are about to do and ask the user to confirm (e.g. "I'm about to cancel your appointment. Should I go ahead?"). Only execute the tool after the user clearly confirms. If they decline, do not execute.`;
+          console.log(`[agent] Tools requiring confirmation: ${confirmationRequired.join(', ')}`);
+        }
 
         console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
@@ -419,10 +445,27 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               });
               allMessages.push({ role: 'user', content: transcript, ts });
 
-              // Async input guardrail check (fire-and-forget audit trail)
+              // Blocking input guardrail check with timeout (fail-open)
               if (checkGuardrails) {
-                checkGuardrails(transcript, 'input', sessionId, traceId).then((result) => {
-                  if (!result.allowed || result.violations.length > 0) {
+                void (async () => {
+                  const result = await checkInputGuardrail(checkGuardrails, transcript, sessionId, traceId);
+                  if (result && !result.allowed) {
+                    const blockViolation = result.violations.find(v => v.action === 'block');
+                    const blockMessage = blockViolation?.userMessage
+                      || 'I\'m sorry, I can\'t help with that request.';
+
+                    pushEvent('guardrail_violation', {
+                      direction: 'input',
+                      violations: result.violations,
+                      content: transcript.slice(0, 200),
+                      blocked: true,
+                    });
+                    console.warn(`[agent] Input BLOCKED: ${result.violations.length} violation(s)`);
+
+                    // Interrupt any in-progress response and speak the block message
+                    session.interrupt();
+                    session.generateReply({ instructions: `Say exactly this to the user: "${blockMessage}". Do not add anything else.` });
+                  } else if (result && result.violations.length > 0) {
                     pushEvent('guardrail_violation', {
                       direction: 'input',
                       violations: result.violations,
@@ -430,9 +473,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                     });
                     console.warn(`[agent] Input guardrail triggered: ${result.violations.length} violation(s)`);
                   }
-                }).catch((err) => {
-                  console.warn('[agent] Input guardrail check failed:', err);
-                });
+                })();
               }
             });
 
