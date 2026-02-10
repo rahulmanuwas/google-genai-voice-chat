@@ -11,6 +11,7 @@ const messageValidator = {
   isFinal: v.boolean(),
   language: v.optional(v.string()),
   createdAt: v.float64(),
+  traceId: v.optional(v.string()),
 };
 
 /** Insert a single message */

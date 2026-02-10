@@ -60,6 +60,8 @@ export const searchAction = internalAction({
     query: v.string(),
     category: v.optional(v.string()),
     topK: v.float64(),
+    sessionId: v.optional(v.string()),
+    traceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const queryEmbedding = await generateEmbedding(args.query);
@@ -74,14 +76,32 @@ export const searchAction = internalAction({
       }
     );
 
-    // Log as knowledge gap if best result score is below threshold
-    const KNOWLEDGE_GAP_THRESHOLD = 0.5;
-    if (results.length === 0 || (results[0] && results[0].score < KNOWLEDGE_GAP_THRESHOLD)) {
+    // Use tunable threshold from app config instead of hard-coded value
+    const threshold = await ctx.runQuery(internal.knowledgeDb.getAppThreshold, {
+      appSlug: args.appSlug,
+    });
+
+    const topScore = results[0]?.score ?? 0;
+    const gapDetected = results.length === 0 || topScore < threshold;
+
+    // Log search metrics
+    await ctx.runMutation(internal.knowledgeDb.logSearch, {
+      appSlug: args.appSlug,
+      sessionId: args.sessionId ?? "search-api",
+      query: args.query,
+      topScore,
+      resultCount: results.length,
+      gapDetected,
+      traceId: args.traceId,
+    });
+
+    // Log as knowledge gap if below threshold
+    if (gapDetected) {
       await ctx.runMutation(internal.knowledgeDb.logKnowledgeGap, {
         appSlug: args.appSlug,
-        sessionId: "search-api",
+        sessionId: args.sessionId ?? "search-api",
         query: args.query,
-        bestMatchScore: results[0]?.score ?? 0,
+        bestMatchScore: topScore,
       });
     }
 

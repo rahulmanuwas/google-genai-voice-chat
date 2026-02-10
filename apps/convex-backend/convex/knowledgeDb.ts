@@ -100,6 +100,66 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return denom === 0 ? 0 : dotProduct / denom;
 }
 
+/** Log a knowledge search with quality metrics */
+export const logSearch = internalMutation({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    query: v.string(),
+    topScore: v.float64(),
+    resultCount: v.float64(),
+    gapDetected: v.boolean(),
+    traceId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("knowledgeSearches", {
+      ...args,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/** Get aggregated search metrics for an app */
+export const getSearchMetrics = internalQuery({
+  args: {
+    appSlug: v.string(),
+    since: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const since = args.since ?? 0;
+    const searches = await ctx.db
+      .query("knowledgeSearches")
+      .withIndex("by_app_createdAt", (q) => {
+        const q1 = q.eq("appSlug", args.appSlug);
+        return since > 0 ? q1.gte("createdAt", since) : q1;
+      })
+      .collect();
+
+    const totalSearches = searches.length;
+    if (totalSearches === 0) {
+      return { totalSearches: 0, avgTopScore: 0, gapRate: 0 };
+    }
+
+    const avgTopScore = searches.reduce((s, r) => s + r.topScore, 0) / totalSearches;
+    const gapCount = searches.filter((s) => s.gapDetected).length;
+    const gapRate = gapCount / totalSearches;
+
+    return { totalSearches, avgTopScore, gapRate };
+  },
+});
+
+/** Get knowledge threshold for an app (default 0.5) */
+export const getAppThreshold = internalQuery({
+  args: { appSlug: v.string() },
+  handler: async (ctx, args) => {
+    const app = await ctx.db
+      .query("apps")
+      .withIndex("by_slug", (q) => q.eq("slug", args.appSlug))
+      .first();
+    return (app?.knowledgeThreshold as number | undefined) ?? 0.5;
+  },
+});
+
 /** Log a knowledge gap */
 export const logKnowledgeGap = internalMutation({
   args: {

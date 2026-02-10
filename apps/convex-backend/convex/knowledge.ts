@@ -1,6 +1,6 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId } from "./helpers";
 
 /** POST /api/knowledge — Add or update a knowledge document */
 export const upsertDocument = httpAction(async (ctx, request) => {
@@ -38,14 +38,16 @@ export const upsertDocument = httpAction(async (ctx, request) => {
 
 /** POST /api/knowledge/search — Search knowledge base via vector similarity */
 export const searchKnowledge = httpAction(async (ctx, request) => {
+  const traceId = getTraceId(request);
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, query, category, topK } = body as {
+  const { appSlug, appSecret, sessionToken, query, category, topK, sessionId } = body as {
     appSlug?: string;
     appSecret?: string;
     sessionToken?: string;
     query: string;
     category?: string;
     topK?: number;
+    sessionId?: string;
   };
 
   if (!query) {
@@ -60,6 +62,8 @@ export const searchKnowledge = httpAction(async (ctx, request) => {
     query,
     category,
     topK: topK ?? 5,
+    sessionId,
+    traceId,
   });
 
   return jsonResponse({ results });
@@ -94,4 +98,20 @@ export const listGaps = httpAction(async (ctx, request) => {
   });
 
   return jsonResponse({ gaps });
+});
+
+/** GET /api/knowledge/metrics?since= — Get knowledge search quality metrics */
+export const searchMetrics = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const since = url.searchParams.get("since");
+
+  const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const metrics = await ctx.runQuery(internal.knowledgeDb.getSearchMetrics, {
+    appSlug: auth.app.slug,
+    since: since ? Number(since) : undefined,
+  });
+
+  return jsonResponse(metrics);
 });

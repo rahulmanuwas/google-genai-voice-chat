@@ -18,6 +18,7 @@ export const insertEventBatch = internalMutation({
   args: {
     appSlug: v.string(),
     sessionId: v.string(),
+    traceId: v.optional(v.string()),
     events: v.array(
       v.object({
         eventType: v.string(),
@@ -34,6 +35,7 @@ export const insertEventBatch = internalMutation({
         eventType: event.eventType,
         ts: event.ts,
         data: event.data,
+        traceId: args.traceId,
       });
     }
   },

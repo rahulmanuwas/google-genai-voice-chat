@@ -94,6 +94,8 @@ export const logExecution = internalMutation({
     status: v.string(),
     executedAt: v.float64(),
     durationMs: v.float64(),
+    traceId: v.optional(v.string()),
+    spanId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("toolExecutions", args);

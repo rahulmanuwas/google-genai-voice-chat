@@ -1,8 +1,9 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getTraceId } from "./helpers";
 
 export const logEvents = httpAction(async (ctx, request) => {
+  const traceId = getTraceId(request);
   const body = await request.json();
   const { appSlug, appSecret, sessionToken, sessionId, events } = body as {
     appSlug?: string;
@@ -23,6 +24,7 @@ export const logEvents = httpAction(async (ctx, request) => {
   await ctx.runMutation(internal.eventsInternal.insertEventBatch, {
     appSlug: auth.app.slug,
     sessionId,
+    traceId,
     events: batch,
   });
 

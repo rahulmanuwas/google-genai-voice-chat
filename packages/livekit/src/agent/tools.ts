@@ -1,4 +1,5 @@
 import { llm } from '@livekit/agents';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 
 export interface ConvexToolsConfig {
@@ -12,6 +13,8 @@ export interface ConvexToolsConfig {
   sessionToken?: string;
   /** Session ID for tool execution logging */
   sessionId: string;
+  /** Correlation ID for distributed tracing */
+  traceId?: string;
 }
 
 interface ConvexToolRecord {
@@ -115,16 +118,22 @@ export async function createToolsFromConvex(
       description: toolDef.description,
       parameters: parametersSchema,
       execute: async (params: Record<string, unknown>) => {
+        const spanId = crypto.randomUUID().slice(0, 8);
+        const traceHeaders: Record<string, string> = config.traceId
+          ? { 'X-Trace-Id': config.traceId }
+          : {};
         const execResponse = await fetch(
           new URL('/api/tools/execute', config.convexUrl).toString(),
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...traceHeaders },
             body: JSON.stringify({
               ...resolveAuth(config),
               sessionId: config.sessionId,
               toolName: toolDef.name,
               parameters: params,
+              traceId: config.traceId,
+              spanId,
             }),
           },
         );

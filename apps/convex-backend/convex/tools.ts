@@ -17,13 +17,15 @@ export const listTools = httpAction(async (ctx, request) => {
 /** POST /api/tools/execute — Execute a tool call */
 export const executeTool = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, sessionId, toolName, parameters } = body as {
+  const { appSlug, appSecret, sessionToken, sessionId, toolName, parameters, traceId, spanId } = body as {
     appSlug?: string;
     appSecret?: string;
     sessionToken?: string;
     sessionId: string;
     toolName: string;
     parameters: Record<string, unknown>;
+    traceId?: string;
+    spanId?: string;
   };
 
   if (!sessionId || !toolName) {
@@ -50,6 +52,8 @@ export const executeTool = httpAction(async (ctx, request) => {
     sessionId,
     toolName,
     parameters: JSON.stringify(parameters),
+    traceId,
+    spanId,
   });
 
   return jsonResponse(result);

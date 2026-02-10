@@ -6,6 +6,7 @@ import {
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
 import type { LiveKitAgentConfig } from '../types';
+import crypto from 'node:crypto';
 import type { AgentCallbacks, AgentEvent, BufferedMessage } from './callbacks';
 import { createConvexAgentCallbacks } from './callbacks';
 import { createToolsFromConvex } from './tools.js';
@@ -119,7 +120,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         // Room name is only available after connect()
         roomName = ctx.room.name ?? 'unknown';
-        console.log(`[agent] Connected to room: ${roomName}`);
+        const traceId = crypto.randomUUID();
+        console.log(`[agent] Connected to room: ${roomName} (traceId: ${traceId})`);
 
         // Resolve env vars once for callbacks and tool loading
         const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -134,7 +136,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         let callbacks = options?.callbacks;
         if (!callbacks) {
           if (convexUrl && envAppSlug && appSecret) {
-            callbacks = createConvexAgentCallbacks({ convexUrl, appSlug: roomAppSlug, appSecret });
+            callbacks = createConvexAgentCallbacks({ convexUrl, appSlug: roomAppSlug, appSecret, traceId });
             console.log(`[agent] Created Convex callbacks for app: ${roomAppSlug}`);
           } else {
             console.warn('[agent] No callbacks configured — missing CONVEX_URL, APP_SLUG, or APP_SECRET');
@@ -173,6 +175,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               appSlug: roomAppSlug,
               appSecret,
               sessionId: roomSessionId,
+              traceId,
             });
             const toolCount = Object.keys(convexTools).length;
             console.log(`[agent] Loaded ${toolCount} tools from Convex for app: ${roomAppSlug}`);
@@ -209,7 +212,14 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           console.log('[agent] Audio track published');
         }
 
-        const [instructions, loadedTools] = await Promise.all([personaPromise, toolsPromise]);
+        const [baseInstructions, loadedTools] = await Promise.all([personaPromise, toolsPromise]);
+
+        // Append tool-acknowledgment instructions when tools are loaded
+        const hasTools = Object.keys(loadedTools).length > 0;
+        const instructions = hasTools
+          ? baseInstructions + ' When you need to use a tool or look something up, always briefly acknowledge what you are doing before executing (e.g. "Let me check that for you", "One moment while I look that up"). Never leave the user in silence while waiting for a result.'
+          : baseInstructions;
+
         console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
 
@@ -222,6 +232,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         const persistMessages = callbacks?.persistMessages;
         const resolveConversation = callbacks?.resolveConversation;
         const emitEvents = callbacks?.emitEvents;
+        const checkGuardrails = callbacks?.checkGuardrails;
         let lastCloseReason = 'unknown';
         let conversationResolved = false;
 
@@ -229,7 +240,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           eventBuffer.push({
             eventType,
             ts: Date.now(),
-            data: data ? JSON.stringify(data) : undefined,
+            data: data ? JSON.stringify({ ...data, traceId }) : JSON.stringify({ traceId }),
           });
         };
 
@@ -358,6 +369,22 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                 content: transcript, isFinal: true, createdAt: ts,
               });
               allMessages.push({ role: 'user', content: transcript, ts });
+
+              // Async input guardrail check (fire-and-forget audit trail)
+              if (checkGuardrails) {
+                checkGuardrails(transcript, 'input', sessionId, traceId).then((result) => {
+                  if (!result.allowed || result.violations.length > 0) {
+                    pushEvent('guardrail_violation', {
+                      direction: 'input',
+                      violations: result.violations,
+                      content: transcript.slice(0, 200),
+                    });
+                    console.warn(`[agent] Input guardrail triggered: ${result.violations.length} violation(s)`);
+                  }
+                }).catch((err) => {
+                  console.warn('[agent] Input guardrail check failed:', err);
+                });
+              }
             });
 
             emitter.on('conversation_item_added', (ev: { item: { role: string; textContent?: string; createdAt: number } }) => {
@@ -373,6 +400,22 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                 content: text, isFinal: true, createdAt: ts,
               });
               allMessages.push({ role: 'agent', content: text, ts });
+
+              // Async output guardrail check (warn/log only — cannot un-speak audio)
+              if (checkGuardrails) {
+                checkGuardrails(text, 'output', sessionId, traceId).then((result) => {
+                  if (result.violations.length > 0) {
+                    pushEvent('guardrail_violation', {
+                      direction: 'output',
+                      violations: result.violations,
+                      content: text.slice(0, 200),
+                    });
+                    console.warn(`[agent] Output guardrail triggered: ${result.violations.length} violation(s)`);
+                  }
+                }).catch((err) => {
+                  console.warn('[agent] Output guardrail check failed:', err);
+                });
+              }
             });
 
             // Wire lifecycle event listeners

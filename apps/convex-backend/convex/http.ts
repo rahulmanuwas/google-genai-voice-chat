@@ -14,8 +14,8 @@ import { createSession } from "./sessions";
 import { listTools, executeTool, registerTool, listExecutions as listToolExecutions, listAllTools } from "./tools";
 import { createHandoff, updateHandoff, listHandoffs } from "./handoffs";
 import { checkGuardrails, upsertRule, listRules, listViolations } from "./guardrails";
-import { upsertDocument, searchKnowledge, listGaps, listDocuments as listKnowledgeDocs } from "./knowledge";
-import { submitCSAT, getInsights, getOverview } from "./analytics";
+import { upsertDocument, searchKnowledge, listGaps, listDocuments as listKnowledgeDocs, searchMetrics } from "./knowledge";
+import { submitCSAT, getInsights, getOverview, clusterTopics } from "./analytics";
 import {
   generateToken as livekitToken,
   createRoom as livekitCreateRoom,
@@ -105,11 +105,13 @@ post("/api/knowledge", upsertDocument);
 post("/api/knowledge/search", searchKnowledge);
 get("/api/knowledge/documents", listKnowledgeDocs);
 get("/api/knowledge/gaps", listGaps);
+get("/api/knowledge/metrics", searchMetrics);
 
 // ─── Analytics ──────────────────────────────────────────────────
 post("/api/csat", submitCSAT);
 get("/api/analytics/insights", getInsights);
 get("/api/analytics/overview", getOverview);
+post("/api/analytics/cluster", clusterTopics);
 
 // ─── LiveKit ────────────────────────────────────────────────────
 post("/api/livekit/token", livekitToken);

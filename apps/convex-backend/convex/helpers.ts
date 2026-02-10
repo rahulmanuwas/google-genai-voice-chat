@@ -6,7 +6,7 @@ export const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   // Keep permissive for now (will be locked down in a follow-up PR).
   // Needed for header-based auth (Authorization + X-App-Slug).
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Slug",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Slug, X-Trace-Id",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -99,6 +99,11 @@ export async function authenticateRequest(
   }
 
   return null;
+}
+
+/** Extract trace ID from request header */
+export function getTraceId(request: Request): string | undefined {
+  return request.headers.get("X-Trace-Id") ?? request.headers.get("x-trace-id") ?? undefined;
 }
 
 /**

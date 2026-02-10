@@ -24,3 +24,6 @@ apps/convex-backend/convex/_generated/
 .vscode/
 *.swp
 *.swo
+
+# Playwright MCP screenshots
+.playwright-mcp/

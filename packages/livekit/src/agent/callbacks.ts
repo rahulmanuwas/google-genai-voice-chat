@@ -55,6 +55,20 @@ export interface AgentCallbacks {
 
   /** Emit lifecycle events (agent state, errors, metrics, tool calls) */
   emitEvents?: (sessionId: string, events: AgentEvent[]) => Promise<void>;
+
+  /** Check content against guardrail rules */
+  checkGuardrails?: (
+    content: string,
+    direction: 'input' | 'output',
+    sessionId: string,
+    traceId?: string,
+  ) => Promise<GuardrailResult>;
+}
+
+/** Result of a guardrail check */
+export interface GuardrailResult {
+  allowed: boolean;
+  violations: Array<{ ruleId: string; type: string; action: string; userMessage?: string }>;
 }
 
 /** Config for the built-in Convex callbacks factory */
@@ -65,6 +79,8 @@ export interface ConvexAgentConfig {
   appSlug: string;
   /** App secret for server-to-server authentication */
   appSecret: string;
+  /** Correlation ID for tracing across the session */
+  traceId?: string;
 }
 
 /**
@@ -73,7 +89,9 @@ export interface ConvexAgentConfig {
  * `createAgentDefinition({ callbacks })`.
  */
 export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCallbacks {
-  const { convexUrl, appSlug, appSecret } = config;
+  const { convexUrl, appSlug, appSecret, traceId } = config;
+
+  const traceHeaders: Record<string, string> = traceId ? { 'X-Trace-Id': traceId } : {};
 
   return {
     async loadPersona(): Promise<AgentPersonaData | null> {
@@ -82,6 +100,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
           headers: {
             Authorization: `Bearer ${appSecret}`,
             "X-App-Slug": appSlug,
+            ...traceHeaders,
           },
         });
         if (!res.ok) return null;
@@ -98,7 +117,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
     async persistMessages(messages: BufferedMessage[]): Promise<void> {
       const res = await fetch(`${convexUrl}/api/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...traceHeaders },
         body: JSON.stringify({ appSlug, appSecret, messages }),
       });
       if (!res.ok) {
@@ -116,7 +135,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
     ): Promise<void> {
       const res = await fetch(`${convexUrl}/api/conversations`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...traceHeaders },
         body: JSON.stringify({
           appSlug,
           appSecret,
@@ -138,12 +157,31 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
       if (events.length === 0) return;
       const res = await fetch(`${convexUrl}/api/events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...traceHeaders },
         body: JSON.stringify({ appSlug, appSecret, sessionId, events }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(`emitEvents failed (${res.status}): ${text}`);
+      }
+    },
+
+    async checkGuardrails(
+      content: string,
+      direction: 'input' | 'output',
+      sessionId: string,
+    ): Promise<GuardrailResult> {
+      try {
+        const res = await fetch(`${convexUrl}/api/guardrails/check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...traceHeaders },
+          body: JSON.stringify({ appSlug, appSecret, sessionId, content, direction }),
+        });
+        if (!res.ok) return { allowed: true, violations: [] };
+        return await res.json() as GuardrailResult;
+      } catch {
+        // Fail-open: if guardrails endpoint is unreachable, allow the message
+        return { allowed: true, violations: [] };
       }
     },
   };

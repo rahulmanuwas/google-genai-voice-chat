@@ -60,6 +60,29 @@ export const getInsights = httpAction(async (ctx, request) => {
   return jsonResponse({ insights });
 });
 
+/** POST /api/analytics/cluster — Trigger conversation clustering */
+export const clusterTopics = httpAction(async (ctx, request) => {
+  const body = await request.json();
+  const { appSlug, appSecret, sessionToken, maxConversations, similarityThreshold } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
+    maxConversations?: number;
+    similarityThreshold?: number;
+  };
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const result = await ctx.runAction(internal.analyticsCluster.clusterConversations, {
+    appSlug: auth.app.slug,
+    maxConversations,
+    similarityThreshold,
+  });
+
+  return jsonResponse(result);
+});
+
 /** GET /api/analytics/overview — Live overview stats */
 export const getOverview = httpAction(async (ctx, request) => {
   const url = new URL(request.url);

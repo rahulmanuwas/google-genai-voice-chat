@@ -1,9 +1,10 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId } from "./helpers";
 
 /** POST /api/messages — Insert messages (batch) */
 export const saveMessages = httpAction(async (ctx, request) => {
+  const traceId = getTraceId(request);
   const body = await request.json();
   const { appSlug, appSecret, sessionToken, messages } = body as {
     appSlug?: string;
@@ -39,6 +40,7 @@ export const saveMessages = httpAction(async (ctx, request) => {
       isFinal: m.isFinal,
       language: m.language,
       createdAt: m.createdAt,
+      traceId,
     })),
   });
 

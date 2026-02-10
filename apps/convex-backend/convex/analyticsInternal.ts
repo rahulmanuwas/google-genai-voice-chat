@@ -99,6 +99,14 @@ export const computeOverview = internalQuery({
       ? await ctx.db.query("knowledgeGaps").withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!)).collect()
       : await ctx.db.query("knowledgeGaps").collect();
 
+    // Knowledge search quality metrics
+    const knowledgeSearches = args.appSlug
+      ? await ctx.db.query("knowledgeSearches").withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!)).collect()
+      : await ctx.db.query("knowledgeSearches").collect();
+    const filteredSearches = since > 0
+      ? knowledgeSearches.filter((s) => s.createdAt >= since)
+      : knowledgeSearches;
+
     // Compute metrics
     const totalConversations = conversations.length;
     const resolvedConversations = conversations.filter(
@@ -156,6 +164,14 @@ export const computeOverview = internalQuery({
       totalGuardrailViolations: guardrailViolations.length,
       pendingHandoffs,
       unresolvedGaps,
+      // Knowledge search quality
+      avgKnowledgeScore: filteredSearches.length > 0
+        ? filteredSearches.reduce((s, r) => s + r.topScore, 0) / filteredSearches.length
+        : null,
+      knowledgeGapRate: filteredSearches.length > 0
+        ? filteredSearches.filter((s) => s.gapDetected).length / filteredSearches.length
+        : null,
+      totalKnowledgeSearches: filteredSearches.length,
       // Recent activity (last 24h)
       conversationsLast24h: conversations.filter(
         (c) => c.startedAt > Date.now() - 86_400_000
@@ -222,38 +238,54 @@ export const computeDailyInsights = internalMutation({
       .slice(0, 20)
       .map((g) => g.query);
 
-    // Extract top topics from conversation transcripts
-    const topicCounts: Record<string, number> = {};
-    for (const conv of conversations) {
-      if (!conv.transcript) continue;
-      try {
-        const messages = JSON.parse(conv.transcript) as Array<{ role?: string; content?: string }>;
-        for (const msg of messages) {
-          if (msg.role === "user" && msg.content) {
-            // Extract simple keyword-based topics from user messages
-            const words = msg.content.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
-            for (const word of words) {
-              topicCounts[word] = (topicCounts[word] || 0) + 1;
-            }
-          }
-        }
-      } catch {
-        // Skip malformed transcripts
-      }
-    }
-    const topTopics = Object.entries(topicCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([topic, count]) => ({ topic, count }));
-
-    // Upsert insight
-    const existing = await ctx.db
+    // Check if clustering already updated today's topTopics (within last hour)
+    const existingInsight = await ctx.db
       .query("insights")
       .withIndex("by_app_period", (q) =>
         q.eq("appSlug", args.appSlug).eq("period", args.period)
       )
       .first();
 
+    const ONE_HOUR = 3_600_000;
+    const clusteringRecent = existingInsight
+      && existingInsight.computedAt > Date.now() - ONE_HOUR
+      && existingInsight.topTopics !== "[]";
+
+    // Fall back to word-frequency extraction if clustering hasn't run recently
+    let topTopics: Array<{ topic: string; count: number }>;
+    if (clusteringRecent) {
+      // Keep the cluster-generated topics
+      try {
+        topTopics = JSON.parse(existingInsight!.topTopics);
+      } catch {
+        topTopics = [];
+      }
+    } else {
+      // Extract simple keyword-based topics from user messages
+      const topicCounts: Record<string, number> = {};
+      for (const conv of conversations) {
+        if (!conv.transcript) continue;
+        try {
+          const messages = JSON.parse(conv.transcript) as Array<{ role?: string; content?: string }>;
+          for (const msg of messages) {
+            if (msg.role === "user" && msg.content) {
+              const words = msg.content.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
+              for (const word of words) {
+                topicCounts[word] = (topicCounts[word] || 0) + 1;
+              }
+            }
+          }
+        } catch {
+          // Skip malformed transcripts
+        }
+      }
+      topTopics = Object.entries(topicCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([topic, count]) => ({ topic, count }));
+    }
+
+    // Upsert insight (reuse existingInsight from above)
     const insight = {
       appSlug: args.appSlug,
       period: args.period,
@@ -268,8 +300,8 @@ export const computeDailyInsights = internalMutation({
       computedAt: Date.now(),
     };
 
-    if (existing) {
-      await ctx.db.patch(existing._id, insight);
+    if (existingInsight) {
+      await ctx.db.patch(existingInsight._id, insight);
     } else {
       await ctx.db.insert("insights", insight);
     }

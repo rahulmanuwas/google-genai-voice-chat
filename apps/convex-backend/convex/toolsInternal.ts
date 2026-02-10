@@ -5,6 +5,70 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { handleInternalTool, getInitialState } from "./toolHandlers";
 
+/**
+ * Validate parameters against a JSON Schema string.
+ * Returns null if valid, or an error string if invalid.
+ * Fail-open: returns null if schema is unparseable.
+ */
+function validateParameters(
+  params: Record<string, unknown>,
+  schemaStr: string,
+): string | null {
+  let schema: {
+    properties?: Record<string, { type?: string }>;
+    required?: string[];
+  };
+  try {
+    schema = JSON.parse(schemaStr);
+  } catch {
+    return null; // Fail-open on unparseable schema
+  }
+
+  // Check required fields
+  if (schema.required) {
+    for (const field of schema.required) {
+      if (!(field in params) || params[field] === undefined || params[field] === null) {
+        return `Missing required field: "${field}"`;
+      }
+    }
+  }
+
+  // Check basic type matching
+  if (schema.properties) {
+    for (const [key, prop] of Object.entries(schema.properties)) {
+      if (!(key in params) || params[key] === undefined || params[key] === null) continue;
+      const value = params[key];
+      const expectedType = prop.type;
+      if (!expectedType) continue;
+
+      let valid = true;
+      switch (expectedType) {
+        case "string":
+          valid = typeof value === "string";
+          break;
+        case "number":
+        case "integer":
+          valid = typeof value === "number";
+          break;
+        case "boolean":
+          valid = typeof value === "boolean";
+          break;
+        case "array":
+          valid = Array.isArray(value);
+          break;
+        case "object":
+          valid = typeof value === "object" && !Array.isArray(value);
+          break;
+      }
+      if (!valid) {
+        return `Field "${key}" expected type "${expectedType}", got "${typeof value}"`;
+      }
+    }
+  }
+
+  return null;
+}
+
 /** Execute a tool by calling its registered endpoint */
 export const executeToolAction = internalAction({
   args: {
@@ -12,6 +76,8 @@ export const executeToolAction = internalAction({
     sessionId: v.string(),
     toolName: v.string(),
     parameters: v.string(),
+    traceId: v.optional(v.string()),
+    spanId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
@@ -33,16 +99,38 @@ export const executeToolAction = internalAction({
         status: "error",
         executedAt: startedAt,
         durationMs: Date.now() - startedAt,
+        traceId: args.traceId,
+        spanId: args.spanId,
+      });
+      return result;
+    }
+
+    // Parse parameters once and validate against schema
+    let parsedParams: Record<string, unknown> = {};
+    try {
+      parsedParams = JSON.parse(args.parameters);
+    } catch { /* use empty params */ }
+
+    const validationError = validateParameters(parsedParams, fullTool.parametersSchema);
+    if (validationError) {
+      const result = { success: false, error: `Parameter validation failed: ${validationError}` };
+      await ctx.runMutation(internal.toolsDb.logExecution, {
+        appSlug: args.appSlug,
+        sessionId: args.sessionId,
+        toolName: args.toolName,
+        parameters: args.parameters,
+        result: JSON.stringify(result),
+        status: "validation_error",
+        executedAt: startedAt,
+        durationMs: Date.now() - startedAt,
+        traceId: args.traceId,
+        spanId: args.spanId,
       });
       return result;
     }
 
     if (!fullTool.endpoint) {
       // Try internal mock handler for demo tools
-      let parsedParams: Record<string, unknown> = {};
-      try {
-        parsedParams = JSON.parse(args.parameters);
-      } catch { /* use empty params */ }
 
       // Read current scenario state
       const stateRow = await ctx.runQuery(internal.scenarioStateDb.getState, {
@@ -84,6 +172,8 @@ export const executeToolAction = internalAction({
           status: "success",
           executedAt: startedAt,
           durationMs: Date.now() - startedAt,
+          traceId: args.traceId,
+          spanId: args.spanId,
         });
         return handlerResult.result;
       }
@@ -99,6 +189,8 @@ export const executeToolAction = internalAction({
         status: "error",
         executedAt: startedAt,
         durationMs: Date.now() - startedAt,
+        traceId: args.traceId,
+        spanId: args.spanId,
       });
       return result;
     }
@@ -137,6 +229,8 @@ export const executeToolAction = internalAction({
         status: response.ok ? "success" : "error",
         executedAt: startedAt,
         durationMs: Date.now() - startedAt,
+        traceId: args.traceId,
+        spanId: args.spanId,
       });
 
       return result;
@@ -155,6 +249,8 @@ export const executeToolAction = internalAction({
         status: "error",
         executedAt: startedAt,
         durationMs: Date.now() - startedAt,
+        traceId: args.traceId,
+        spanId: args.spanId,
       });
 
       return result;

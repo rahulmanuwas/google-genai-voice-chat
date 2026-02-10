@@ -28,6 +28,8 @@ export default defineSchema({
     handoffEnabled: v.optional(v.boolean()),
     handoffWebhookUrl: v.optional(v.string()),
     handoffExpirationSeconds: v.optional(v.float64()),
+    // Knowledge / RAG config
+    knowledgeThreshold: v.optional(v.float64()),
     createdAt: v.float64(),
     updatedAt: v.float64(),
   }).index("by_slug", ["slug"]),
@@ -56,10 +58,12 @@ export default defineSchema({
     eventType: v.string(),
     ts: v.float64(),
     data: v.optional(v.string()),
+    traceId: v.optional(v.string()),
   })
     .index("by_app", ["appSlug"])
     .index("by_session", ["sessionId"])
-    .index("by_app_session", ["appSlug", "sessionId"]),
+    .index("by_app_session", ["appSlug", "sessionId"])
+    .index("by_trace", ["traceId"]),
 
   // ─── Tool / Action Framework ───────────────────────────────────
 
@@ -89,10 +93,13 @@ export default defineSchema({
     status: v.string(),
     executedAt: v.float64(),
     durationMs: v.float64(),
+    traceId: v.optional(v.string()),
+    spanId: v.optional(v.string()),
   })
     .index("by_session", ["sessionId"])
     .index("by_app", ["appSlug"])
-    .index("by_app_status", ["appSlug", "status"]),
+    .index("by_app_status", ["appSlug", "status"])
+    .index("by_trace", ["traceId"]),
 
   // ─── Human Handoff ─────────────────────────────────────────────
 
@@ -177,6 +184,20 @@ export default defineSchema({
     .index("by_app", ["appSlug"])
     .index("by_app_resolved", ["appSlug", "resolved"]),
 
+  knowledgeSearches: defineTable({
+    appSlug: v.string(),
+    sessionId: v.string(),
+    query: v.string(),
+    topScore: v.float64(),
+    resultCount: v.float64(),
+    gapDetected: v.boolean(),
+    traceId: v.optional(v.string()),
+    createdAt: v.float64(),
+  })
+    .index("by_app", ["appSlug"])
+    .index("by_app_createdAt", ["appSlug", "createdAt"])
+    .index("by_trace", ["traceId"]),
+
   // ─── Analytics & Insights ──────────────────────────────────────
 
   insights: defineTable({
@@ -235,10 +256,12 @@ export default defineSchema({
     isFinal: v.boolean(),
     language: v.optional(v.string()),
     createdAt: v.float64(),
+    traceId: v.optional(v.string()),
   })
     .index("by_session", ["sessionId"])
     .index("by_app_session", ["appSlug", "sessionId"])
-    .index("by_room", ["roomName"]),
+    .index("by_room", ["roomName"])
+    .index("by_trace", ["traceId"]),
 
   // ─── Session Tokens ──────────────────────────────────────────
   sessions: defineTable({
