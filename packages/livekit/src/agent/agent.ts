@@ -80,6 +80,8 @@ function mapCloseReasonToResolution(reason: string): { status: string; resolutio
     case 'job_shutdown':
     case 'shutdown':
       return { status: 'resolved', resolution: 'shutdown' };
+    case 'participant_disconnected':
+      return { status: 'resolved', resolution: 'completed' };
     default:
       return { status: 'resolved', resolution: reason === 'unknown' ? 'completed' : reason };
   }
@@ -217,8 +219,31 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // Append tool-acknowledgment instructions when tools are loaded
         const hasTools = Object.keys(loadedTools).length > 0;
         const instructions = hasTools
-          ? baseInstructions + ' When you need to use a tool or look something up, always briefly acknowledge what you are doing before executing (e.g. "Let me check that for you", "One moment while I look that up"). Never leave the user in silence while waiting for a result.'
+          ? baseInstructions + ' When you need to use a tool or look something up, always briefly tell the user what you are about to do before executing (e.g. "Let me check that for you", "One moment while I look that up"). Never go silent while waiting for a tool result.'
           : baseInstructions;
+
+        // Mutable session reference so tools can call session.say() for acknowledgment
+        let activeSession: voice.AgentSession | null = null;
+
+        // Wrap each tool's execute to call session.say() before the actual HTTP call
+        for (const [name, tool] of Object.entries(loadedTools)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const t = tool as any;
+          const originalExecute = t.execute;
+          t.execute = async (...args: unknown[]) => {
+            if (activeSession) {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (activeSession as any).say(
+                  `One moment while I ${name.replace(/_/g, ' ')} for you.`
+                );
+              } catch (err) {
+                console.warn(`[agent] session.say() failed for tool ${name}:`, err);
+              }
+            }
+            return originalExecute.apply(t, args);
+          };
+        }
 
         console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
@@ -321,6 +346,25 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           }
         });
 
+        // --- Detect participant disconnect → resolve session ---
+        // When the last non-agent participant leaves, trigger a graceful close
+        // so the conversation gets resolved instead of staying "active" forever.
+        let participantDisconnectResolve: (() => void) | null = null;
+        const participantDisconnectPromise = new Promise<void>((resolve) => {
+          participantDisconnectResolve = resolve;
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ctx.room.on('participantDisconnected', (..._args: any[]) => {
+          // Check after a short delay (room state needs to settle)
+          setTimeout(() => {
+            if (!hasRemoteParticipants(ctx)) {
+              console.log('[agent] All remote participants left — triggering cleanup');
+              participantDisconnectResolve?.();
+            }
+          }, 500);
+        });
+
         // --- Session loop with auto-reconnect ---
         let attempt = 0;
         let isFirstSession = true;
@@ -339,6 +383,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             });
 
             await session.start({ agent, room: ctx.room });
+            activeSession = session;
             console.log('[agent] Session started');
 
             if (isFirstSession) {
@@ -442,18 +487,34 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               });
             });
 
-            // Wait for this session to close and capture the reason
-            const closeInfo = await new Promise<{ reason: string; error?: unknown }>((resolve) => {
-              emitter.on('close', (info?: { reason?: string; error?: unknown }) => {
-                resolve({
-                  reason: info?.reason ?? 'unknown',
-                  error: info?.error,
+            // Wait for this session to close OR for all participants to leave
+            const closeInfo = await Promise.race([
+              new Promise<{ reason: string; error?: unknown }>((resolve) => {
+                emitter.on('close', (info?: { reason?: string; error?: unknown }) => {
+                  resolve({
+                    reason: info?.reason ?? 'unknown',
+                    error: info?.error,
+                  });
                 });
-              });
-            });
+              }),
+              participantDisconnectPromise.then(() => ({
+                reason: 'participant_disconnected' as string,
+                error: undefined as unknown,
+              })),
+            ]);
 
             lastCloseReason = closeInfo.reason;
+            activeSession = null;
             console.log(`[agent] Session closed (reason: ${closeInfo.reason})`);
+
+            // If participant disconnected, try to close the session gracefully
+            if (closeInfo.reason === 'participant_disconnected') {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (session as any).close?.();
+              } catch { /* session might already be closed */ }
+              break;
+            }
 
             // Decide whether to reconnect
             if (closeInfo.reason === 'error') {

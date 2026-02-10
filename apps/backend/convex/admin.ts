@@ -1,4 +1,4 @@
-import { internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 export const stats = internalQuery({
@@ -35,6 +35,26 @@ export const stats = internalQuery({
       eventsByApp,
       eventsByType,
     };
+  },
+});
+
+/** Resolve all active conversations (safety net for agent cleanup failures) */
+export const resolveStaleConversations = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const conversations = await ctx.db.query("conversations").collect();
+    const active = conversations.filter((c) => !c.status || c.status === "active");
+    let resolved = 0;
+    for (const c of active) {
+      const endedAt = c.endedAt ?? (c.startedAt + 10 * 60 * 1000);
+      await ctx.db.patch(c._id, {
+        status: "resolved",
+        resolution: "completed",
+        endedAt,
+      });
+      resolved++;
+    }
+    return { total: conversations.length, active: active.length, resolved };
   },
 });
 
