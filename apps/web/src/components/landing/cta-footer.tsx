@@ -26,15 +26,13 @@ export function CTAFooter() {
         <div className="relative max-w-3xl mx-auto px-6 text-center">
           <FadeIn>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-6">
-              Platform when you want to self-serve.
-              <br className="hidden sm:block" />
-              Team when you don&apos;t.
+              Ship your first AI voice agent today.
             </h2>
           </FadeIn>
           <FadeIn delay={0.1}>
             <p className="text-muted-foreground text-lg mb-10 max-w-xl mx-auto">
-              Start with the dashboard and live demos. When you&apos;re ready to go to production, our
-              engineers deploy alongside yours.
+              Drop in the React SDK, configure guardrails and tools in the
+              dashboard, and go live. No AI team required.
             </p>
           </FadeIn>
           <FadeIn delay={0.2}>
@@ -49,12 +47,10 @@ export function CTAFooter() {
                 </svg>
               </Link>
               <a
-                href="https://www.linkedin.com/in/rahulmanuwas"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#try"
                 className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-10 py-3.5 text-sm font-semibold text-foreground backdrop-blur-sm transition-all hover:bg-white/[0.08] hover:border-white/15"
               >
-                Connect on LinkedIn
+                Try Live Demo
               </a>
             </div>
           </FadeIn>

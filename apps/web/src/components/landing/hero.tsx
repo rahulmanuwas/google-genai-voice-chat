@@ -13,9 +13,12 @@ function Navbar() {
           <span className="text-brand">.</span>Riyaan
         </Link>
         <div className="hidden md:flex items-center gap-6">
-          <Link href="/demos/livekit" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <a href="#try" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Demos
-          </Link>
+          </a>
+          <a href="#pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+            Pricing
+          </a>
           <Link href="/docs" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Docs
           </Link>
@@ -46,7 +49,7 @@ export function Hero() {
             style={{ animation: 'fade-in-up 0.6s ease-out 0.1s both' }}
           >
             <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-            Platform + Expertise
+            AI Voice Agent Platform
           </div>
 
           {/* Headline */}
@@ -67,8 +70,8 @@ export function Hero() {
             style={{ animation: 'fade-in-up 0.6s ease-out 0.25s both' }}
           >
             Guardrails, tool integration, human handoffs, multi-channel
-            deployment — the hard parts are built in. And when you need hands-on
-            help, our team deploys alongside yours.
+            deployment — the hard parts are built in. An open-source platform
+            with everything included. No AI team required.
           </p>
 
           {/* CTAs */}
@@ -76,20 +79,20 @@ export function Hero() {
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.35s both' }}
           >
-            <Link
-              href="/overview"
+            <a
+              href="#try"
               className="group inline-flex items-center justify-center rounded-full bg-brand px-8 py-3 text-sm font-semibold text-background transition-all hover:brightness-110 shadow-[0_0_20px_hsl(38_92%_50%/0.2)]"
             >
-              Open Dashboard
+              Try It Live
               <svg className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
-            </Link>
+            </a>
             <Link
-              href="/demos/livekit"
+              href="/overview"
               className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-8 py-3 text-sm font-semibold text-foreground backdrop-blur-sm transition-all hover:bg-white/[0.08] hover:border-white/15"
             >
-              See it handle a live call
+              Open Dashboard
             </Link>
           </div>
         </div>

@@ -35,7 +35,7 @@ export function HowItWorks() {
             Days to production. Not quarters.
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Self-serve with the platform, or let our team handle deployment end-to-end. Either way, three steps.
+            Three steps from zero to production.
           </p>
         </FadeIn>
 
