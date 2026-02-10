@@ -36,7 +36,7 @@ function Navbar() {
 
 export function Hero() {
   return (
-    <section className="relative min-h-[100svh] flex flex-col overflow-hidden">
+    <section id="hero" className="relative min-h-[100svh] flex flex-col overflow-hidden">
       <ShaderBackground />
       <Navbar />
 

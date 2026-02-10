@@ -1,4 +1,5 @@
-import { Settings, Plug, Activity } from 'lucide-react';
+import React from 'react';
+import { Settings, Plug, Activity, ChevronRight } from 'lucide-react';
 import { FadeIn } from '@/components/ui/fade-in';
 import { WaveVisualizer } from './wave-visualizer';
 
@@ -28,7 +29,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
+    <section id="how-it-works" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
       <div className="max-w-6xl mx-auto px-6">
         <FadeIn className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
@@ -39,25 +40,35 @@ export function HowItWorks() {
           </p>
         </FadeIn>
 
-        <div className="relative grid gap-8 md:grid-cols-3 md:gap-8">
-          {/* Connecting line (desktop only) */}
-          <div className="absolute top-12 left-[16.67%] right-[16.67%] hidden md:block">
-            <div className="h-px bg-gradient-to-r from-brand/50 via-brand/30 to-brand/50" />
-          </div>
-
+        <div className="relative grid gap-4 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-start">
           {STEPS.map(({ number, icon: Icon, title, description }, i) => (
-            <FadeIn key={number} delay={i * 0.15} className="relative text-center">
-              <div className="mx-auto mb-4 sm:mb-6 flex h-16 w-16 sm:h-24 sm:w-24 items-center justify-center rounded-full border border-brand/30 bg-brand/6">
-                <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-brand" />
-              </div>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-brand">
-                Step {number}
-              </span>
-              <h3 className="text-xl font-semibold mb-2">{title}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
-                {description}
-              </p>
-            </FadeIn>
+            <React.Fragment key={number}>
+              <FadeIn delay={i * 0.12}>
+                <div className="group relative rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 transition-colors hover:border-brand/20 hover:bg-brand/[0.02]">
+                  {/* Large faded number */}
+                  <span className="absolute top-4 right-5 text-5xl font-bold tabular-nums text-white/[0.04] select-none leading-none">
+                    {number}
+                  </span>
+
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand/[0.08]">
+                      <Icon className="h-4 w-4 text-brand" />
+                    </div>
+                    <h3 className="text-lg font-semibold">{title}</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {description}
+                  </p>
+                </div>
+              </FadeIn>
+
+              {/* Chevron between cards (desktop only) */}
+              {i < STEPS.length - 1 && (
+                <FadeIn delay={i * 0.12 + 0.06} className="hidden md:flex items-center self-center">
+                  <ChevronRight className="h-4 w-4 text-brand/40" />
+                </FadeIn>
+              )}
+            </React.Fragment>
           ))}
         </div>
 

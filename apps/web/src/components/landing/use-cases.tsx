@@ -101,7 +101,7 @@ function CaseCard({
 
 export function UseCases() {
   return (
-    <section className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
+    <section id="use-cases" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
       {/* Ambient background — reuses the existing DotGrid component */}
       <DotGrid />
 

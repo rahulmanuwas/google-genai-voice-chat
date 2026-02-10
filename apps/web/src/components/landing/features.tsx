@@ -49,7 +49,7 @@ const FEATURES = [
 
 export function Features() {
   return (
-    <section className="relative py-20 sm:py-28 lg:py-36 overflow-hidden">
+    <section id="features" className="relative py-20 sm:py-28 lg:py-36 overflow-hidden">
       {/* Subtle radial glow to differentiate from adjacent sections */}
       <div
         className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[800px] rounded-full"

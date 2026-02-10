@@ -5,7 +5,7 @@ export function CTAFooter() {
   return (
     <>
       {/* CTA */}
-      <section className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
+      <section id="cta" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
         {/* Elevated background — gradient + ambient glow */}
         <div
           className="pointer-events-none absolute inset-0"

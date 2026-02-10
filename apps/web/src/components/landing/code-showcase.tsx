@@ -118,7 +118,7 @@ export function CodeShowcase() {
   const tab = TABS[active];
 
   return (
-    <section className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
+    <section id="code" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
       {/* Background glow */}
       <div
         className="pointer-events-none absolute right-[20%] top-[30%] h-[500px] w-[500px] rounded-full"

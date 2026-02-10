@@ -27,7 +27,7 @@ const STACK = [
 
 export function TechStack() {
   return (
-    <section className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
+    <section id="tech-stack" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
       {/* Subtle gradient band across the section */}
       <div
         className="pointer-events-none absolute inset-0"

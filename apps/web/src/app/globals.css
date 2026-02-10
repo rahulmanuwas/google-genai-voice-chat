@@ -2,6 +2,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html {
+  scroll-behavior: smooth;
+}
+
 @theme inline {
   --color-background: hsl(0 0% 3.9%);
   --color-foreground: hsl(0 0% 98%);

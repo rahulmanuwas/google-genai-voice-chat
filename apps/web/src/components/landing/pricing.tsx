@@ -51,20 +51,6 @@ const TIERS = [
   },
 ];
 
-const FAQ = [
-  {
-    q: 'What counts as a resolved conversation?',
-    a: 'A conversation where the agent completes the customer\'s goal — resolved support ticket, saved cancellation, completed booking, successful upsell. You define the criteria in the dashboard.',
-  },
-  {
-    q: 'What if a conversation isn\'t resolved?',
-    a: 'No charge. Escalations to human agents and unresolved conversations are free.',
-  },
-  {
-    q: 'Can I set custom outcome definitions?',
-    a: 'Yes — Enterprise customers can define custom resolution criteria per use case. Pro tier uses standard resolution tracking.',
-  },
-];
 
 export function Pricing() {
   return (
@@ -91,7 +77,7 @@ export function Pricing() {
         </FadeIn>
 
         {/* Tiers */}
-        <div className="grid gap-6 md:grid-cols-3 md:gap-8 mb-20">
+        <div className="grid gap-6 md:grid-cols-3 md:gap-8">
           {TIERS.map((tier, i) => (
             <FadeIn key={tier.name} delay={i * 0.1}>
               <div
@@ -141,24 +127,6 @@ export function Pricing() {
           ))}
         </div>
 
-        {/* FAQ */}
-        <FadeIn>
-          <div className="mx-auto max-w-2xl">
-            <h3 className="text-xl font-semibold text-center mb-8">
-              Frequently asked questions
-            </h3>
-            <div className="space-y-6">
-              {FAQ.map(({ q, a }) => (
-                <div key={q}>
-                  <h4 className="text-sm font-medium mb-1">{q}</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {a}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </FadeIn>
       </div>
     </section>
   );
