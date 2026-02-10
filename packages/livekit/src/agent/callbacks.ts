@@ -10,6 +10,8 @@
 export interface AgentPersonaData {
   /** Full system prompt / instructions from the app config */
   systemPrompt?: string;
+  /** Gemini voice preset (e.g. "Puck", "Aoede", "Kore", "Charon", "Fenrir") */
+  voice?: string;
   personaName?: string;
   personaTone?: string;
   personaGreeting?: string;

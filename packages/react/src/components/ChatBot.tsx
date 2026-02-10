@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useRef, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import type { VoiceChatConfig } from '../lib/types';
 import { mergeConfig } from '../lib/constants';
 import { useVoiceChat } from '../hooks/useVoiceChat';
@@ -175,7 +176,11 @@ export function ChatBot({ config: userConfig, apiKey, getApiKey }: ChatBotProps)
         ? { bottom: '96px', left: '24px' }
         : { bottom: '96px', right: '24px' }, [position]);
 
-    return (
+    // Portal to document.body so position:fixed isn't broken by ancestor
+    // transforms/animations (e.g. CSS fade-in on parent containers)
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
         <>
             {/* Launcher Button */}
             <button
@@ -420,6 +425,7 @@ export function ChatBot({ config: userConfig, apiKey, getApiKey }: ChatBotProps)
           50% { opacity: 0.5; }
         }
       `}</style>
-        </>
+        </>,
+        document.body,
     );
 }

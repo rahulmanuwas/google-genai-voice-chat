@@ -5,6 +5,7 @@ import { v } from "convex/values";
 export const updatePersona = internalMutation({
   args: {
     appId: v.id("apps"),
+    voice: v.optional(v.string()),
     personaName: v.optional(v.string()),
     personaGreeting: v.optional(v.string()),
     personaTone: v.optional(v.string()),
@@ -17,6 +18,7 @@ export const updatePersona = internalMutation({
 
     // Only patch fields that were explicitly provided
     const updates: Record<string, string> = {};
+    if (fields.voice !== undefined) updates.voice = fields.voice;
     if (fields.personaName !== undefined) updates.personaName = fields.personaName;
     if (fields.personaGreeting !== undefined) updates.personaGreeting = fields.personaGreeting;
     if (fields.personaTone !== undefined) updates.personaTone = fields.personaTone;

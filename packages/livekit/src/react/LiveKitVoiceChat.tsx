@@ -88,7 +88,7 @@ export function LiveKitVoiceChat({
 
   if (!isReady || !token || !serverUrl) {
     return (
-      <div className={className} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, ...style }}>
+      <div className={className} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: '100%', ...style }}>
         <button
           onClick={connect}
           disabled={isConnecting}

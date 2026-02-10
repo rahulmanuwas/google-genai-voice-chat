@@ -20,6 +20,7 @@ export const createPersona = httpAction(async (ctx, request) => {
     appSecret?: string;
     name?: string;
     systemPrompt?: string;
+    voice?: string;
     personaName?: string;
     personaGreeting?: string;
     personaTone?: string;
@@ -37,6 +38,7 @@ export const createPersona = httpAction(async (ctx, request) => {
   const id = await ctx.runMutation(internal.personasDb.createPersona, {
     name,
     systemPrompt,
+    voice: fields.voice,
     personaName: fields.personaName,
     personaGreeting: fields.personaGreeting,
     personaTone: fields.personaTone,
@@ -57,6 +59,7 @@ export const updatePersona = httpAction(async (ctx, request) => {
     personaId?: string;
     name?: string;
     systemPrompt?: string;
+    voice?: string;
     personaName?: string;
     personaGreeting?: string;
     personaTone?: string;
@@ -75,6 +78,7 @@ export const updatePersona = httpAction(async (ctx, request) => {
     id: personaId as any,
     name: fields.name,
     systemPrompt: fields.systemPrompt,
+    voice: fields.voice,
     personaName: fields.personaName,
     personaGreeting: fields.personaGreeting,
     personaTone: fields.personaTone,

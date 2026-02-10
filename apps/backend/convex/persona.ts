@@ -19,6 +19,7 @@ export const getPersona = httpAction(async (ctx, request) => {
       try { uiStrings = persona.uiStrings ? JSON.parse(persona.uiStrings) : null; } catch { /* invalid JSON */ }
       return jsonResponse({
         systemPrompt: persona.systemPrompt ?? null,
+        voice: persona.voice ?? null,
         personaName: persona.personaName ?? null,
         personaGreeting: persona.personaGreeting ?? null,
         personaTone: persona.personaTone ?? null,
@@ -34,6 +35,7 @@ export const getPersona = httpAction(async (ctx, request) => {
   try { uiStrings = app.uiStrings ? JSON.parse(app.uiStrings) : null; } catch { /* invalid JSON */ }
   return jsonResponse({
     systemPrompt: app.systemPrompt ?? null,
+    voice: app.voice ?? null,
     personaName: app.personaName ?? null,
     personaGreeting: app.personaGreeting ?? null,
     personaTone: app.personaTone ?? null,

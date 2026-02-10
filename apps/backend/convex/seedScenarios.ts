@@ -13,6 +13,7 @@ interface ScenarioData {
   slug: string;
   name: string;
   systemPrompt: string;
+  voice: string;
   personaName: string;
   personaGreeting: string;
   personaTone: string;
@@ -70,6 +71,7 @@ const DENTIST: ScenarioData = {
 - If a patient asks for medical advice, politely redirect them to speak with the dentist during their visit
 - Never recommend other dental practices
 - Keep responses concise and conversational`,
+  voice: "Aoede",
   personaName: "Sarah",
   personaGreeting:
     "Hi there! I'm Sarah from Bright Smile Dental. How can I help you today?",
@@ -309,6 +311,7 @@ const EARNINGS: ScenarioData = {
 - For forward-looking statements, always include appropriate disclaimers
 - If you don't know a specific figure, say so rather than guessing
 - Keep explanations clear for both sophisticated and retail investors`,
+  voice: "Puck",
   personaName: "Alex",
   personaGreeting:
     "Hello! I'm Alex from TechCorp Investor Relations. I can help you understand our latest financial results. What would you like to know?",
@@ -557,6 +560,7 @@ const ECOMMERCE: ScenarioData = {
 - For refunds over $200, confirm with the customer before processing
 - Stay on-brand: warm, casual, but professional — think "helpful friend," not corporate script
 - If asked about internal pricing, wholesale, or margins, politely decline`,
+  voice: "Kore",
   personaName: "Luna",
   personaGreeting:
     "Hey! I'm Luna from Coastal Breeze. Need help with an order, a return, or just browsing? I'm here for you!",
@@ -850,6 +854,7 @@ export const seedAll = internalAction({
         name: scenario.name,
         secret: args.secret,
         systemPrompt: scenario.systemPrompt,
+        voice: scenario.voice,
         personaName: scenario.personaName,
         personaGreeting: scenario.personaGreeting,
         personaTone: scenario.personaTone,

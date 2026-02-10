@@ -25,6 +25,7 @@ export const createPersona = internalMutation({
   args: {
     name: v.string(),
     systemPrompt: v.string(),
+    voice: v.optional(v.string()),
     personaName: v.optional(v.string()),
     personaGreeting: v.optional(v.string()),
     personaTone: v.optional(v.string()),
@@ -48,6 +49,7 @@ export const updatePersonaById = internalMutation({
     id: v.id("personas"),
     name: v.optional(v.string()),
     systemPrompt: v.optional(v.string()),
+    voice: v.optional(v.string()),
     personaName: v.optional(v.string()),
     personaGreeting: v.optional(v.string()),
     personaTone: v.optional(v.string()),

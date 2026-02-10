@@ -167,8 +167,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         }
 
         // Load persona and tools in parallel with waiting for participant
-        const personaPromise = (async (): Promise<string> => {
-          if (!callbacks?.loadPersona) return config.instructions;
+        const personaPromise = (async (): Promise<{ instructions: string; voice?: string }> => {
+          if (!callbacks?.loadPersona) return { instructions: config.instructions };
           try {
             const persona = await callbacks.loadPersona();
             if (persona) {
@@ -178,12 +178,12 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               if (persona.personaTone) parts.push(`Speak in a ${persona.personaTone} tone.`);
               if (persona.preferredTerms) parts.push(`Preferred terms: ${persona.preferredTerms}.`);
               if (persona.blockedTerms) parts.push(`Never use these terms: ${persona.blockedTerms}.`);
-              return parts.join(' ');
+              return { instructions: parts.join(' '), voice: persona.voice };
             }
           } catch (err) {
             console.warn('[agent] Failed to load persona, using default instructions:', err);
           }
-          return config.instructions;
+          return { instructions: config.instructions };
         })();
 
         // Set up RoomServiceClient for metadata updates (e.g. handoff signaling)
@@ -259,7 +259,9 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           console.log('[agent] Audio track published');
         }
 
-        const [baseInstructions, toolsResult] = await Promise.all([personaPromise, toolsPromise]);
+        const [personaResult, toolsResult] = await Promise.all([personaPromise, toolsPromise]);
+        const baseInstructions = personaResult.instructions;
+        const personaVoice = personaResult.voice;
         const { tools: loadedTools, confirmationRequired } = toolsResult;
 
         // Append tool-acknowledgment instructions when tools are loaded
@@ -274,6 +276,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         }
 
         console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
+        console.log(`[agent] Voice: ${personaVoice || config.voice} ${personaVoice ? '(from persona)' : '(default)'}`);
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
 
         // --- Shared state across reconnect sessions ---
@@ -401,10 +404,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           while (attempt <= maxReconnects) {
             console.log(`[agent] Creating agent session (model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
 
+            const sessionVoice = personaVoice || config.voice;
             const session = new voice.AgentSession({
               llm: new google.beta.realtime.RealtimeModel({
                 model: config.model,
-                voice: config.voice,
+                voice: sessionVoice,
                 temperature: config.temperature,
                 instructions,
                 thinkingConfig: {

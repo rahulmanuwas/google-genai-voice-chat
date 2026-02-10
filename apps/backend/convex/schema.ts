@@ -16,6 +16,7 @@ export default defineSchema({
     tokenExpireMinutes: v.optional(v.float64()),
     // Persona (brand voice)
     personaId: v.optional(v.id("personas")),
+    voice: v.optional(v.string()),
     personaName: v.optional(v.string()),
     personaGreeting: v.optional(v.string()),
     personaTone: v.optional(v.string()),
@@ -311,6 +312,7 @@ export default defineSchema({
   personas: defineTable({
     name: v.string(),
     systemPrompt: v.string(),
+    voice: v.optional(v.string()),
     personaName: v.optional(v.string()),
     personaGreeting: v.optional(v.string()),
     personaTone: v.optional(v.string()),
