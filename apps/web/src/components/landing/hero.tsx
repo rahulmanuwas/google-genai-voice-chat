@@ -9,8 +9,8 @@ function Navbar() {
       style={{ animation: 'fade-in-up 0.5s ease-out both' }}
     >
       <div className="flex items-center gap-8">
-        <span className="text-base font-medium tracking-tight">
-          <span className="text-[hsl(200_80%_55%)]">.</span>Riyaan
+        <span className="text-base font-semibold tracking-tight">
+          <span className="text-brand">.</span>Riyaan
         </span>
         <div className="hidden md:flex items-center gap-6">
           <Link href="/demos/livekit" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
@@ -23,7 +23,7 @@ function Navbar() {
       </div>
       <Link
         href="/overview"
-        className="inline-flex items-center rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-[hsl(0_0%_100%/0.05)]"
+        className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-sm font-medium text-foreground backdrop-blur-sm transition-all hover:bg-white/[0.08] hover:border-white/15"
       >
         Dashboard
       </Link>
@@ -42,10 +42,10 @@ export function Hero() {
         <div className="max-w-4xl mx-auto text-center mb-10 sm:mb-16">
           {/* Badge */}
           <div
-            className="inline-flex items-center rounded-full border border-[hsl(200_80%_55%/0.25)] bg-[hsl(200_80%_55%/0.06)] px-3 py-1 text-xs sm:px-4 sm:py-1.5 sm:text-sm text-[hsl(200_80%_55%)] mb-6 sm:mb-8 backdrop-blur-sm"
+            className="inline-flex items-center rounded-full border border-brand/20 bg-brand/[0.06] px-3 py-1 text-xs sm:px-4 sm:py-1.5 sm:text-sm text-brand mb-6 sm:mb-8 backdrop-blur-sm"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.1s both' }}
           >
-            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[hsl(200_80%_55%)] animate-pulse" />
+            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
             Platform + Expertise
           </div>
 
@@ -56,7 +56,7 @@ export function Hero() {
           >
             The models work.{' '}
             <br className="hidden sm:block" />
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-[hsl(200_80%_55%)] via-[hsl(180_70%_50%)] to-[hsl(160_60%_45%)]">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand via-[hsl(28_85%_49%)] to-brand-secondary">
               Deploying them doesn&apos;t.
             </span>
           </h1>
@@ -78,7 +78,7 @@ export function Hero() {
           >
             <Link
               href="/overview"
-              className="group inline-flex items-center justify-center rounded-full bg-foreground px-8 py-3 text-sm font-semibold text-background transition-all hover:opacity-90"
+              className="group inline-flex items-center justify-center rounded-full bg-brand px-8 py-3 text-sm font-semibold text-background transition-all hover:brightness-110 shadow-[0_0_20px_hsl(38_92%_50%/0.2)]"
             >
               Open Dashboard
               <svg className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -87,7 +87,7 @@ export function Hero() {
             </Link>
             <Link
               href="/demos/livekit"
-              className="inline-flex items-center justify-center rounded-full border border-border px-8 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-[hsl(0_0%_100%/0.05)]"
+              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-8 py-3 text-sm font-semibold text-foreground backdrop-blur-sm transition-all hover:bg-white/[0.08] hover:border-white/15"
             >
               See it handle a live call
             </Link>

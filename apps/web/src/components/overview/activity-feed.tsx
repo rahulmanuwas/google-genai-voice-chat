@@ -37,20 +37,22 @@ export function ActivityFeed({ data }: ActivityFeedProps) {
       <CardHeader>
         <CardTitle className="text-sm font-medium">Activity Summary</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {items.map((item) => (
-          <div key={item.label} className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
-              <item.icon className="h-4 w-4 text-muted-foreground" />
+      <CardContent>
+        <div className="divide-y divide-border">
+          {items.map((item) => (
+            <div key={item.label} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/[0.06]">
+                <item.icon className="h-4 w-4 text-brand/60" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm">{item.label}</p>
+                {item.detail && (
+                  <p className="text-xs text-muted-foreground">{item.detail}</p>
+                )}
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-sm">{item.label}</p>
-              {item.detail && (
-                <p className="text-xs text-muted-foreground">{item.detail}</p>
-              )}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </CardContent>
     </Card>
   );

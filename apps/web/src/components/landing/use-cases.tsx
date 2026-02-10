@@ -66,12 +66,15 @@ function CaseCard({
 }: (typeof USE_CASES)[number]) {
   const inner = (
     <div
-      className={`group relative flex h-full flex-col rounded-xl border border-border bg-card/50 p-6 backdrop-blur-sm transition-all hover:border-[hsl(200_80%_55%/0.3)] hover:shadow-[0_0_30px_hsl(200_80%_55%/0.06)] ${
+      className={`group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-200 hover:border-brand/20 hover:shadow-[0_0_40px_hsl(38_92%_50%/0.06)] ${
         featured ? 'sm:p-8' : ''
       }`}
     >
-      <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-[hsl(200_80%_55%/0.1)] p-2.5 self-start">
-        <Icon className="h-5 w-5 text-[hsl(200_80%_55%)]" />
+      {/* Hover glow line at top */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/30 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+
+      <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-brand/[0.08] p-2.5 self-start">
+        <Icon className="h-5 w-5 text-brand" />
       </div>
       <h3 className={`font-semibold mb-2 ${featured ? 'text-xl' : 'text-lg'}`}>
         {title}
@@ -79,7 +82,7 @@ function CaseCard({
       <p className="text-sm text-muted-foreground leading-relaxed flex-1">
         {description}
       </p>
-      <div className="mt-4 flex items-center text-sm font-medium text-[hsl(200_80%_55%)]">
+      <div className="mt-4 flex items-center text-sm font-medium text-brand">
         {cta}
         {href && (
           <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -96,12 +99,12 @@ function CaseCard({
 
 export function UseCases() {
   return (
-    <section className="py-16 sm:py-24 lg:py-32 border-t border-border">
+    <section className="py-20 sm:py-28 lg:py-36 border-t border-border">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-10 sm:mb-16">
+        <div className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Where agents fail{' '}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-[hsl(200_80%_55%)] to-[hsl(160_60%_45%)]">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand to-brand-secondary">
               — and how yours won&apos;t
             </span>
           </h2>

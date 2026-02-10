@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Asul } from 'next/font/google';
+import { Geist, Geist_Mono, Lexend } from 'next/font/google';
 import { FirebaseAnalytics } from '@/components/analytics';
 import './globals.css';
 
@@ -13,10 +13,9 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-const asul = Asul({
+const lexend = Lexend({
   variable: '--font-heading',
   subsets: ['latin'],
-  weight: ['400', '700'],
 });
 
 export const metadata: Metadata = {
@@ -31,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${geistSans.variable} ${geistMono.variable} ${asul.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} antialiased`}>
         <FirebaseAnalytics />
         {children}
       </body>

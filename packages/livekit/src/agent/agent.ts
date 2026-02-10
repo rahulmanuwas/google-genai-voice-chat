@@ -583,7 +583,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             break;
           }
         } finally {
-          // Cleanup: stop flush timer, emit final event, flush everything, resolve conversation
+          // Cleanup: mark resolved first to prevent any in-flight sync from overwriting status
+          conversationResolved = true;
           clearInterval(flushTimer);
           clearInterval(syncTimer);
 
@@ -597,8 +598,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           await flushAll();
           console.log(`[agent] Cleanup for ${roomName}: flushed ${allMessages.length} total messages`);
 
-          if (resolveConversation && !conversationResolved) {
-            conversationResolved = true;
+          if (resolveConversation) {
             const { status, resolution } = mapCloseReasonToResolution(lastCloseReason);
             try {
               await resolveConversation(sessionId, channel, sessionStart, allMessages, { status, resolution });

@@ -21,8 +21,11 @@ export const upsertConversation = internalMutation({
       .first();
 
     if (existing) {
-      // Don't overwrite handed_off status — handoffs are managed separately
+      // Don't regress terminal states (resolved/abandoned) back to active,
+      // and don't overwrite handed_off with resolved (handoffs managed separately)
+      const terminalStatuses = ['resolved', 'abandoned', 'handed_off'];
       const shouldUpdateStatus = args.status !== undefined
+        && !(terminalStatuses.includes(existing.status ?? '') && args.status === 'active')
         && !(existing.status === 'handed_off' && args.status === 'resolved');
 
       await ctx.db.patch(existing._id, {

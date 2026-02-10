@@ -5,37 +5,40 @@
 @theme inline {
   --color-background: hsl(0 0% 3.9%);
   --color-foreground: hsl(0 0% 98%);
-  --color-card: hsl(0 0% 3.9%);
+  --color-card: hsl(0 0% 5.5%);
   --color-card-foreground: hsl(0 0% 98%);
-  --color-popover: hsl(0 0% 3.9%);
+  --color-popover: hsl(0 0% 5.5%);
   --color-popover-foreground: hsl(0 0% 98%);
   --color-primary: hsl(0 0% 98%);
   --color-primary-foreground: hsl(0 0% 9%);
   --color-secondary: hsl(0 0% 14.9%);
   --color-secondary-foreground: hsl(0 0% 98%);
-  --color-muted: hsl(0 0% 12%);
-  --color-muted-foreground: hsl(0 0% 63.9%);
+  --color-muted: hsl(0 0% 10%);
+  --color-muted-foreground: hsl(0 0% 55%);
   --color-accent: hsl(0 0% 14.9%);
   --color-accent-foreground: hsl(0 0% 98%);
   --color-destructive: hsl(0 62.8% 30.6%);
   --color-destructive-foreground: hsl(0 0% 98%);
-  --color-border: hsl(0 0% 12%);
+  --color-border: hsl(0 0% 10%);
   --color-input: hsl(0 0% 14.9%);
   --color-ring: hsl(0 0% 83.1%);
-  --color-chart-1: hsl(220 70% 50%);
+  --color-chart-1: hsl(38 92% 50%);
   --color-chart-2: hsl(160 60% 45%);
-  --color-chart-3: hsl(30 80% 55%);
-  --color-chart-4: hsl(280 65% 60%);
+  --color-chart-3: hsl(280 65% 60%);
+  --color-chart-4: hsl(16 75% 48%);
   --color-chart-5: hsl(340 75% 55%);
-  --color-sidebar: hsl(0 0% 5.9%);
+  --color-sidebar: hsl(0 0% 4.5%);
   --color-sidebar-foreground: hsl(0 0% 98%);
   --color-sidebar-primary: hsl(0 0% 98%);
   --color-sidebar-primary-foreground: hsl(0 0% 9%);
-  --color-sidebar-accent: hsl(200 80% 55% / 0.12);
-  --color-sidebar-accent-foreground: hsl(200 80% 55%);
-  --color-sidebar-border: hsl(0 0% 12%);
+  --color-brand: hsl(38 92% 50%);
+  --color-brand-secondary: hsl(16 75% 48%);
+  --color-brand-muted: hsl(38 60% 45%);
+  --color-sidebar-accent: hsl(38 92% 50% / 0.1);
+  --color-sidebar-accent-foreground: hsl(38 92% 50%);
+  --color-sidebar-border: hsl(0 0% 8%);
   --color-sidebar-ring: hsl(0 0% 83.1%);
-  --radius: 0.5rem;
+  --radius: 0.625rem;
   --font-sans: var(--font-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
   --font-heading: var(--font-heading), system-ui, -apple-system, sans-serif;
@@ -49,8 +52,10 @@ body {
 
 h1, h2, h3 {
   font-family: var(--font-heading);
+  letter-spacing: -0.025em;
 }
 
+/* Scrollbar */
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -58,6 +63,8 @@ h1, h2, h3 {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Animations ────────────────────────────────────────── */
 
 @keyframes fade-in-up {
   from {
@@ -88,4 +95,59 @@ h1, h2, h3 {
   50% {
     transform: scaleY(1);
   }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ── Utility classes ───────────────────────────────────── */
+
+/* Subtle noise overlay for depth */
+.noise::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Animated shimmer for loading states */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(0 0% 10%) 0%,
+    hsl(0 0% 14%) 50%,
+    hsl(0 0% 10%) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Animated gradient border (use on a wrapper with p-px) */
+.gradient-border {
+  background: linear-gradient(
+    135deg,
+    hsl(38 92% 50% / 0.3),
+    hsl(16 75% 48% / 0.1),
+    hsl(38 92% 50% / 0.2)
+  );
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
 }

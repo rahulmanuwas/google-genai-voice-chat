@@ -26,9 +26,9 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section className="py-16 sm:py-24 lg:py-32 border-t border-border">
+    <section className="py-20 sm:py-28 lg:py-36 border-t border-border">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-10 sm:mb-16">
+        <div className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Days to production. Not quarters.
           </h2>
@@ -40,15 +40,15 @@ export function HowItWorks() {
         <div className="relative grid gap-8 md:grid-cols-3 md:gap-8">
           {/* Connecting line (desktop only) */}
           <div className="absolute top-12 left-[16.67%] right-[16.67%] hidden md:block">
-            <div className="h-px bg-gradient-to-r from-[hsl(200_80%_55%/0.5)] via-[hsl(200_80%_55%/0.3)] to-[hsl(200_80%_55%/0.5)]" />
+            <div className="h-px bg-gradient-to-r from-brand/50 via-brand/30 to-brand/50" />
           </div>
 
           {STEPS.map(({ number, icon: Icon, title, description }) => (
             <div key={number} className="relative text-center">
-              <div className="mx-auto mb-4 sm:mb-6 flex h-16 w-16 sm:h-24 sm:w-24 items-center justify-center rounded-full border border-[hsl(200_80%_55%/0.3)] bg-[hsl(200_80%_55%/0.06)]">
-                <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-[hsl(200_80%_55%)]" />
+              <div className="mx-auto mb-4 sm:mb-6 flex h-16 w-16 sm:h-24 sm:w-24 items-center justify-center rounded-full border border-brand/30 bg-brand/6">
+                <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-brand" />
               </div>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-[hsl(200_80%_55%)]">
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-brand">
                 Step {number}
               </span>
               <h3 className="text-xl font-semibold mb-2">{title}</h3>

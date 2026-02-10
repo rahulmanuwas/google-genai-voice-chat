@@ -42,7 +42,7 @@ export function ToolUsageChart({ toolUsage }: ToolUsageChartProps) {
               <div className="flex-1">
                 <div className="h-2 rounded-full bg-muted">
                   <div
-                    className="h-2 rounded-full bg-blue-500"
+                    className="h-2 rounded-full bg-brand"
                     style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%` }}
                   />
                 </div>

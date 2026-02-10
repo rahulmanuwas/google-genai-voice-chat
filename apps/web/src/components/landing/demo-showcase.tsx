@@ -67,10 +67,10 @@ function MiniWaveform() {
         return (
           <div
             key={i}
-            className="w-[2px] rounded-full bg-[hsl(200_80%_55%)]"
+            className="w-[2px] rounded-full bg-brand"
             style={{
               height: `${h}%`,
-              opacity: 0.4 + (h / 100) * 0.6,
+              opacity: 0.3 + (h / 100) * 0.7,
               animation: `wave-bar ${1.2 + (i % 5) * 0.2}s ease-in-out ${i * 0.06}s infinite`,
               transformOrigin: 'center',
             }}
@@ -88,15 +88,15 @@ export function DemoShowcase() {
   return (
     <div className="w-full max-w-3xl mx-auto">
       {/* Gradient border wrapper */}
-      <div className="rounded-2xl bg-gradient-to-b from-[hsl(200_80%_55%/0.15)] via-[hsl(200_80%_55%/0.05)] to-transparent p-px">
-        <div className="rounded-2xl bg-[hsl(0_0%_5.5%)] overflow-hidden">
+      <div className="rounded-2xl gradient-border p-px">
+        <div className="rounded-2xl bg-[hsl(0_0%_5%)] overflow-hidden">
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 sm:px-6 pt-5 sm:pt-6 pb-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[hsl(200_80%_55%)] opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[hsl(200_80%_55%)]" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
               </span>
               Live Demo
             </div>
@@ -112,10 +112,10 @@ export function DemoShowcase() {
                   <button
                     key={s.id}
                     onClick={() => setActive(i)}
-                    className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                    className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
                       i === active
-                        ? 'bg-[hsl(200_80%_55%/0.12)] text-[hsl(200_80%_55%)] ring-1 ring-[hsl(200_80%_55%/0.25)]'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-[hsl(0_0%_100%/0.04)]'
+                        ? 'bg-brand/12 text-brand ring-1 ring-brand/25'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]'
                     }`}
                   >
                     <Icon className="h-3 w-3" />
@@ -127,7 +127,7 @@ export function DemoShowcase() {
           </div>
 
           {/* Divider */}
-          <div className="mx-5 sm:mx-6 border-t border-[hsl(0_0%_100%/0.06)]" />
+          <div className="mx-5 sm:mx-6 border-t border-white/[0.06]" />
 
           {/* Conversation area */}
           <div className="px-5 sm:px-6 py-5 sm:py-6 min-h-[140px] sm:min-h-[160px]">
@@ -137,15 +137,15 @@ export function DemoShowcase() {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3 sm:py-4 border-t border-[hsl(0_0%_100%/0.06)] bg-[hsl(0_0%_4%)]">
+          <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3 sm:py-4 border-t border-white/[0.06] bg-[hsl(0_0%_4%)]">
             <div className="min-w-0 flex-1 text-xs text-muted-foreground truncate sm:whitespace-normal">
               <span>{scenario.context}</span>
               <span className="mx-1.5">·</span>
-              <span className="text-[hsl(200_80%_55%/0.7)]">{scenario.capability}</span>
+              <span className="text-brand/60">{scenario.capability}</span>
             </div>
             <Link
               href={scenario.href}
-              className="group inline-flex items-center gap-1.5 rounded-full bg-foreground px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-background transition-all hover:opacity-90 shrink-0"
+              className="group inline-flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-background transition-all hover:brightness-110 shrink-0"
             >
               Try it live
               <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />

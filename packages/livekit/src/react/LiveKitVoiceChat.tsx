@@ -29,6 +29,8 @@ export interface LiveKitVoiceChatProps
   uiStrings?: PersonaUIStrings;
 }
 
+const ACCENT = '#E8960D';
+
 /**
  * Ready-to-use voice chat component backed by LiveKit.
  * Handles room creation, token management, and renders audio controls.
@@ -78,7 +80,7 @@ export function LiveKitVoiceChat({
 
   if (error) {
     return (
-      <div className={className} style={{ color: 'red', ...style }}>
+      <div className={className} style={{ color: '#ef4444', fontSize: 14, ...style }}>
         {strings.errorMessage ?? `Error: ${error}`}
       </div>
     );
@@ -86,19 +88,22 @@ export function LiveKitVoiceChat({
 
   if (!isReady || !token || !serverUrl) {
     return (
-      <div className={className} style={style}>
+      <div className={className} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, ...style }}>
         <button
           onClick={connect}
           disabled={isConnecting}
           style={{
-            padding: '12px 24px',
-            borderRadius: 8,
+            padding: '12px 28px',
+            borderRadius: 24,
             border: 'none',
-            backgroundColor: '#2563eb',
-            color: 'white',
-            fontSize: 16,
+            backgroundColor: ACCENT,
+            color: '#0a0a0a',
+            fontSize: 14,
+            fontWeight: 600,
             cursor: isConnecting ? 'wait' : 'pointer',
             opacity: isConnecting ? 0.7 : 1,
+            transition: 'all 150ms ease',
+            boxShadow: `0 0 20px ${ACCENT}33`,
           }}
         >
           {isConnecting
@@ -126,17 +131,31 @@ export function LiveKitVoiceChat({
           onConversationEnd={onConversationEnd}
           onHandoff={onHandoff}
         />
-        <AudioVisualizerWrapper thinkingAudioSrc={thinkingAudioSrc} thinkingAudioVolume={thinkingAudioVolume} />
+        <AudioVisualizerWrapper
+          thinkingAudioSrc={thinkingAudioSrc}
+          thinkingAudioVolume={thinkingAudioVolume}
+          accentColor={ACCENT}
+        />
         <button
           onClick={disconnect}
           style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: '1px solid #dc2626',
+            padding: '8px 20px',
+            borderRadius: 20,
+            border: '1px solid hsl(0 0% 20%)',
             backgroundColor: 'transparent',
-            color: '#dc2626',
-            fontSize: 14,
+            color: 'hsl(0 0% 55%)',
+            fontSize: 13,
+            fontWeight: 500,
             cursor: 'pointer',
+            transition: 'all 150ms ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = '#ef4444';
+            e.currentTarget.style.color = '#ef4444';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'hsl(0 0% 20%)';
+            e.currentTarget.style.color = 'hsl(0 0% 55%)';
           }}
         >
           {strings.disconnectButtonText ?? 'End Session'}

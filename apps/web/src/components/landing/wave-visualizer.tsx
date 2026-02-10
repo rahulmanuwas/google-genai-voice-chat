@@ -9,12 +9,12 @@ function barHeight(i: number): number {
   return 15 + envelope * wave * 85;
 }
 
-// Interpolate from teal to green across the bars
+// Interpolate from amber to copper across the bars
 function barColor(i: number): string {
   const t = i / (BAR_COUNT - 1);
-  const hue = 200 - t * 40; // 200 → 160
-  const sat = 80 - t * 20; // 80 → 60
-  const light = 55 - t * 10; // 55 → 45
+  const hue = 38 - t * 22; // 38 → 16
+  const sat = 92 - t * 17; // 92 → 75
+  const light = 50 - t * 2; // 50 → 48
   return `hsl(${hue} ${sat}% ${light}%)`;
 }
 
@@ -26,7 +26,7 @@ export function WaveVisualizer() {
         className="absolute inset-x-[10%] bottom-0 h-2/3 rounded-full"
         style={{
           background:
-            'radial-gradient(ellipse 80% 60% at 50% 80%, hsl(200 80% 55% / 0.15) 0%, transparent 70%)',
+            'radial-gradient(ellipse 80% 60% at 50% 80%, hsl(38 92% 50% / 0.15) 0%, transparent 70%)',
           filter: 'blur(20px)',
         }}
       />

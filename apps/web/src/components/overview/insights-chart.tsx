@@ -51,8 +51,8 @@ export function InsightsChart({ insights }: InsightsChartProps) {
             <Area
               type="monotone"
               dataKey="conversations"
-              stroke="hsl(220 70% 50%)"
-              fill="hsl(220 70% 50% / 0.2)"
+              stroke="hsl(38 92% 50%)"
+              fill="hsl(38 92% 50% / 0.15)"
               strokeWidth={2}
             />
           </AreaChart>

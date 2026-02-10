@@ -62,21 +62,31 @@ function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario 
     <div className="flex flex-col gap-4">
       {/* Status bar */}
       <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
-        <span
-          className={cn(
-            'h-2 w-2 rounded-full',
-            isConnected ? 'bg-green-500' : 'bg-red-500',
-          )}
-        />
-        <span className="text-sm">
-          {!isConnected
-            ? 'Disconnected'
-            : isAISpeaking
-              ? 'AI speaking...'
-              : isListening
-                ? 'Listening...'
-                : 'Connected'}
-        </span>
+        {/* State indicator pill */}
+        <div className={cn(
+          'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold tracking-wide',
+          !isConnected
+            ? 'bg-muted text-muted-foreground'
+            : isListening
+              ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+              : isAISpeaking
+                ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                : 'bg-brand/10 text-brand border border-brand/20',
+        )}>
+          <span className="relative inline-flex h-2 w-2">
+            {(isConnected && (isListening || isAISpeaking)) && (
+              <span className={cn(
+                'absolute inset-0 rounded-full animate-ping opacity-60',
+                isListening ? 'bg-red-500' : 'bg-green-500',
+              )} />
+            )}
+            <span className={cn(
+              'relative h-2 w-2 rounded-full',
+              !isConnected ? 'bg-muted-foreground' : isListening ? 'bg-red-500' : isAISpeaking ? 'bg-green-500' : 'bg-brand',
+            )} />
+          </span>
+          {!isConnected ? 'Disconnected' : isListening ? 'Listening' : isAISpeaking ? 'Speaking' : 'Ready'}
+        </div>
         <div className="flex-1" />
         {isConnected && (
           <Button variant="outline" size="sm" onClick={toggleMic}>

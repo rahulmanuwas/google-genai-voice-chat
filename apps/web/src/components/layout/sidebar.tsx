@@ -68,29 +68,32 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         collapsed && 'md:w-16',
       )}
     >
+      {/* Brand accent line at top */}
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-brand/40 to-transparent" />
+
       <div className={cn('flex h-14 items-center border-b border-sidebar-border px-4', collapsed ? 'md:justify-center' : 'justify-between')}>
         {(!collapsed || mobileOpen) && (
-          <span className={cn('text-base font-medium tracking-tight text-sidebar-foreground', collapsed && 'md:hidden')}>
-            <span className="text-[hsl(200_80%_55%)]">.</span>Riyaan
+          <span className={cn('text-base font-semibold tracking-tight text-sidebar-foreground', collapsed && 'md:hidden')}>
+            <span className="text-brand">.</span>Riyaan
           </span>
         )}
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggle}
-          className="hidden h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent md:inline-flex"
+          className="hidden h-8 w-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent md:inline-flex"
         >
           {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {NAV_ITEMS.map((item) => {
           if (item.type === 'separator') {
             return (
-              <div key={item.label} className="pt-4 pb-1">
+              <div key={item.label} className="pt-5 pb-1.5">
                 {(!collapsed || mobileOpen) ? (
-                  <span className={cn('px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40', collapsed && 'md:hidden')}>
+                  <span className={cn('px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30', collapsed && 'md:hidden')}>
                     {item.label}
                   </span>
                 ) : (
@@ -98,7 +101,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
                 )}
                 {/* Always show label on mobile */}
                 {collapsed && (
-                  <span className="px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40 md:hidden">
+                  <span className="px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30 md:hidden">
                     {item.label}
                   </span>
                 )}
@@ -114,14 +117,17 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
               href={href}
               onClick={onMobileClose}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
                 active
-                  ? 'bg-[hsl(200_80%_55%/0.1)] text-[hsl(200_80%_55%)]'
-                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent',
+                  ? 'bg-brand/10 text-brand'
+                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-white/[0.04]',
                 collapsed && 'md:justify-center md:px-0',
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              {active && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[2px] rounded-r-full bg-brand" />
+              )}
+              <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-brand' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70')} />
               {/* Always show label on mobile, respect collapsed on desktop */}
               <span className={cn(collapsed && 'md:hidden')}>{label}</span>
             </Link>
@@ -139,6 +145,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           return link;
         })}
       </nav>
+
+      {/* Bottom brand glow */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-brand/[0.03] to-transparent" />
     </aside>
   );
 }
