@@ -7,8 +7,8 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY packages/core/package.json packages/core/package.json
 COPY packages/react/package.json packages/react/package.json
 COPY packages/livekit/package.json packages/livekit/package.json
-COPY apps/dashboard/package.json apps/dashboard/package.json
-COPY apps/convex-backend/package.json apps/convex-backend/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/backend/package.json apps/backend/package.json
 
 RUN pnpm install --frozen-lockfile
 
@@ -31,27 +31,27 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/core/node_modules ./packages/core/node_modules
 COPY --from=deps /app/packages/react/node_modules ./packages/react/node_modules
 COPY --from=deps /app/packages/livekit/node_modules ./packages/livekit/node_modules
-COPY --from=deps /app/apps/dashboard/node_modules ./apps/dashboard/node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig.base.json ./
 COPY packages/core packages/core
 COPY packages/react packages/react
 COPY packages/livekit packages/livekit
-COPY apps/dashboard apps/dashboard
-COPY apps/convex-backend/package.json apps/convex-backend/package.json
+COPY apps/web apps/web
+COPY apps/backend/package.json apps/backend/package.json
 
-RUN pnpm turbo run build --filter=@genai-voice/dashboard...
+RUN pnpm turbo run build --filter=@genai-voice/web...
 
 # ---- runner ----
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=build /app/apps/dashboard/.next/standalone ./
-COPY --from=build /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
+COPY --from=build /app/apps/web/.next/standalone ./
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "apps/dashboard/server.js"]
+CMD ["node", "apps/web/server.js"]

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Asul } from 'next/font/google';
+import { FirebaseAnalytics } from '@/components/analytics';
 import './globals.css';
 
 const geistSans = Geist({
@@ -10,6 +11,12 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-mono',
   subsets: ['latin'],
+});
+
+const asul = Asul({
+  variable: '--font-heading',
+  subsets: ['latin'],
+  weight: ['400', '700'],
 });
 
 export const metadata: Metadata = {
@@ -24,7 +31,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${asul.variable} antialiased`}>
+        <FirebaseAnalytics />
         {children}
       </body>
     </html>

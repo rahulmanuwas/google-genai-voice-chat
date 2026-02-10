@@ -8,7 +8,7 @@ All environment variables used across the genai-voice monorepo, organized by dep
 
 Variables needed to run `pnpm dev` (dashboard + LiveKit agent).
 
-Create `apps/dashboard/.env.local` as the single source of truth:
+Create `apps/web/.env.local` as the single source of truth:
 
 | Variable | Required | Build/Runtime | Description | Example |
 |----------|----------|---------------|-------------|---------|
@@ -24,10 +24,6 @@ Create `apps/dashboard/.env.local` as the single source of truth:
 | `LIVEKIT_SIP_TRUNK_ID` | No | Runtime | LiveKit SIP trunk ID (only for PSTN call demo) | `ST_4YXBs...` |
 | `TWILIO_FROM_NUMBER` | No | Runtime | Outbound caller ID for SIP calls (E.164) | `+19095004531` |
 | `GEMINI_API_KEY` | No | Runtime | Gemini key for Convex server-side token generation | `AIzaSy...` |
-
-### Console app (`apps/console`)
-
-If you're running the console app instead, copy `apps/console/.env.example` to `apps/console/.env.local` and fill the same `NEXT_PUBLIC_*` values.
 
 ---
 
@@ -112,7 +108,7 @@ Used when deploying or seeding from the command line — **not** set in the Conv
 
 Deploy command:
 ```bash
-cd apps/convex-backend
+cd apps/backend
 CONVEX_DEPLOY_KEY=... npx convex deploy --typecheck disable -y
 ```
 

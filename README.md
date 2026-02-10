@@ -10,7 +10,7 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 | Package | Description | Status |
 |---|---|---|
 | [`@genai-voice/react`](./packages/react) | Drop-in voice/text chat React components + hooks | Stable |
-| [`@genai-voice/convex`](./apps/convex-backend) | Convex backend: tools, handoff, guardrails, RAG, analytics, persona, A/B testing, transcription storage | Repo-only |
+| [`@genai-voice/backend`](./apps/backend) | Convex backend: tools, handoff, guardrails, RAG, analytics, persona, A/B testing, transcription storage | Repo-only |
 | [`@genai-voice/core`](./packages/core) | Shared types and conversation protocol | New |
 | [`@genai-voice/telephony`](./packages/telephony) | Telnyx (voice) + Twilio (SMS) adapters | New |
 | [`@genai-voice/livekit`](./packages/livekit) | LiveKit WebRTC: voice agent, server utilities, React components | New |
@@ -19,9 +19,8 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 
 ```
 apps/
-├── dashboard/          Next.js admin dashboard + demo pages with scenario picker
-├── console/            Next.js console app (chatbot, voice, LiveKit, Twilio pages)
-└── convex-backend/     Convex backend platform (18 tables, 33+ HTTP endpoints)
+├── web/                Next.js admin dashboard + demo pages with scenario picker
+└── backend/            Convex backend platform (20 tables, 38+ HTTP endpoints)
 
 packages/
 ├── core/               Shared types (conversation, tools, handoff, guardrails, knowledge, analytics, persona)
@@ -57,7 +56,7 @@ function App() {
 
 ### Tier 2 — Agent platform with tools, handoff, and analytics
 
-Deploy the Convex backend from this repo, register tools the AI can call, configure guardrails, set up persona/brand voice, run A/B experiments, and get a real-time analytics dashboard. See the [Convex backend docs](./apps/convex-backend/README.md).
+Deploy the Convex backend from this repo, register tools the AI can call, configure guardrails, set up persona/brand voice, run A/B experiments, and get a real-time analytics dashboard. See the [Convex backend docs](./apps/backend/README.md).
 
 ### Tier 3 — LiveKit WebRTC voice agent
 
@@ -104,7 +103,7 @@ pnpm lint
 
 ## Dashboard
 
-The admin dashboard (`apps/dashboard`) provides an analytics overview, platform management, and four interactive demo pages. Each demo page includes a **scenario picker** that switches between three realistic enterprise scenarios:
+The admin dashboard (`apps/web`) provides an analytics overview, platform management, and four interactive demo pages. Each demo page includes a **scenario picker** that switches between three realistic enterprise scenarios:
 
 | Scenario | App Slug | Persona | Description |
 |---|---|---|---|
@@ -127,7 +126,7 @@ pnpm dev
 Each scenario is backed by full Convex data (app config, tools, guardrail rules, and knowledge documents with vector embeddings). Seed all three with:
 
 ```bash
-cd apps/convex-backend
+cd apps/backend
 CONVEX_DEPLOY_KEY=... npx convex run seedScenarios:seedAll '{"secret":"your-app-secret"}'
 ```
 
@@ -138,22 +137,6 @@ This creates per-scenario:
 - **Knowledge docs**: 5 per scenario (15 total), with auto-generated embeddings
 
 All three scenario apps share the same `APP_SECRET` as the base `demo` app.
-
-## Console App
-
-Run the Next.js console app showcasing:
-- Drop-in `<ChatBot />`
-- Custom UI with `useVoiceChat`
-- LiveKit WebRTC voice agent
-- LiveKit SIP outbound call (often backed by Twilio SIP trunk)
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Copy `apps/console/.env.example` to `apps/console/.env.local` and fill values.
-For monorepo local dev, the console app also supports reading server-only secrets from the repo root `.env`.
 
 ## Using Individual Hooks
 
@@ -306,7 +289,7 @@ export const POST = createChatHandler({
 
 ## Environment Variables
 
-Key variables for local development (`apps/dashboard/.env.local`):
+Key variables for local development (`apps/web/.env.local`):
 
 | Variable | Where | Description |
 |----------|-------|-------------|
@@ -341,7 +324,7 @@ Both use Docker (`Dockerfile.dashboard` and `Dockerfile.agent`). `NEXT_PUBLIC_*`
 The Convex backend stays on Convex Cloud:
 
 ```bash
-cd apps/convex-backend
+cd apps/backend
 CONVEX_DEPLOY_KEY=... npx convex deploy --typecheck disable -y
 ```
 

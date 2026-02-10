@@ -38,12 +38,17 @@
   --radius: 0.5rem;
   --font-sans: var(--font-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
+  --font-heading: var(--font-heading), system-ui, -apple-system, sans-serif;
 }
 
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-heading);
 }
 
 .scrollbar-none {

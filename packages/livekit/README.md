@@ -274,7 +274,7 @@ await createSipParticipant({
 
 ## Convex Backend Integration
 
-The Convex backend (`@genai-voice/convex`) includes LiveKit-specific tables and endpoints:
+The Convex backend (`@genai-voice/backend`) includes LiveKit-specific tables and endpoints:
 
 **Tables**: `livekitRooms`, `livekitParticipants`, `messages`
 

@@ -15,8 +15,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev agent:dev --filter=!@genai-voice/convex",
-    "dev:convex": "turbo run dev --filter=@genai-voice/convex",
+    "dev": "turbo run dev agent:dev --filter=!@genai-voice/backend",
+    "dev:convex": "turbo run dev --filter=@genai-voice/backend",
     "dev:all": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

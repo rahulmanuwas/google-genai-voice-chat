@@ -1,4 +1,4 @@
-# @genai-voice/convex
+# @genai-voice/backend
 
 Convex backend platform for genai-voice. Extends the base telemetry backend into a full AI agent platform with tool execution, human handoff, guardrails, knowledge management (RAG), analytics, persona management, A/B testing, and real-time transcription storage.
 
@@ -136,7 +136,7 @@ The status is used by `GET /api/analytics/overview` to compute resolution rate a
 ## Setup
 
 ```bash
-cd apps/convex-backend
+cd apps/backend
 pnpm install
 
 # Start development server (generates types, pushes schema)
