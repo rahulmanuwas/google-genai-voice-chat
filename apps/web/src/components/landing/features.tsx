@@ -12,37 +12,37 @@ const FEATURES = [
     icon: AudioLines,
     title: 'Real-time Voice',
     description:
-      'Sub-second latency with Gemini multimodal and LiveKit WebRTC. Natural conversations, not robotic IVRs.',
+      'Sub-second voice with Gemini multimodal and LiveKit WebRTC. Sounds like a person, not a phone tree.',
   },
   {
     icon: Globe,
     title: 'Multi-channel',
     description:
-      'Web, mobile, and PSTN phone calls from one codebase. Telnyx voice, Twilio SMS — provider-agnostic adapters.',
+      'Web, mobile, and PSTN from one config. Telnyx voice, Twilio SMS — same agent, same rules, every channel.',
   },
   {
     icon: BookOpen,
     title: 'Knowledge Base',
     description:
-      'Vector-powered RAG with Gemini embeddings. Your agent answers from your docs, not hallucinations.',
+      'Vector-powered RAG with Gemini embeddings. Your agent answers from your docs. When it doesn\'t know, it says so.',
   },
   {
     icon: Shield,
     title: 'Guardrails',
     description:
-      'Pattern-based content filtering with block, warn, and log actions. Full audit trail on every violation.',
+      'Block, warn, or log — per rule, per direction, with full audit trail. Input guardrails interrupt in real time, not after the fact.',
   },
   {
     icon: BarChart3,
     title: 'Analytics',
     description:
-      'CSAT ratings, conversation insights, tool usage metrics, and AI-generated summaries in real time.',
+      'CSAT, conversation clustering, tool usage, and guardrail violations. Know what\'s working before your customers tell you what isn\'t.',
   },
   {
     icon: FlaskConical,
     title: 'A/B Testing',
     description:
-      'Weighted experiment assignment with sticky sessions. Compare personas, prompts, and flows with data.',
+      'Weighted experiments with sticky sessions. Compare personas, prompts, and escalation flows with production data, not gut feel.',
   },
 ];
 
@@ -52,10 +52,10 @@ export function Features() {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-10 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Built for enterprise from day one
+            The integration layer the model providers don&apos;t ship
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Guardrails, compliance, observability, and scale — not bolted on, built in.
+            The hard part was never the model. It&apos;s everything around it.
           </p>
         </div>
 

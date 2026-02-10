@@ -6,21 +6,21 @@ const STACK = [
     name: 'Google Gemini',
     role: 'AI Engine',
     description:
-      'Multimodal real-time model for voice understanding, generation, and tool use.',
+      'Native multimodal model for real-time voice understanding, generation, and tool calling. Speech-to-speech, not speech-to-text-to-speech.',
   },
   {
     icon: Radio,
     name: 'LiveKit',
     role: 'Transport',
     description:
-      'WebRTC infrastructure with SIP bridging for sub-100ms audio streaming.',
+      'WebRTC with SIP bridging. Sub-100ms audio. Your agent sounds like it\'s in the room, whether the user is on Chrome or a landline.',
   },
   {
     icon: Database,
     name: 'Convex',
     role: 'Backend',
     description:
-      'Reactive database with built-in vector search, real-time sync, and serverless functions.',
+      'Reactive database with native vector search, real-time sync, and serverless compute. Memory, tools, and guardrails — all in one place.',
   },
 ];
 
@@ -30,10 +30,10 @@ export function TechStack() {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-10 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Built on the modern stack
+            Built on infrastructure that scales
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Best-in-class infrastructure at every layer.
+            Not a wrapper. A platform.
           </p>
         </div>
 

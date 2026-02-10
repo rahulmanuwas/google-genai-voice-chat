@@ -13,7 +13,7 @@ const USE_CASES = [
     icon: Headset,
     title: 'Customer Support',
     description:
-      'Eliminate hold times and resolve issues around the clock with natural voice conversations that know when to escalate to a human.',
+      'Resolve issues on the first call — not the third. Your agent pulls booking data, executes changes, and knows when to transfer to a human. No "let me look into that" loops.',
     href: '/demos/livekit',
     cta: 'Try live demo',
     featured: true,
@@ -40,7 +40,7 @@ const USE_CASES = [
     icon: Plug,
     title: 'Custom Workflows',
     description:
-      'Wire up any internal tool, API, or MCP server as a skill. Agents inspect, decide, and act across your existing systems — no rip-and-replace.',
+      'Wire any internal API or MCP server as a tool. Your agent inspects, decides, and acts across your existing systems. No rip-and-replace.',
     href: '/tools',
     cta: 'View tools',
     featured: false,
@@ -49,7 +49,7 @@ const USE_CASES = [
     icon: Boxes,
     title: 'Omnichannel Operations',
     description:
-      'One configuration runs across web, mobile, phone, and SMS. Same compliance rules and brand voice at every touchpoint your customers use.',
+      'One config runs across web, mobile, phone, and SMS. Same guardrail rules, same brand voice, every channel your customers use.',
     href: '/demos/chatbot',
     cta: 'Try voice chat',
     featured: false,
@@ -100,14 +100,14 @@ export function UseCases() {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-10 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Solving real problems{' '}
+            Where agents fail{' '}
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-[hsl(200_80%_55%)] to-[hsl(160_60%_45%)]">
-              across industries
+              — and how yours won&apos;t
             </span>
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            From the call center to the factory floor — see how enterprises
-            are deploying AI that works in production today.
+            Most AI agents break on the same things: tool calls that hang, context
+            that drifts, escalations that never happen. These are solved problems.
           </p>
         </div>
 

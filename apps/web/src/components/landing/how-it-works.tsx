@@ -6,21 +6,21 @@ const STEPS = [
     icon: Settings,
     title: 'Configure',
     description:
-      'Set up your persona, knowledge base, guardrails, and tools through the dashboard or API.',
+      'Set your persona, knowledge base, guardrail rules, and tools through the dashboard. Or use the API if that\'s more your speed.',
   },
   {
     number: '02',
     icon: Plug,
     title: 'Connect',
     description:
-      'Drop in the React SDK or wire up PSTN via SIP. Your agent goes live in minutes, not months.',
+      'Drop in the React SDK for web. Point a SIP trunk for phone. Your agent handles its first call today.',
   },
   {
     number: '03',
     icon: Activity,
     title: 'Monitor',
     description:
-      'Watch conversations in real time, track CSAT, review guardrail violations, and iterate with data.',
+      'Watch conversations live, review blocked inputs, track resolution rates, and iterate. Ship improvements in minutes, not sprints.',
   },
 ];
 
@@ -30,10 +30,10 @@ export function HowItWorks() {
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-10 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Three steps to production
+            Days to production. Not quarters.
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Go from zero to production without stitching together a dozen services.
+            Self-serve with the platform, or let our team handle deployment end-to-end. Either way, three steps.
           </p>
         </div>
 
