@@ -11,3 +11,4 @@ export { LiveKitVoiceChat } from './LiveKitVoiceChat';
 export type { LiveKitVoiceChatProps } from './LiveKitVoiceChat';
 
 export { AudioVisualizerWrapper } from './AudioVisualizerWrapper';
+export type { AudioVisualizerWrapperProps } from './AudioVisualizerWrapper';

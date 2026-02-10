@@ -11,6 +11,10 @@ export interface LiveKitVoiceChatProps extends UseLiveKitVoiceChatOptions {
   className?: string;
   /** Custom inline styles */
   style?: React.CSSProperties;
+  /** URL of an audio file to loop while the agent is thinking */
+  thinkingAudioSrc?: string;
+  /** Volume for the thinking audio (0–1, default 0.3) */
+  thinkingAudioVolume?: number;
 }
 
 /**
@@ -20,6 +24,8 @@ export interface LiveKitVoiceChatProps extends UseLiveKitVoiceChatOptions {
 export function LiveKitVoiceChat({
   className,
   style,
+  thinkingAudioSrc,
+  thinkingAudioVolume,
   ...options
 }: LiveKitVoiceChatProps) {
   const {
@@ -73,7 +79,7 @@ export function LiveKitVoiceChat({
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}
       >
         <RoomAudioRenderer />
-        <AudioVisualizerWrapper />
+        <AudioVisualizerWrapper thinkingAudioSrc={thinkingAudioSrc} thinkingAudioVolume={thinkingAudioVolume} />
         <button
           onClick={disconnect}
           style={{

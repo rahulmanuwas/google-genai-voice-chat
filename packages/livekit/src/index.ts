@@ -14,4 +14,5 @@ export type {
   LiveKitRoomCallbacks,
   ConvexRoomConfig,
   LiveKitVoiceChatProps,
+  AudioVisualizerWrapperProps,
 } from './react/index';

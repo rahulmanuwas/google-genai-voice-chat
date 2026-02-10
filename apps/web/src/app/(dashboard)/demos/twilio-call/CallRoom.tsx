@@ -39,7 +39,7 @@ export default function CallRoom({ token, serverUrl, onCallEnded }: CallRoomProp
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}
     >
       <PstnParticipantWatcher onCallEnded={onCallEnded} />
-      <AudioVisualizerWrapper />
+      <AudioVisualizerWrapper thinkingAudioSrc="/chieuk-thinking-289286.mp3" />
     </LiveKitRoom>
   );
 }

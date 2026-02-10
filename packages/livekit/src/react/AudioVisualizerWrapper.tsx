@@ -6,22 +6,63 @@ import {
   useMaybeRoomContext,
 } from '@livekit/components-react';
 
+export interface AudioVisualizerWrapperProps {
+  /** URL of an audio file to loop while the agent is thinking (e.g. "/thinking.mp3") */
+  thinkingAudioSrc?: string;
+  /** Volume for the thinking audio (0–1, default 0.3) */
+  thinkingAudioVolume?: number;
+}
+
 /**
  * Wrapper around LiveKit's BarVisualizer that shows the voice agent's
  * audio track with a state indicator and live transcriptions.
  *
  * Guards against being rendered outside a LiveKitRoom context.
  */
-export function AudioVisualizerWrapper() {
+export function AudioVisualizerWrapper(props: AudioVisualizerWrapperProps) {
   const room = useMaybeRoomContext();
   if (!room) return null;
-  return <AudioVisualizerInner />;
+  return <AudioVisualizerInner {...props} />;
 }
 
-function AudioVisualizerInner() {
+function AudioVisualizerInner({ thinkingAudioSrc, thinkingAudioVolume = 0.3 }: AudioVisualizerWrapperProps) {
   const { state, audioTrack, agent } = useVoiceAssistant();
   const transcriptions = useTranscriptions();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const thinkingAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play/stop thinking audio based on agent state
+  useEffect(() => {
+    if (!thinkingAudioSrc) return;
+
+    if (state === 'thinking') {
+      if (!thinkingAudioRef.current) {
+        const audio = new Audio(thinkingAudioSrc);
+        audio.loop = true;
+        audio.volume = thinkingAudioVolume;
+        thinkingAudioRef.current = audio;
+      }
+      thinkingAudioRef.current.volume = thinkingAudioVolume;
+      thinkingAudioRef.current.play().catch(() => {
+        // Autoplay might be blocked — ignore
+      });
+    } else {
+      if (thinkingAudioRef.current) {
+        thinkingAudioRef.current.pause();
+        thinkingAudioRef.current.currentTime = 0;
+      }
+    }
+  }, [state, thinkingAudioSrc, thinkingAudioVolume]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (thinkingAudioRef.current) {
+        thinkingAudioRef.current.pause();
+        thinkingAudioRef.current = null;
+      }
+    };
+  }, []);
 
   const agentIdentity = agent?.identity;
 

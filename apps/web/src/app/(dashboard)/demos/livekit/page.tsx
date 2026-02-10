@@ -60,6 +60,7 @@ export default function LiveKitDemo() {
               appSlug={scenario.appSlug}
               getSessionToken={getSessionToken}
               serverUrl={livekitUrl}
+              thinkingAudioSrc="/chieuk-thinking-289286.mp3"
             />
           </CardContent>
         </Card>
