@@ -13,8 +13,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider>
       <div className="relative min-h-screen">
-        {/* Subtle ambient glow in top-right corner */}
-        <div className="pointer-events-none fixed right-0 top-0 h-[500px] w-[500px] rounded-full bg-brand/[0.02] blur-[100px]" />
+        {/* Ambient glow in top-right corner */}
+        <div className="pointer-events-none fixed right-0 top-0 h-[500px] w-[500px] rounded-full bg-brand/[0.04] blur-[100px]" />
 
         {/* Backdrop overlay for mobile drawer */}
         {mobileOpen && (
@@ -37,7 +37,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
           collapsed && 'md:ml-16',
         )}>
           <Header onMobileToggle={() => setMobileOpen(o => !o)} />
-          <main className="p-4 md:p-6 lg:p-8">{children}</main>
+          <main
+            className="p-4 md:p-6 lg:p-8"
+            style={{ animation: 'fade-in-up 0.4s ease-out both' }}
+          >
+            {children}
+          </main>
         </div>
       </div>
     </TooltipProvider>

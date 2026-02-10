@@ -23,10 +23,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+import { Plus, Shield as ShieldIcon } from 'lucide-react';
 import { formatNumber, timeAgo } from '@/lib/utils';
 import { PageHeader } from '@/components/layout/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function GuardrailsPage() {
   const { api, ready } = useSession();
@@ -123,7 +124,17 @@ export default function GuardrailsPage() {
         </CardHeader>
         <CardContent>
           {rules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No guardrail rules configured.</p>
+            <EmptyState
+              icon={ShieldIcon}
+              title="No guardrail rules configured"
+              description="Add keyword filters, regex patterns, or PII detection rules to protect your agent from harmful inputs and outputs."
+              action={
+                <Button size="sm" onClick={() => setOpen(true)}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Add your first rule
+                </Button>
+              }
+            />
           ) : (
             <div className="space-y-3">
               {rules.map((r) => (

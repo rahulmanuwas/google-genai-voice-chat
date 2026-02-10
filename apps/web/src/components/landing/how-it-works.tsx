@@ -1,4 +1,6 @@
 import { Settings, Plug, Activity } from 'lucide-react';
+import { FadeIn } from '@/components/ui/fade-in';
+import { WaveVisualizer } from './wave-visualizer';
 
 const STEPS = [
   {
@@ -26,16 +28,16 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section className="py-20 sm:py-28 lg:py-36 border-t border-border">
+    <section className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-12 sm:mb-20">
+        <FadeIn className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Days to production. Not quarters.
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Self-serve with the platform, or let our team handle deployment end-to-end. Either way, three steps.
           </p>
-        </div>
+        </FadeIn>
 
         <div className="relative grid gap-8 md:grid-cols-3 md:gap-8">
           {/* Connecting line (desktop only) */}
@@ -43,8 +45,8 @@ export function HowItWorks() {
             <div className="h-px bg-gradient-to-r from-brand/50 via-brand/30 to-brand/50" />
           </div>
 
-          {STEPS.map(({ number, icon: Icon, title, description }) => (
-            <div key={number} className="relative text-center">
+          {STEPS.map(({ number, icon: Icon, title, description }, i) => (
+            <FadeIn key={number} delay={i * 0.15} className="relative text-center">
               <div className="mx-auto mb-4 sm:mb-6 flex h-16 w-16 sm:h-24 sm:w-24 items-center justify-center rounded-full border border-brand/30 bg-brand/6">
                 <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-brand" />
               </div>
@@ -55,9 +57,14 @@ export function HowItWorks() {
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
                 {description}
               </p>
-            </div>
+            </FadeIn>
           ))}
         </div>
+
+        {/* WaveVisualizer as visual divider — reinforces "voice" identity */}
+        <FadeIn delay={0.2} className="mt-16 sm:mt-24 opacity-60">
+          <WaveVisualizer />
+        </FadeIn>
       </div>
     </section>
   );

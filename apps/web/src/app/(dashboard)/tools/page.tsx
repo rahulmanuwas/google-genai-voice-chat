@@ -18,9 +18,10 @@ import {
   DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Plus } from 'lucide-react';
+import { Plus, Wrench as WrenchIcon } from 'lucide-react';
 import { timeAgo, formatDuration } from '@/lib/utils';
 import { PageHeader } from '@/components/layout/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function ToolsPage() {
   const { api, ready } = useSession();
@@ -101,7 +102,17 @@ export default function ToolsPage() {
           </CardHeader>
           <CardContent>
             {tools.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No tools registered yet.</p>
+              <EmptyState
+                icon={WrenchIcon}
+                title="No tools registered"
+                description="Register external APIs as tools so your agent can look up orders, check inventory, or take actions on behalf of the user."
+                action={
+                  <Button size="sm" onClick={() => setOpen(true)}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Register your first tool
+                  </Button>
+                }
+              />
             ) : (
               <div className="space-y-3">
                 {tools.map((t) => (

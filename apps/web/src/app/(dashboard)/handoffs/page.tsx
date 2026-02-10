@@ -3,9 +3,11 @@
 import { useCallback, useState } from 'react';
 import { useHandoffs } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
+import { ArrowRightLeft } from 'lucide-react';
 import { HandoffCard } from '@/components/handoffs/handoff-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/layout/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function HandoffsPage() {
   const { api, ready } = useSession();
@@ -48,7 +50,11 @@ export default function HandoffsPage() {
 
         <TabsContent value={tab} className="mt-4">
           {handoffs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No handoffs found.</p>
+            <EmptyState
+              icon={ArrowRightLeft}
+              title="No handoffs yet"
+              description="When your agent detects it can't resolve an issue, it will escalate here for a human to pick up. Handoffs appear automatically during live conversations."
+            />
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {handoffs.map((h) => (

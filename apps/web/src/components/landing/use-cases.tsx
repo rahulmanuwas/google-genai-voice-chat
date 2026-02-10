@@ -7,6 +7,8 @@ import {
   Plug,
   ArrowRight,
 } from 'lucide-react';
+import { FadeIn } from '@/components/ui/fade-in';
+import { DotGrid } from './dot-grid';
 
 const USE_CASES = [
   {
@@ -99,9 +101,12 @@ function CaseCard({
 
 export function UseCases() {
   return (
-    <section className="py-20 sm:py-28 lg:py-36 border-t border-border">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-12 sm:mb-20">
+    <section className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
+      {/* Ambient background — reuses the existing DotGrid component */}
+      <DotGrid />
+
+      <div className="relative max-w-6xl mx-auto px-6">
+        <FadeIn className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Where agents fail{' '}
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand to-brand-secondary">
@@ -112,21 +117,22 @@ export function UseCases() {
             Most AI agents break on the same things: tool calls that hang, context
             that drifts, escalations that never happen. These are solved problems.
           </p>
-        </div>
+        </FadeIn>
 
         {/* Bento grid: 2 featured on top, 3 below */}
         <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-6">
           {USE_CASES.map((uc, i) => (
-            <div
+            <FadeIn
               key={uc.title}
+              delay={i * 0.08}
               className={
                 i < 2
-                  ? 'lg:col-span-3'         // featured: half-width each
-                  : 'sm:col-span-1 lg:col-span-2' // normal: third-width each
+                  ? 'lg:col-span-3'
+                  : 'sm:col-span-1 lg:col-span-2'
               }
             >
               <CaseCard {...uc} />
-            </div>
+            </FadeIn>
           ))}
         </div>
       </div>

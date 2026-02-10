@@ -36,14 +36,14 @@ const NAV_ITEMS: NavEntry[] = [
   { type: 'link', href: '/guardrails', label: 'Guardrails', icon: Shield },
   { type: 'link', href: '/knowledge', label: 'Knowledge', icon: BookOpen },
   { type: 'link', href: '/persona', label: 'Persona', icon: User },
-  { type: 'link', href: '/experiments', label: 'Experiments', icon: FlaskConical },
+  { type: 'link', href: '/experiments', label: 'A/B Tests', icon: FlaskConical },
   { type: 'link', href: '/settings', label: 'Settings', icon: Settings },
   { type: 'link', href: '/docs', label: 'API Docs', icon: FileText },
   { type: 'separator', label: 'Demos' },
   { type: 'link', href: '/demos/chatbot', label: 'Voice Chat', icon: Bot },
-  { type: 'link', href: '/demos/custom', label: 'Custom UI', icon: Palette },
-  { type: 'link', href: '/demos/livekit', label: 'LiveKit Agent', icon: AudioLines },
-  { type: 'link', href: '/demos/twilio-call', label: 'PSTN Call', icon: Phone },
+  { type: 'link', href: '/demos/custom', label: 'Embedded Widget', icon: Palette },
+  { type: 'link', href: '/demos/livekit', label: 'Voice Agent', icon: AudioLines },
+  { type: 'link', href: '/demos/twilio-call', label: 'Phone Call', icon: Phone },
 ];
 
 interface SidebarProps {

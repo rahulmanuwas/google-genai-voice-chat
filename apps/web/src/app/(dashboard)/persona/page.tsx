@@ -23,9 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Save } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, User as UserIcon } from 'lucide-react';
 import { SCENARIOS } from '@/lib/scenarios';
 import { PageHeader } from '@/components/layout/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { Persona } from '@/types/api';
 
 const EMPTY_FORM = {
@@ -150,11 +151,17 @@ export default function PersonaPage() {
       <div>
 
         {personas.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              No personas yet. Create one to get started.
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={UserIcon}
+            title="No personas yet"
+            description="Create a reusable persona with a system prompt, tone, and preferred vocabulary. Assign it to any app to give your agent a consistent brand voice."
+            action={
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Create your first persona
+              </Button>
+            }
+          />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {personas.map((p) => (

@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search } from 'lucide-react';
+import { Search, MessageSquare } from 'lucide-react';
 import { timeAgo, formatDuration } from '@/lib/utils';
 import { PageHeader } from '@/components/layout/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import type { Conversation } from '@/types/api';
 
 /** Parse transcript JSON and return the first user message as a preview */
@@ -123,7 +124,11 @@ export default function ConversationsPage() {
 
         <TabsContent value={tab} className="mt-4">
           {conversations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No conversations found.</p>
+            <EmptyState
+              icon={MessageSquare}
+              title="No conversations yet"
+              description="Conversations appear here when users interact with your agent via voice chat, text, or phone. Try a live demo to see your first conversation."
+            />
           ) : (
             <Card>
               <CardContent className="p-0">
