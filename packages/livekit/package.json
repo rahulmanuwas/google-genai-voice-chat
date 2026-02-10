@@ -33,7 +33,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "agent:dev": "node --env-file=../../apps/console/.env.local --import tsx src/agent/index.ts dev",
+    "agent:dev": "node --env-file=../../apps/dashboard/.env.local --import tsx src/agent/index.ts dev",
     "test": "node ./scripts/run-tests.mjs",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",

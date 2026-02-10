@@ -9,7 +9,6 @@ COPY packages/core/package.json packages/core/package.json
 COPY packages/react/package.json packages/react/package.json
 COPY packages/livekit/package.json packages/livekit/package.json
 COPY apps/dashboard/package.json apps/dashboard/package.json
-COPY apps/console/package.json apps/console/package.json
 COPY apps/convex-backend/package.json apps/convex-backend/package.json
 
 RUN pnpm install --frozen-lockfile
