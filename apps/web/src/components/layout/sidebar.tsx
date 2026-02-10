@@ -73,9 +73,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
       <div className={cn('flex h-14 items-center border-b border-sidebar-border px-4', collapsed ? 'md:justify-center' : 'justify-between')}>
         {(!collapsed || mobileOpen) && (
-          <span className={cn('text-base font-semibold tracking-tight text-sidebar-foreground', collapsed && 'md:hidden')}>
+          <Link href="/" className={cn('text-base font-semibold tracking-tight text-sidebar-foreground hover:opacity-80 transition-opacity', collapsed && 'md:hidden')}>
             <span className="text-brand">.</span>Riyaan
-          </span>
+          </Link>
         )}
         <Button
           variant="ghost"

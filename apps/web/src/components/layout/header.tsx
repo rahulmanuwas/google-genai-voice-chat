@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -18,9 +19,9 @@ export function Header({ onMobileToggle }: HeaderProps) {
       >
         <Menu className="h-5 w-5" />
       </Button>
-      <span className="text-sm font-semibold tracking-tight">
+      <Link href="/" className="text-sm font-semibold tracking-tight hover:opacity-80 transition-opacity">
         <span className="text-brand">.</span>Riyaan
-      </span>
+      </Link>
     </header>
   );
 }

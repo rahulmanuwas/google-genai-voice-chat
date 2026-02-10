@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { DotGrid } from './dot-grid';
 import { DemoShowcase } from './demo-showcase';
+import { ShaderBackground } from './shader-bg';
 
 function Navbar() {
   return (
@@ -9,9 +9,9 @@ function Navbar() {
       style={{ animation: 'fade-in-up 0.5s ease-out both' }}
     >
       <div className="flex items-center gap-8">
-        <span className="text-base font-semibold tracking-tight">
+        <Link href="/" className="text-base font-semibold tracking-tight hover:opacity-80 transition-opacity">
           <span className="text-brand">.</span>Riyaan
-        </span>
+        </Link>
         <div className="hidden md:flex items-center gap-6">
           <Link href="/demos/livekit" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             Demos
@@ -34,7 +34,7 @@ function Navbar() {
 export function Hero() {
   return (
     <section className="relative min-h-[100svh] flex flex-col overflow-hidden">
-      <DotGrid />
+      <ShaderBackground />
       <Navbar />
 
       {/* Centered content */}
