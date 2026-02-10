@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import type { LiveServerMessage } from '@google/genai';
 import type { ChatMessage, ChatRole, VoiceChatConfig, VoiceChatStats } from '../lib/types';
 import { mergeConfig } from '../lib/constants';
+import { resolvePersistence } from '../lib/persistence';
 import { useLiveSession } from './useLiveSession';
 import { useVoiceInput } from './useVoiceInput';
 import { useVoiceOutput } from './useVoiceOutput';
@@ -54,6 +55,34 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     // Message state
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Persistence
+    const persistenceAdapter = useMemo(
+      () => resolvePersistence(config.persistence),
+      [config.persistence],
+    );
+    const persistenceKey = config.sessionStorageKey ?? 'genai-voice-chat-messages';
+    const persistenceLoadedRef = useRef(false);
+
+    // Load persisted messages on mount
+    useEffect(() => {
+      if (persistenceLoadedRef.current) return;
+      persistenceLoadedRef.current = true;
+      persistenceAdapter.load(persistenceKey).then((loaded) => {
+        if (loaded.length > 0) {
+          setMessages(loaded);
+        }
+      }).catch(() => {});
+    }, [persistenceAdapter, persistenceKey]);
+
+    // Debounced save on message change
+    useEffect(() => {
+      if (!persistenceLoadedRef.current) return;
+      const timer = setTimeout(() => {
+        persistenceAdapter.save(persistenceKey, messages).catch(() => {});
+      }, 300);
+      return () => clearTimeout(timer);
+    }, [messages, persistenceAdapter, persistenceKey]);
 
     const maxMessages = config.maxMessages ?? 0;
     const maxTranscriptChars = config.maxTranscriptChars ?? 0;
@@ -697,7 +726,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
         // Actions
         connect: session.connect,
-        disconnect: session.disconnect,
+        disconnect: async () => {
+            await session.disconnect();
+            persistenceAdapter.clear(persistenceKey).catch(() => {});
+        },
         sendText: sendTextMessage,
         toggleMute,
         toggleMic,

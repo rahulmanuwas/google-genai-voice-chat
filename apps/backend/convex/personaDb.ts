@@ -10,6 +10,7 @@ export const updatePersona = internalMutation({
     personaTone: v.optional(v.string()),
     preferredTerms: v.optional(v.string()),
     blockedTerms: v.optional(v.string()),
+    uiStrings: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { appId, ...fields } = args;
@@ -21,6 +22,7 @@ export const updatePersona = internalMutation({
     if (fields.personaTone !== undefined) updates.personaTone = fields.personaTone;
     if (fields.preferredTerms !== undefined) updates.preferredTerms = fields.preferredTerms;
     if (fields.blockedTerms !== undefined) updates.blockedTerms = fields.blockedTerms;
+    if (fields.uiStrings !== undefined) updates.uiStrings = fields.uiStrings;
 
     if (Object.keys(updates).length > 0) {
       await ctx.db.patch(appId, {

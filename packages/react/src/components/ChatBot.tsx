@@ -386,6 +386,8 @@ export function ChatBot({ config: userConfig, apiKey, getApiKey }: ChatBotProps)
                                 border: '1px solid #d1d5db',
                                 fontSize: '14px',
                                 outline: 'none',
+                                color: '#1f2937',
+                                backgroundColor: 'white',
                             }}
                         />
                         <button

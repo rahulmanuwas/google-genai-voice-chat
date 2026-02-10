@@ -211,6 +211,9 @@ export interface VoiceChatConfig {
     /** Model ID to use - check https://ai.google.dev/gemini-api/docs/live for available models */
     modelId: string;
 
+    /** Message persistence strategy: 'none' (default), 'localStorage', or a custom PersistenceAdapter */
+    persistence?: 'none' | 'localStorage' | import('./persistence').PersistenceAdapter;
+
     /** Theme configuration */
     theme?: ChatTheme;
 

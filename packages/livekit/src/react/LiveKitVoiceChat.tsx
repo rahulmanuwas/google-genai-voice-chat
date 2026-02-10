@@ -1,12 +1,20 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
 import {
   useLiveKitVoiceChat,
   type UseLiveKitVoiceChatOptions,
 } from './useLiveKitVoiceChat';
 import { AudioVisualizerWrapper } from './AudioVisualizerWrapper';
+import { ConversationEventBridge } from './ConversationEventBridge';
+import type {
+  ConversationEventCallbacks,
+  TranscriptHandle,
+  PersonaUIStrings,
+} from './types';
 
-export interface LiveKitVoiceChatProps extends UseLiveKitVoiceChatOptions {
+export interface LiveKitVoiceChatProps
+  extends UseLiveKitVoiceChatOptions,
+    ConversationEventCallbacks {
   /** Custom CSS class for the container */
   className?: string;
   /** Custom inline styles */
@@ -15,6 +23,10 @@ export interface LiveKitVoiceChatProps extends UseLiveKitVoiceChatOptions {
   thinkingAudioSrc?: string;
   /** Volume for the thinking audio (0–1, default 0.3) */
   thinkingAudioVolume?: number;
+  /** Imperative ref for transcript export */
+  transcriptRef?: React.RefObject<TranscriptHandle | null>;
+  /** Server-driven UI strings (overrides defaults) */
+  uiStrings?: PersonaUIStrings;
 }
 
 /**
@@ -26,6 +38,14 @@ export function LiveKitVoiceChat({
   style,
   thinkingAudioSrc,
   thinkingAudioVolume,
+  transcriptRef,
+  uiStrings,
+  // Event callbacks
+  onAgentStateChange,
+  onTranscript,
+  onConversationEnd,
+  onHandoff,
+  // Everything else → hook options
   ...options
 }: LiveKitVoiceChatProps) {
   const {
@@ -38,10 +58,28 @@ export function LiveKitVoiceChat({
     disconnect,
   } = useLiveKitVoiceChat(options);
 
+  // Fetch persona UI strings on mount if callbacks support it
+  const [remoteStrings, setRemoteStrings] = useState<PersonaUIStrings | null>(null);
+  const fetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    const cb = options.callbacks;
+    if (cb?.fetchPersona) {
+      fetchedRef.current = true;
+      cb.fetchPersona()
+        .then((strings) => setRemoteStrings(strings))
+        .catch(() => {});
+    }
+  }, [options.callbacks]);
+
+  // Merge: prop uiStrings > remote strings > defaults
+  const strings = { ...remoteStrings, ...uiStrings };
+
   if (error) {
     return (
       <div className={className} style={{ color: 'red', ...style }}>
-        Error: {error}
+        {strings.errorMessage ?? `Error: ${error}`}
       </div>
     );
   }
@@ -63,7 +101,9 @@ export function LiveKitVoiceChat({
             opacity: isConnecting ? 0.7 : 1,
           }}
         >
-          {isConnecting ? 'Connecting...' : 'Start Voice Chat'}
+          {isConnecting
+            ? (strings.connectingText ?? 'Connecting...')
+            : (strings.connectButtonText ?? 'Start Voice Chat')}
         </button>
       </div>
     );
@@ -79,6 +119,13 @@ export function LiveKitVoiceChat({
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}
       >
         <RoomAudioRenderer />
+        <ConversationEventBridge
+          ref={transcriptRef}
+          onAgentStateChange={onAgentStateChange}
+          onTranscript={onTranscript}
+          onConversationEnd={onConversationEnd}
+          onHandoff={onHandoff}
+        />
         <AudioVisualizerWrapper thinkingAudioSrc={thinkingAudioSrc} thinkingAudioVolume={thinkingAudioVolume} />
         <button
           onClick={disconnect}
@@ -92,7 +139,7 @@ export function LiveKitVoiceChat({
             cursor: 'pointer',
           }}
         >
-          End Session
+          {strings.disconnectButtonText ?? 'End Session'}
         </button>
       </LiveKitRoom>
     </div>

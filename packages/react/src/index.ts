@@ -24,6 +24,10 @@ export type {
     MessageHandler,
 } from './lib/types';
 
+// Persistence
+export { NonePersistence, LocalStoragePersistence, resolvePersistence } from './lib/persistence';
+export type { PersistenceAdapter } from './lib/persistence';
+
 // Utilities
 export { mergeConfig, DEFAULT_CONFIG, AUDIO_CONFIG, STABLE_PRESET } from './lib/constants';
 

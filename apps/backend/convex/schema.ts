@@ -30,6 +30,8 @@ export default defineSchema({
     handoffExpirationSeconds: v.optional(v.float64()),
     // Knowledge / RAG config
     knowledgeThreshold: v.optional(v.float64()),
+    // Server-driven UI strings (JSON blob)
+    uiStrings: v.optional(v.string()),
     createdAt: v.float64(),
     updatedAt: v.float64(),
   }).index("by_slug", ["slug"]),
@@ -314,6 +316,8 @@ export default defineSchema({
     personaTone: v.optional(v.string()),
     preferredTerms: v.optional(v.string()),
     blockedTerms: v.optional(v.string()),
+    // Server-driven UI strings (JSON blob)
+    uiStrings: v.optional(v.string()),
     isActive: v.boolean(),
     createdAt: v.float64(),
     updatedAt: v.float64(),

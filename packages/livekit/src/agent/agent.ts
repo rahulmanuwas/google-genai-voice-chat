@@ -5,6 +5,7 @@ import {
   type llm,
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
+import { RoomServiceClient } from 'livekit-server-sdk';
 import type { LiveKitAgentConfig } from '../types';
 import crypto from 'node:crypto';
 import type { AgentCallbacks, AgentEvent, BufferedMessage } from './callbacks';
@@ -165,6 +166,15 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           return config.instructions;
         })();
 
+        // Set up RoomServiceClient for metadata updates (e.g. handoff signaling)
+        const livekitUrl = process.env.LIVEKIT_URL;
+        const livekitApiKey = process.env.LIVEKIT_API_KEY;
+        const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
+        let roomService: RoomServiceClient | null = null;
+        if (livekitUrl && livekitApiKey && livekitApiSecret) {
+          roomService = new RoomServiceClient(livekitUrl, livekitApiKey, livekitApiSecret);
+        }
+
         // Load tools from Convex (runs in parallel with persona and waitForParticipant)
         const toolsPromise = (async (): Promise<llm.ToolContext> => {
           if (!convexUrl || !roomAppSlug || !appSecret) {
@@ -178,6 +188,21 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               appSecret,
               sessionId: roomSessionId,
               traceId,
+              onToolResult: (toolName, result) => {
+                // Detect handoff from tool result and update room metadata
+                if (result.handoff === true && roomService) {
+                  const handoffMeta = {
+                    handoff: {
+                      reason: (result.reason as string) ?? toolName,
+                      priority: (result.priority as string) ?? 'normal',
+                      timestamp: Date.now(),
+                    },
+                  };
+                  roomService.updateRoomMetadata(roomName, JSON.stringify(handoffMeta))
+                    .then(() => console.log(`[agent] Room metadata updated with handoff from tool: ${toolName}`))
+                    .catch((err) => console.warn('[agent] Failed to update room metadata for handoff:', err));
+                }
+              },
             });
             const toolCount = Object.keys(convexTools).length;
             console.log(`[agent] Loaded ${toolCount} tools from Convex for app: ${roomAppSlug}`);

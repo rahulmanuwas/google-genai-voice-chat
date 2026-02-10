@@ -15,6 +15,8 @@ export const getPersona = httpAction(async (ctx, request) => {
       id: app.personaId as any,
     });
     if (persona && persona.isActive) {
+      let uiStrings = null;
+      try { uiStrings = persona.uiStrings ? JSON.parse(persona.uiStrings) : null; } catch { /* invalid JSON */ }
       return jsonResponse({
         systemPrompt: persona.systemPrompt ?? null,
         personaName: persona.personaName ?? null,
@@ -22,11 +24,14 @@ export const getPersona = httpAction(async (ctx, request) => {
         personaTone: persona.personaTone ?? null,
         preferredTerms: persona.preferredTerms ?? null,
         blockedTerms: persona.blockedTerms ?? null,
+        uiStrings,
       });
     }
   }
 
   // Fallback to embedded app fields
+  let uiStrings = null;
+  try { uiStrings = app.uiStrings ? JSON.parse(app.uiStrings) : null; } catch { /* invalid JSON */ }
   return jsonResponse({
     systemPrompt: app.systemPrompt ?? null,
     personaName: app.personaName ?? null,
@@ -34,6 +39,7 @@ export const getPersona = httpAction(async (ctx, request) => {
     personaTone: app.personaTone ?? null,
     preferredTerms: app.preferredTerms ?? null,
     blockedTerms: app.blockedTerms ?? null,
+    uiStrings,
   });
 });
 
@@ -49,6 +55,7 @@ export const updatePersona = httpAction(async (ctx, request) => {
     personaTone,
     preferredTerms,
     blockedTerms,
+    uiStrings,
   } = body as {
     appSlug?: string;
     appSecret?: string;
@@ -58,6 +65,7 @@ export const updatePersona = httpAction(async (ctx, request) => {
     personaTone?: string;
     preferredTerms?: string;
     blockedTerms?: string;
+    uiStrings?: string;
   };
 
   const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
@@ -70,6 +78,7 @@ export const updatePersona = httpAction(async (ctx, request) => {
     personaTone,
     preferredTerms,
     blockedTerms,
+    uiStrings,
   });
 
   return jsonResponse({ ok: true });

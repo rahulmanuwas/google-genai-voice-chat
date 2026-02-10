@@ -16,6 +16,9 @@ export interface LiveKitRoomCallbacks {
 
   /** Delete/clean up a room */
   deleteRoom: (roomName: string) => Promise<void>;
+
+  /** Fetch persona UI strings from the backend (optional) */
+  fetchPersona?: () => Promise<import('./types').PersonaUIStrings>;
 }
 
 /** Config for the built-in Convex room callbacks factory */
@@ -92,6 +95,29 @@ export function createConvexRoomCallbacks(config: ConvexRoomConfig): LiveKitRoom
       }
 
       return (await res.json()) as { token: string; serverUrl?: string };
+    },
+
+    async fetchPersona(): Promise<import('./types').PersonaUIStrings> {
+      const auth = await resolveAuth(config);
+      cachedAuth = auth;
+
+      // Build auth headers for GET endpoint
+      const headers: Record<string, string> = {};
+      if (auth.sessionToken) {
+        headers.Authorization = `Bearer ${auth.sessionToken}`;
+      } else {
+        headers.Authorization = `Bearer ${auth.appSecret}`;
+        headers['X-App-Slug'] = auth.appSlug;
+      }
+
+      const res = await fetch(
+        new URL('/api/persona', config.convexUrl).toString(),
+        { headers },
+      );
+
+      if (!res.ok) return {};
+      const data = await res.json();
+      return (data.uiStrings ?? {}) as import('./types').PersonaUIStrings;
     },
 
     async deleteRoom(roomName: string): Promise<void> {

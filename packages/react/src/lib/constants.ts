@@ -53,6 +53,7 @@ export const DEFAULT_CONFIG: Required<Omit<VoiceChatConfig, 'systemPrompt' | 'th
     autoWelcomeAudio: false,
     welcomeAudioPrompt: '',
     autoStartMicOnConnect: true,
+    persistence: 'none' as const,
     chatTitle: 'AI Assistant',
     theme: {
         primaryColor: '#2563eb',

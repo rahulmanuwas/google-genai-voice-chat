@@ -15,6 +15,8 @@ export interface ConvexToolsConfig {
   sessionId: string;
   /** Correlation ID for distributed tracing */
   traceId?: string;
+  /** Called after each tool execution with the tool name and parsed result */
+  onToolResult?: (toolName: string, result: Record<string, unknown>) => void;
 }
 
 interface ConvexToolRecord {
@@ -144,6 +146,14 @@ export async function createToolsFromConvex(
         }
 
         const result = await execResponse.json();
+
+        // Notify caller of tool result (e.g. for handoff detection)
+        if (config.onToolResult) {
+          try {
+            config.onToolResult(toolDef.name, result as Record<string, unknown>);
+          } catch { /* callback errors should not break tool execution */ }
+        }
+
         return JSON.stringify(result);
       },
     });

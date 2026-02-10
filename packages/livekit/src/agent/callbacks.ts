@@ -15,6 +15,8 @@ export interface AgentPersonaData {
   personaGreeting?: string;
   preferredTerms?: string;
   blockedTerms?: string;
+  /** Server-driven UI strings (passed through to client via room metadata or callbacks) */
+  uiStrings?: Record<string, string>;
 }
 
 /** A lifecycle event emitted by the agent (state changes, errors, metrics, etc.) */
@@ -105,7 +107,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
         });
         if (!res.ok) return null;
         const persona = await res.json();
-        if (persona.systemPrompt || persona.personaName || persona.personaTone || persona.personaGreeting) {
+        if (persona.systemPrompt || persona.personaName || persona.personaTone || persona.personaGreeting || persona.uiStrings) {
           return persona as AgentPersonaData;
         }
         return null;
