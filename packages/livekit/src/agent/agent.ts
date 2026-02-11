@@ -404,13 +404,27 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           while (attempt <= maxReconnects) {
             console.log(`[agent] Creating agent session (model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
 
+            // On reconnect, inject conversation history so the model retains context
+            let sessionInstructions = instructions;
+            if (!isFirstSession && allMessages.length > 0) {
+              const recentMessages = allMessages.slice(-20);
+              const historyLines = recentMessages.map(
+                (m) => `${m.role === 'user' ? 'User' : 'You'}: ${m.content}`
+              ).join('\n');
+              sessionInstructions = instructions
+                + '\n\nIMPORTANT: This is a resumed session. The conversation so far:\n'
+                + historyLines
+                + '\n\nContinue naturally from where you left off. Do NOT re-introduce yourself or greet the user again.';
+              console.log(`[agent] Injected ${recentMessages.length} messages as history for reconnect`);
+            }
+
             const sessionVoice = personaVoice || config.voice;
             const session = new voice.AgentSession({
               llm: new google.beta.realtime.RealtimeModel({
                 model: config.model,
                 voice: sessionVoice,
                 temperature: config.temperature,
-                instructions,
+                instructions: sessionInstructions,
               }),
             });
 
@@ -428,6 +442,10 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                   .then(() => console.log('[agent] Conversation created (active)'))
                   .catch((err) => console.warn('[agent] Failed to create initial conversation:', err));
               }
+            } else {
+              // Reconnect: generate a brief "I'm back" reply so user knows the agent is alive
+              session.generateReply({ instructions: 'Briefly apologize for the interruption and ask how you can continue helping. Keep it to one short sentence.' });
+              console.log('[agent] Reconnect reply generated');
             }
 
             // Wire transcription listeners for this session
@@ -481,7 +499,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             emitter.on('conversation_item_added', (ev: { item: { role: string; textContent?: string; createdAt: number } }) => {
               const item = ev.item;
               if (!item || item.role !== 'assistant') return;
-              const text = item.textContent;
+              // Strip control characters (e.g. <ctrl46>) that Gemini occasionally emits
+              const text = (item.textContent ?? '').replace(/<ctrl\d+>/gi, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
               if (!text) return;
               console.log(`[agent] Agent said: "${text.slice(0, 80)}..."`);
               const ts = item.createdAt ?? Date.now();
