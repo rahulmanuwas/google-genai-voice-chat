@@ -267,11 +267,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // Append tool-acknowledgment instructions when tools are loaded
         const hasTools = Object.keys(loadedTools).length > 0;
         let instructions = hasTools
-          ? baseInstructions + ' When you need to use a tool or look something up, always briefly tell the user what you are about to do before executing (e.g. "Let me check that for you", "One moment while I look that up"). Never go silent while waiting for a tool result.'
+          ? baseInstructions + ' When you need to use a tool or look something up, always briefly tell the user what you are about to do before executing (e.g. "Let me check that for you", "One moment while I look that up"). Never go silent while waiting for a tool result. CRITICAL: You MUST actually call the tool function to get results. NEVER fabricate, simulate, or make up tool results — you do not know the current state of the data. If a tool call is needed, you MUST execute it. If a tool call fails, tell the user it failed.'
           : baseInstructions;
 
         if (confirmationRequired.length > 0) {
-          instructions += ` IMPORTANT: The following tools require explicit user confirmation before execution: [${confirmationRequired.join(', ')}]. For these tools, you MUST describe what you are about to do and ask the user to confirm (e.g. "I'm about to cancel your appointment. Should I go ahead?"). Only execute the tool after the user clearly confirms. If they decline, do not execute.`;
+          instructions += ` IMPORTANT: The following tools require explicit user confirmation before execution: [${confirmationRequired.join(', ')}]. For these tools, you MUST describe what you are about to do and ask the user to confirm (e.g. "I'm about to cancel your appointment. Should I go ahead?"). Only execute the tool after the user clearly confirms (yes, yeah, sure, ok, go ahead, or equivalent in any language). If they decline, do not execute. After confirmation, you MUST actually call the tool — do NOT skip the tool call or pretend it succeeded.`;
           console.log(`[agent] Tools requiring confirmation: ${confirmationRequired.join(', ')}`);
         }
 
