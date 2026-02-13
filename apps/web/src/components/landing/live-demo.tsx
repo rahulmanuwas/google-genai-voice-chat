@@ -4,7 +4,9 @@ import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { FadeIn } from '@/components/ui/fade-in';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
-import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
+import { DemoObservabilityPanel } from '@/components/demos/DemoObservabilityPanel';
+import { useScenarioStateChanges } from '@/lib/hooks/use-scenario-state-changes';
+import { useDemoTimeline } from '@/lib/hooks/use-demo-timeline';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 
 const LiveKitVoiceChat = dynamic(
@@ -29,8 +31,15 @@ export function LiveDemo() {
     return data.sessionToken as string;
   }, [scenario.appSlug]);
 
+  const { changes: stateChanges } = useScenarioStateChanges(scenario);
+  const {
+    mergedTimeline,
+    handleAgentStateChange,
+    handleTranscript,
+    handleHandoff,
+  } = useDemoTimeline(scenario.id, stateChanges);
+
   const missing = !convexUrl || !livekitUrl;
-  const hasStatePanel = scenario.id === 'dentist' || scenario.id === 'ecommerce';
 
   return (
     <section id="try" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
@@ -71,7 +80,7 @@ export function LiveDemo() {
           </FadeIn>
         ) : (
           <FadeIn delay={0.2}>
-            <div className={`grid grid-cols-1 gap-6 ${hasStatePanel ? 'lg:grid-cols-2' : 'max-w-2xl mx-auto'}`}>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 backdrop-blur-sm">
                 <LiveKitVoiceChat
                   key={scenario.id}
@@ -80,23 +89,22 @@ export function LiveDemo() {
                   getSessionToken={getSessionToken}
                   serverUrl={livekitUrl!}
                   thinkingAudioSrc="/chieuk-thinking-289286.mp3"
+                  onAgentStateChange={handleAgentStateChange}
+                  onTranscript={handleTranscript}
+                  onHandoff={handleHandoff}
                 />
               </div>
 
-              {hasStatePanel && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 backdrop-blur-sm">
-                  <ScenarioStatePanel key={scenario.id} scenario={scenario} />
-                </div>
-              )}
+              <DemoObservabilityPanel
+                scenario={scenario}
+                timeline={mergedTimeline}
+                stateChanges={stateChanges}
+                hideActions
+              />
             </div>
           </FadeIn>
         )}
 
-        <FadeIn delay={0.3} className="mt-8 text-center">
-          <p className="text-xs text-muted-foreground/60">
-            Try the dentist or e-commerce scenarios to see real-time tool execution and state changes.
-          </p>
-        </FadeIn>
       </div>
     </section>
   );

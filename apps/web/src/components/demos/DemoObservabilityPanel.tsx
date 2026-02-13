@@ -57,6 +57,8 @@ interface DemoObservabilityPanelProps {
   timeline: DemoTimelineEvent[];
   stateChanges?: ScenarioStateChange[];
   onRunPrompt?: (prompt: string) => void;
+  /** Hide copy/send buttons (e.g. for voice-only landing page demo) */
+  hideActions?: boolean;
 }
 
 export function DemoObservabilityPanel({
@@ -64,6 +66,7 @@ export function DemoObservabilityPanel({
   timeline,
   stateChanges = [],
   onRunPrompt,
+  hideActions = false,
 }: DemoObservabilityPanelProps) {
   const [copiedStep, setCopiedStep] = useState<string | null>(null);
   const steps = useMemo(() => getGuidedDemoSteps(scenario), [scenario]);
@@ -123,29 +126,31 @@ export function DemoObservabilityPanel({
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2">
-                  {onRunPrompt && (
+                {!hideActions && (
+                  <div className="flex items-center gap-2">
+                    {onRunPrompt && (
+                      <button
+                        type="button"
+                        onClick={() => onRunPrompt(step.prompt)}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-brand/90 px-3 py-1.5 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand"
+                      >
+                        <Play className="h-3 w-3" />
+                        Send to agent
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => onRunPrompt(step.prompt)}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-brand/90 px-3 py-1.5 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand"
+                      onClick={() => void copyPrompt(step.id, step.prompt)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground"
                     >
-                      <Play className="h-3 w-3" />
-                      Send to agent
+                      {isCopied ? (
+                        <><Check className="h-3 w-3 text-emerald-400" /> Copied</>
+                      ) : (
+                        <><Copy className="h-3 w-3" /> Copy</>
+                      )}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void copyPrompt(step.id, step.prompt)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground"
-                  >
-                    {isCopied ? (
-                      <><Check className="h-3 w-3 text-emerald-400" /> Copied</>
-                    ) : (
-                      <><Copy className="h-3 w-3" /> Copy</>
-                    )}
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
