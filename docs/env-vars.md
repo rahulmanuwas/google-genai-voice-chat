@@ -23,7 +23,7 @@ Create `apps/web/.env.local` as the single source of truth:
 | `GOOGLE_API_KEY` | Yes | Runtime | Gemini API key for LiveKit agent RealtimeModel (same key as `NEXT_PUBLIC_GEMINI_API_KEY`) | `AIzaSy...` |
 | `LIVEKIT_SIP_TRUNK_ID` | No | Runtime | LiveKit SIP trunk ID (only for PSTN call demo) | `ST_4YXBs...` |
 | `TWILIO_FROM_NUMBER` | No | Runtime | Outbound caller ID for SIP calls (E.164) | `+19095004531` |
-| `GEMINI_API_KEY` | No | Runtime | Gemini key for Convex server-side token generation | `AIzaSy...` |
+| `GEMINI_API_KEY` | No | Runtime | Gemini key for server-side calls (Convex token generation, Next.js `/api/summarize`, `/api/memory/extract`) | `AIzaSy...` |
 
 ---
 
@@ -51,6 +51,7 @@ Available via `process.env` at request time (server routes only):
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `APP_SECRET` | Yes | Server-only secret for Convex session creation |
+| `GEMINI_API_KEY` | No | Gemini key for server routes (`/api/summarize`, `/api/memory/extract`) |
 | `LIVEKIT_URL` | Yes | LiveKit server API URL (HTTPS) |
 | `LIVEKIT_API_KEY` | Yes | LiveKit API key |
 | `LIVEKIT_API_SECRET` | Yes | LiveKit API secret |

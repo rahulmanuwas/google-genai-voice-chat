@@ -25,5 +25,7 @@ apps/convex-backend/convex/_generated/
 *.swp
 *.swo
 
-# Playwright MCP screenshots
+# Playwright
 .playwright-mcp/
+test-results/
+**/test-results/

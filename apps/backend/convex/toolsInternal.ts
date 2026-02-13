@@ -8,7 +8,7 @@ import { handleInternalTool, getInitialState } from "./toolHandlers";
 /**
  * Validate parameters against a JSON Schema string.
  * Returns null if valid, or an error string if invalid.
- * Fail-open: returns null if schema is unparseable.
+ * Fail-closed: rejects if schema is unparseable.
  */
 function validateParameters(
   params: Record<string, unknown>,
@@ -21,11 +21,15 @@ function validateParameters(
   try {
     schema = JSON.parse(schemaStr);
   } catch {
-    return null; // Fail-open on unparseable schema
+    return "Invalid tool parameter schema";
+  }
+
+  if (!schema || typeof schema !== "object") {
+    return "Invalid tool parameter schema";
   }
 
   // Check required fields
-  if (schema.required) {
+  if (Array.isArray(schema.required)) {
     for (const field of schema.required) {
       if (!(field in params) || params[field] === undefined || params[field] === null) {
         return `Missing required field: "${field}"`;

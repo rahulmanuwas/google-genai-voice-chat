@@ -298,6 +298,7 @@ Key variables for local development (`apps/web/.env.local`):
 | `NEXT_PUBLIC_APP_SLUG` | Browser | App identifier (default: `demo`) |
 | `NEXT_PUBLIC_LIVEKIT_URL` | Browser | LiveKit WebSocket URL |
 | `APP_SECRET` | Server | Server-only Convex auth secret |
+| `GEMINI_API_KEY` | Server | Gemini API key for server routes (`/api/summarize`, `/api/memory/extract`) |
 | `LIVEKIT_URL` | Server | LiveKit API URL (HTTPS) |
 | `LIVEKIT_API_KEY` | Server | LiveKit API key |
 | `LIVEKIT_API_SECRET` | Server | LiveKit API secret |

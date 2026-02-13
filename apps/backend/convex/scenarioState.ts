@@ -37,14 +37,20 @@ export const getScenarioState = httpAction(async (ctx, request) => {
 
 /** POST /api/scenario-state/reset — Reset scenario state to initial values */
 export const resetScenarioState = httpAction(async (ctx, request) => {
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
   const { appSlug, appSecret, sessionToken } = body as {
     appSlug?: string;
     appSecret?: string;
     sessionToken?: string;
   };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const headerCreds = getAuthCredentialsFromRequest(request);
+  const auth = await authenticateRequest(ctx, {
+    ...headerCreds,
+    appSlug: appSlug ?? headerCreds.appSlug,
+    appSecret: appSecret ?? headerCreds.appSecret,
+    sessionToken: sessionToken ?? headerCreds.sessionToken,
+  });
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const slug = auth.app.slug;

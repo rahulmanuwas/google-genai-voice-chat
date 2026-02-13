@@ -4,8 +4,7 @@ import useSWR from 'swr';
 
 interface ScenarioStateResponse {
   appSlug: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  state: Record<string, any> | null;
+  state: Record<string, unknown> | null;
   updatedAt: number | null;
 }
 
@@ -26,11 +25,12 @@ export function useScenarioState(appSlug: string) {
   );
 
   const reset = async () => {
-    await fetch('/api/scenario-state', {
+    const res = await fetch('/api/scenario-state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ appSlug }),
     });
+    if (!res.ok) throw new Error('Failed to reset scenario state');
     mutate();
   };
 

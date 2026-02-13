@@ -172,6 +172,12 @@ export function ScenarioStatePanel({ scenario }: ScenarioStatePanelProps) {
 
   const isDentist = scenario.id === 'dentist';
   const isEcommerce = scenario.id === 'ecommerce';
+  const dentistAppointments = isDentist && Array.isArray(state?.appointments)
+    ? (state.appointments as Appointment[])
+    : null;
+  const ecommerceOrders = isEcommerce && Array.isArray(state?.orders)
+    ? (state.orders as Order[])
+    : null;
 
   if (!isDentist && !isEcommerce) return null;
 
@@ -193,11 +199,11 @@ export function ScenarioStatePanel({ scenario }: ScenarioStatePanelProps) {
         </div>
       </CardHeader>
       <CardContent>
-        {isDentist && state?.appointments && (
-          <DentistStateView appointments={state.appointments as Appointment[]} />
+        {dentistAppointments && (
+          <DentistStateView appointments={dentistAppointments} />
         )}
-        {isEcommerce && state?.orders && (
-          <EcommerceStateView orders={state.orders as Order[]} />
+        {ecommerceOrders && (
+          <EcommerceStateView orders={ecommerceOrders} />
         )}
       </CardContent>
     </Card>

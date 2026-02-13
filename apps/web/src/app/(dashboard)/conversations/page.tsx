@@ -74,7 +74,7 @@ export default function ConversationsPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             className="h-8 w-48 text-xs sm:w-64"
           />
-          <Button size="sm" variant="outline" onClick={handleSearch} className="h-8 w-8 p-0">
+          <Button size="sm" variant="outline" onClick={handleSearch} className="h-8 w-8 p-0" aria-label="Search session ID">
             <Search className="h-3.5 w-3.5" />
           </Button>
         </div>

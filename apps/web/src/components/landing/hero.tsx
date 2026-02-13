@@ -1,6 +1,16 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { DemoShowcase } from './demo-showcase';
 import { ShaderBackground } from './shader-bg';
+
+const LOGOS = [
+  { src: '/logos/gemini.svg', alt: 'Gemini', className: 'w-20 sm:w-24 opacity-40', width: 96, height: 32 },
+  { src: '/logos/livekit.svg', alt: 'LiveKit', className: 'w-16 sm:w-20 opacity-40', width: 80, height: 24 },
+  { src: '/logos/convex.svg', alt: 'Convex', className: 'w-20 sm:w-24 opacity-40', width: 96, height: 24 },
+  { src: '/logos/nextjs.svg', alt: 'Next.js', className: 'w-16 sm:w-20 opacity-40', width: 80, height: 24 },
+  { src: '/logos/typescript.svg', alt: 'TypeScript', className: 'h-5 w-auto rounded-[3px] opacity-40', width: 80, height: 20 },
+  { src: '/logos/twilio.png', alt: 'Twilio', className: 'w-14 sm:w-18 brightness-0 invert opacity-40', width: 72, height: 28 },
+] as const;
 
 function Navbar() {
   return (
@@ -117,12 +127,16 @@ export function Hero() {
             <div className="flex w-max animate-[marquee_20s_linear_infinite] items-center gap-10">
               {[...Array(2)].map((_, setIdx) => (
                 <div key={setIdx} className="flex items-center gap-10 shrink-0">
-                  <img src="/logos/gemini.svg" alt="Gemini" className="w-20 sm:w-24 opacity-40" />
-                  <img src="/logos/livekit.svg" alt="LiveKit" className="w-16 sm:w-20 opacity-40" />
-                  <img src="/logos/convex.svg" alt="Convex" className="w-20 sm:w-24 opacity-40" />
-                  <img src="/logos/nextjs.svg" alt="Next.js" className="w-16 sm:w-20 opacity-40" />
-                  <img src="/logos/typescript.svg" alt="TypeScript" className="h-5 rounded-[3px] opacity-40" />
-                  <img src="/logos/twilio.png" alt="Twilio" className="w-14 sm:w-18 brightness-0 invert opacity-40" />
+                  {LOGOS.map((logo) => (
+                    <Image
+                      key={`${setIdx}-${logo.alt}`}
+                      src={logo.src}
+                      alt={logo.alt}
+                      width={logo.width}
+                      height={logo.height}
+                      className={logo.className}
+                    />
+                  ))}
                 </div>
               ))}
             </div>

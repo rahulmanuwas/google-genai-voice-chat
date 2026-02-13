@@ -305,7 +305,10 @@ const VoiceChatSession = forwardRef<
       )}
 
       {/* Messages */}
-      <div className="flex max-h-96 flex-col gap-3 overflow-auto rounded-lg border p-4">
+      <div
+        className="flex max-h-96 flex-col gap-3 overflow-auto rounded-lg border p-4"
+        data-testid="custom-chat-messages"
+      >
         {messages.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
             {isConnected ? 'Start speaking or type below...' : 'Connect to start a conversation'}
@@ -314,6 +317,8 @@ const VoiceChatSession = forwardRef<
           messages.map((msg, i) => (
             <div
               key={i}
+              data-testid="custom-chat-message"
+              data-role={msg.role}
               className={cn(
                 'max-w-[90%] md:max-w-[80%] rounded-xl px-3.5 py-2 text-sm',
                 msg.role === 'user'

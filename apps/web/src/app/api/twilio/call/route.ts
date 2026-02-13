@@ -9,6 +9,8 @@ interface StartCallRequest {
   appSlug?: string;
 }
 
+const E164_NUMBER_REGEX = /^\+[1-9]\d{7,14}$/;
+
 export async function POST(request: Request) {
   try {
     const livekitUrl = getServerEnv('LIVEKIT_URL');
@@ -30,8 +32,9 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Partial<StartCallRequest>;
     const to = typeof body.to === 'string' ? body.to.trim() : '';
     const appSlug = typeof body.appSlug === 'string' && body.appSlug ? body.appSlug : undefined;
+    const defaultSlug = getServerEnv('NEXT_PUBLIC_APP_SLUG') ?? 'demo';
 
-    if (!to || !to.startsWith('+')) {
+    if (!E164_NUMBER_REGEX.test(to)) {
       return NextResponse.json(
         { error: 'Invalid "to" number. Use E.164 format (e.g. +15551234567).' },
         { status: 400 },
@@ -40,8 +43,9 @@ export async function POST(request: Request) {
 
     // Room name must include appSlug + "-session-" marker so the agent's
     // parseRoomName() can extract the correct appSlug for persona loading.
-    const slug = appSlug ?? process.env.NEXT_PUBLIC_APP_SLUG ?? 'demo';
-    const roomName = `${slug}-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-pstn`;
+    const slug = appSlug ?? defaultSlug;
+    const roomSuffix = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+    const roomName = `${slug}-session-${Date.now()}-${roomSuffix}-pstn`;
 
     await createRoom({
       roomName,
@@ -65,7 +69,7 @@ export async function POST(request: Request) {
       waitUntilAnswered: true,
     });
 
-    const viewerIdentity = `viewer-${Math.random().toString(36).slice(2, 8)}`;
+    const viewerIdentity = `viewer-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
     const viewerToken = await createLiveKitToken({
       roomName,
       identity: viewerIdentity,

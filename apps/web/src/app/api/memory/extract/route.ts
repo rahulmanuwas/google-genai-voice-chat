@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getServerEnv } from '../../../../server/env';
+import { getGeminiServerApiKey } from '../../../../server/env';
 
 type InputMessage = { role: string; content: string };
+const MAX_MESSAGES = 40;
+const MAX_CONTENT_CHARS = 1200;
+const GEMINI_TIMEOUT_MS = 12_000;
 
 function roleLabel(role: string): 'User' | 'Agent' | null {
   const r = (role || '').toLowerCase();
@@ -12,15 +15,23 @@ function roleLabel(role: string): 'User' | 'Agent' | null {
 }
 
 export async function POST(request: Request) {
-  const apiKey = getServerEnv('NEXT_PUBLIC_GEMINI_API_KEY');
+  const apiKey = getGeminiServerApiKey();
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Server misconfigured: missing NEXT_PUBLIC_GEMINI_API_KEY' },
+      { error: 'Server misconfigured: missing GEMINI_API_KEY' },
       { status: 500 },
     );
   }
 
-  const { messages } = (await request.json()) as { messages: InputMessage[] };
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const messages = Array.isArray((body as { messages?: unknown }).messages)
+    ? (body as { messages: InputMessage[] }).messages
+    : [];
+
   if (!messages || messages.length === 0) {
     return NextResponse.json({ error: 'No messages provided' }, { status: 400 });
   }
@@ -29,12 +40,12 @@ export async function POST(request: Request) {
     .map((m) => {
       const label = roleLabel(m.role);
       if (!label) return null;
-      const content = typeof m.content === 'string' ? m.content.trim() : '';
+      const content = typeof m.content === 'string' ? m.content.trim().slice(0, MAX_CONTENT_CHARS) : '';
       if (!content) return null;
       return `${label}: ${content}`;
     })
     .filter(Boolean)
-    .slice(-40) // keep it small; memory should be extracted from the latest conversation
+    .slice(-MAX_MESSAGES) // keep it small; memory should be extracted from the latest conversation
     .join('\n');
 
   const prompt = `You are a "long-term memory" extractor for a customer support voice agent.
@@ -57,20 +68,38 @@ ${cleaned}
 
 Respond ONLY with valid JSON.`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 512,
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
         },
-      }),
-    },
-  );
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 512,
+          },
+        }),
+        signal: controller.signal,
+      },
+    );
+  } catch (error) {
+    const isAbortError = error instanceof Error && error.name === 'AbortError';
+    return NextResponse.json(
+      { error: isAbortError ? 'Gemini API timed out' : 'Gemini API request failed' },
+      { status: isAbortError ? 504 : 502 },
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const err = await res.text();
