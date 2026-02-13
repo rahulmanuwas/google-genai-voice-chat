@@ -12,43 +12,10 @@ const LOGOS = [
   { src: '/logos/twilio.png', alt: 'Twilio', className: 'w-14 sm:w-18 brightness-0 invert opacity-40', width: 72, height: 28 },
 ] as const;
 
-function Navbar() {
-  return (
-    <nav
-      className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 sm:px-10 py-5"
-      style={{ animation: 'fade-in-up 0.5s ease-out both' }}
-    >
-      <div className="flex items-center gap-8">
-        <Link href="/" className="text-base font-semibold tracking-tight hover:opacity-80 transition-opacity">
-          <span className="text-brand">.</span>Riyaan
-        </Link>
-        <div className="hidden md:flex items-center gap-6">
-          <a href="#try" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-            Demos
-          </a>
-          <a href="#pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-            Pricing
-          </a>
-          <Link href="/docs" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-            Docs
-          </Link>
-        </div>
-      </div>
-      <Link
-        href="/overview"
-        className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-sm font-medium text-foreground backdrop-blur-sm transition-all hover:bg-white/[0.08] hover:border-white/15"
-      >
-        Dashboard
-      </Link>
-    </nav>
-  );
-}
-
 export function Hero() {
   return (
     <section id="hero" className="relative min-h-[100svh] flex flex-col overflow-hidden">
       <ShaderBackground />
-      <Navbar />
 
       {/* Centered content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-5 sm:px-6 pt-20 sm:pt-24 pb-12 sm:pb-16">
