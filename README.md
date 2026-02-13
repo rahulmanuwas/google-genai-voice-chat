@@ -10,7 +10,7 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 | Package | Description | Status |
 |---|---|---|
 | [`@genai-voice/react`](./packages/react) | Drop-in voice/text chat React components + hooks | Stable |
-| [`@genai-voice/backend`](./apps/backend) | Convex backend: tools, handoff, guardrails, RAG, analytics, persona, A/B testing, transcription storage | Repo-only |
+| [`@genai-voice/backend`](./apps/backend) | Convex backend: tools, handoff, guardrails, RAG, analytics, QA framework, outbound triggers, persona, A/B testing, transcription storage | Repo-only |
 | [`@genai-voice/core`](./packages/core) | Shared types and conversation protocol | New |
 | [`@genai-voice/telephony`](./packages/telephony) | Telnyx (voice) + Twilio (SMS) adapters | New |
 | [`@genai-voice/livekit`](./packages/livekit) | LiveKit WebRTC: voice agent, server utilities, React components | New |
@@ -20,7 +20,7 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 ```
 apps/
 ├── web/                Next.js admin dashboard + demo pages with scenario picker
-└── backend/            Convex backend platform (20 tables, 38+ HTTP endpoints)
+└── backend/            Convex backend platform (25 tables, 50+ HTTP endpoints)
 
 packages/
 ├── core/               Shared types (conversation, tools, handoff, guardrails, knowledge, analytics, persona)
@@ -113,7 +113,7 @@ The admin dashboard (`apps/web`) provides an analytics overview, platform manage
 
 Switching scenarios changes the system prompt (ChatBot/Custom demos) or the Convex app slug (LiveKit/Twilio demos), loading the matching persona, tools, guardrails, and knowledge base from the backend.
 
-The dashboard also includes an **API Reference** page at `/docs` with interactive documentation for all 38 HTTP endpoints.
+The dashboard also includes an **API Reference** page at `/docs` with interactive documentation for all HTTP endpoints.
 
 ```bash
 pnpm install

@@ -29,3 +29,6 @@ apps/convex-backend/convex/_generated/
 .playwright-mcp/
 test-results/
 **/test-results/
+
+# Local tracking docs
+sierra-parity-status.md

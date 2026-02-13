@@ -430,6 +430,124 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
     response: '{ variantId: string, alreadyAssigned: boolean }',
   },
 
+  // ── QA ────────────────────────────────────────────────────────────────
+  {
+    method: 'POST',
+    path: '/api/qa/scenarios',
+    description: 'Create or update a QA scenario by name.',
+    category: 'QA',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'name', type: 'string', required: true, description: 'Scenario name' },
+      { name: 'description', type: 'string', required: false, description: 'Scenario context' },
+      { name: 'turns', type: 'array', required: true, description: 'Array of { role: "user", content } turns' },
+      { name: 'expectations', type: 'object', required: false, description: 'Assertions (contains, notContains, tool call, handoff)' },
+      { name: 'isActive', type: 'boolean', required: false, description: 'Enable/disable scenario' },
+    ],
+    response: '{ id: string }',
+  },
+  {
+    method: 'GET',
+    path: '/api/qa/scenarios',
+    description: 'List QA scenarios.',
+    category: 'QA',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app listing' },
+      { name: 'active', type: 'string', required: false, description: 'Filter by active=true/false' },
+    ],
+    response: '{ scenarios: QaScenario[] }',
+  },
+  {
+    method: 'POST',
+    path: '/api/qa/runs',
+    description: 'Evaluate a candidate response against scenario expectations.',
+    category: 'QA',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'scenarioId', type: 'string', required: true, description: 'QA scenario ID' },
+      { name: 'responseText', type: 'string', required: true, description: 'Agent response to evaluate' },
+      { name: 'calledTools', type: 'string[]', required: false, description: 'Tools called during this turn' },
+      { name: 'handoffTriggered', type: 'boolean', required: false, description: 'Whether a handoff happened' },
+      { name: 'sessionId', type: 'string', required: false, description: 'Associated session ID' },
+    ],
+    response: '{ id, status, score, totalChecks, passedChecks, results[] }',
+  },
+  {
+    method: 'GET',
+    path: '/api/qa/runs',
+    description: 'List QA run history.',
+    category: 'QA',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app listing' },
+      { name: 'scenarioId', type: 'string', required: false, description: 'Filter by scenario' },
+      { name: 'limit', type: 'number', required: false, description: 'Max records to return' },
+    ],
+    response: '{ runs: QaRun[] }',
+  },
+
+  // ── Outbound ──────────────────────────────────────────────────────────
+  {
+    method: 'POST',
+    path: '/api/outbound/triggers',
+    description: 'Create or update an outbound trigger by name.',
+    category: 'Outbound',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'name', type: 'string', required: true, description: 'Trigger name' },
+      { name: 'eventType', type: 'string', required: true, description: 'Event key (cart_abandoned, payment_failed, etc.)' },
+      { name: 'channel', type: 'string', required: true, description: 'sms | email | push | voice' },
+      { name: 'template', type: 'string', required: true, description: 'Message template using {{placeholders}}' },
+      { name: 'condition', type: 'object', required: false, description: 'Condition object matched against eventData' },
+      { name: 'throttleMaxPerWindow', type: 'number', required: false, description: 'Max sends per throttle window' },
+      { name: 'throttleWindowMs', type: 'number', required: false, description: 'Throttle window in milliseconds' },
+      { name: 'isActive', type: 'boolean', required: false, description: 'Enable/disable trigger' },
+    ],
+    response: '{ id: string }',
+  },
+  {
+    method: 'GET',
+    path: '/api/outbound/triggers',
+    description: 'List outbound triggers.',
+    category: 'Outbound',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app listing' },
+      { name: 'active', type: 'string', required: false, description: 'Filter by active=true/false' },
+      { name: 'eventType', type: 'string', required: false, description: 'Filter by event type' },
+    ],
+    response: '{ triggers: OutboundTrigger[] }',
+  },
+  {
+    method: 'POST',
+    path: '/api/outbound/dispatch',
+    description: 'Evaluate active triggers and dispatch outbound messages for an event.',
+    category: 'Outbound',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'eventType', type: 'string', required: true, description: 'Event key to process' },
+      { name: 'recipient', type: 'string', required: true, description: 'Destination address/number/user ID' },
+      { name: 'eventData', type: 'object', required: false, description: 'Event payload used for conditions and templates' },
+      { name: 'channel', type: 'string', required: false, description: 'Optional channel override' },
+      { name: 'sessionId', type: 'string', required: false, description: 'Associated session ID' },
+    ],
+    response: '{ processed, sent[], skipped[] }',
+  },
+  {
+    method: 'GET',
+    path: '/api/outbound/dispatches',
+    description: 'List outbound dispatch logs.',
+    category: 'Outbound',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app listing' },
+      { name: 'eventType', type: 'string', required: false, description: 'Filter by event type' },
+      { name: 'limit', type: 'number', required: false, description: 'Max records to return' },
+    ],
+    response: '{ dispatches: OutboundDispatch[] }',
+  },
+
   // ── LiveKit ───────────────────────────────────────────────────────────
   {
     method: 'POST',
@@ -537,6 +655,8 @@ export const CATEGORIES = [
   'Messages',
   'Persona',
   'Experiments',
+  'QA',
+  'Outbound',
   'LiveKit',
   'Dashboard',
 ] as const;

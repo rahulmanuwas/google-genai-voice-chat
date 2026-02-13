@@ -1,8 +1,8 @@
 # @genai-voice/backend
 
-Convex backend platform for genai-voice. Extends the base telemetry backend into a full AI agent platform with tool execution, human handoff, guardrails, knowledge management (RAG), analytics, persona management, A/B testing, and real-time transcription storage.
+Convex backend platform for genai-voice. Extends the base telemetry backend into a full AI agent platform with tool execution, human handoff, guardrails, knowledge management (RAG), analytics, QA scenario testing, outbound trigger orchestration, persona management, A/B testing, and real-time transcription storage.
 
-## Tables (19)
+## Tables
 
 | Table | Purpose |
 |---|---|
@@ -16,17 +16,23 @@ Convex backend platform for genai-voice. Extends the base telemetry backend into
 | `guardrailViolations` | Audit log of all guardrail violations |
 | `knowledgeDocuments` | Knowledge base documents with vector embeddings for RAG |
 | `knowledgeGaps` | Detected questions the AI couldn't answer |
+| `knowledgeSearches` | Search quality telemetry for RAG retrieval quality |
 | `insights` | Aggregated daily metrics (resolution rate, CSAT, handoff rate) |
 | `csatRatings` | Customer satisfaction ratings per session |
 | `experiments` | A/B test definitions with variant configs |
 | `experimentExposures` | Which sessions were exposed to which variants |
+| `qaScenarios` | Conversation QA scenarios (turns + assertions) |
+| `qaRuns` | QA run results with pass/fail scoring |
+| `outboundTriggers` | Proactive outreach trigger definitions |
+| `outboundDispatches` | Outbound dispatch audit logs (sent/skipped + reason) |
 | `messages` | Real-time transcription storage (user + agent messages per session) |
 | `sessions` | Short-lived auth tokens for browser-safe access |
 | `livekitRooms` | LiveKit room lifecycle (waiting → active → ended) |
 | `livekitParticipants` | Participants in LiveKit rooms (user, agent, observer) |
+| `personas` | Reusable persona library for multi-app assignment |
 | `scenarioState` | Mutable demo state (appointments, orders) that tools read/write live |
 
-## HTTP Endpoints (35+)
+## HTTP Endpoints
 
 ### Auth
 | Method | Path | Description |
@@ -93,6 +99,22 @@ Convex backend platform for genai-voice. Extends the base telemetry backend into
 | POST | `/api/experiments` | Create an experiment with weighted variants |
 | GET | `/api/experiments` | List experiments for an app |
 | POST | `/api/experiments/assign` | Assign a variant (weighted random, sticky per session) |
+
+### QA Framework
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/qa/scenarios` | Create/update QA scenario definitions |
+| GET | `/api/qa/scenarios` | List QA scenarios |
+| POST | `/api/qa/runs` | Evaluate a response against scenario expectations |
+| GET | `/api/qa/runs` | List QA run history |
+
+### Outbound Trigger Engine
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/outbound/triggers` | Create/update outbound trigger rules |
+| GET | `/api/outbound/triggers` | List outbound triggers |
+| POST | `/api/outbound/dispatch` | Process an event and dispatch proactive outreach |
+| GET | `/api/outbound/dispatches` | List outbound dispatch logs |
 
 ### Scenario State (Live Demo Data)
 | Method | Path | Description |

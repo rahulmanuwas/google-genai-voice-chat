@@ -247,6 +247,84 @@ export default defineSchema({
     .index("by_experiment", ["experimentId"])
     .index("by_session", ["sessionId"]),
 
+  // ─── Conversation QA Framework ───────────────────────────────
+
+  qaScenarios: defineTable({
+    appSlug: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    turns: v.string(),
+    expectations: v.string(),
+    tags: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+  })
+    .index("by_app", ["appSlug"])
+    .index("by_app_name", ["appSlug", "name"])
+    .index("by_app_active", ["appSlug", "isActive"]),
+
+  qaRuns: defineTable({
+    appSlug: v.string(),
+    scenarioId: v.id("qaScenarios"),
+    scenarioName: v.string(),
+    sessionId: v.optional(v.string()),
+    status: v.string(),
+    score: v.float64(),
+    totalChecks: v.float64(),
+    passedChecks: v.float64(),
+    results: v.string(),
+    input: v.optional(v.string()),
+    createdAt: v.float64(),
+    completedAt: v.float64(),
+  })
+    .index("by_app", ["appSlug"])
+    .index("by_app_createdAt", ["appSlug", "createdAt"])
+    .index("by_scenario", ["scenarioId"])
+    .index("by_status", ["status"]),
+
+  // ─── Outbound Trigger Engine ──────────────────────────────────
+
+  outboundTriggers: defineTable({
+    appSlug: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    eventType: v.string(),
+    channel: v.string(),
+    conditionJson: v.optional(v.string()),
+    template: v.string(),
+    throttleMaxPerWindow: v.float64(),
+    throttleWindowMs: v.float64(),
+    isActive: v.boolean(),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+    lastTriggeredAt: v.optional(v.float64()),
+  })
+    .index("by_app", ["appSlug"])
+    .index("by_app_name", ["appSlug", "name"])
+    .index("by_app_eventType", ["appSlug", "eventType"])
+    .index("by_app_active", ["appSlug", "isActive"]),
+
+  outboundDispatches: defineTable({
+    appSlug: v.string(),
+    triggerId: v.id("outboundTriggers"),
+    triggerName: v.string(),
+    eventType: v.string(),
+    channel: v.string(),
+    recipient: v.string(),
+    payload: v.string(),
+    status: v.string(),
+    reason: v.optional(v.string()),
+    createdAt: v.float64(),
+    sentAt: v.optional(v.float64()),
+  })
+    .index("by_app", ["appSlug"])
+    .index("by_app_createdAt", ["appSlug", "createdAt"])
+    .index("by_trigger", ["triggerId"])
+    .index("by_trigger_recipient", ["triggerId", "recipient"])
+    .index("by_trigger_recipient_createdAt", ["triggerId", "recipient", "createdAt"])
+    .index("by_eventType", ["eventType"]),
+
   // ─── Messages (Transcription Storage) ────────────────────────
 
   messages: defineTable({

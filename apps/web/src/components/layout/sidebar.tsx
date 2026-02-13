@@ -19,6 +19,7 @@ import {
   Palette,
   AudioLines,
   Phone,
+  Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,8 @@ const NAV_ITEMS: NavEntry[] = [
   { type: 'link', href: '/knowledge', label: 'Knowledge', icon: BookOpen },
   { type: 'link', href: '/persona', label: 'Persona', icon: User },
   { type: 'link', href: '/experiments', label: 'A/B Tests', icon: FlaskConical },
+  { type: 'link', href: '/qa', label: 'QA', icon: MessageSquare },
+  { type: 'link', href: '/outbound', label: 'Outbound', icon: Send },
   { type: 'link', href: '/settings', label: 'Settings', icon: Settings },
   { type: 'link', href: '/docs', label: 'API Docs', icon: FileText },
   { type: 'separator', label: 'Demos' },

@@ -35,6 +35,13 @@ import {
   assignPersona,
 } from "./personas";
 import { createExperiment, listExperiments, assignVariant } from "./experiments";
+import { upsertQaScenario, listQaScenarios, runQaScenario, listQaRuns } from "./qa";
+import {
+  upsertOutboundTrigger,
+  listOutboundTriggers,
+  dispatchOutbound,
+  listOutboundDispatches,
+} from "./outbound";
 import { getScenarioState, resetScenarioState } from "./scenarioState";
 
 const http = httpRouter();
@@ -139,6 +146,18 @@ patch("/api/personas/assign", assignPersona);
 post("/api/experiments", createExperiment);
 get("/api/experiments", listExperiments);
 post("/api/experiments/assign", assignVariant);
+
+// ─── QA Framework ───────────────────────────────────────────────
+post("/api/qa/scenarios", upsertQaScenario);
+get("/api/qa/scenarios", listQaScenarios);
+post("/api/qa/runs", runQaScenario);
+get("/api/qa/runs", listQaRuns);
+
+// ─── Outbound Trigger Engine ───────────────────────────────────
+post("/api/outbound/triggers", upsertOutboundTrigger);
+get("/api/outbound/triggers", listOutboundTriggers);
+post("/api/outbound/dispatch", dispatchOutbound);
+get("/api/outbound/dispatches", listOutboundDispatches);
 
 // ─── Scenario State (Live Demo Data) ───────────────────────────
 get("/api/scenario-state", getScenarioState);

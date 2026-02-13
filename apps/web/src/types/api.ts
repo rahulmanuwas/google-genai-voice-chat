@@ -137,6 +137,93 @@ export interface Experiment {
   createdAt: number;
 }
 
+// ─── QA Framework ───────────────────────────────────────────────
+export interface QaScenarioTurn {
+  role: 'user';
+  content: string;
+}
+
+export interface QaExpectations {
+  shouldContain?: string[];
+  shouldNotContain?: string[];
+  shouldCallTool?: string | string[];
+  shouldHandoff?: boolean;
+}
+
+export interface QaScenario {
+  _id: string;
+  appSlug: string;
+  name: string;
+  description?: string;
+  turns: QaScenarioTurn[];
+  expectations: QaExpectations;
+  tags: string[];
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface QaCheckResult {
+  check: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface QaRunInput {
+  responseText?: string;
+  calledTools?: string[];
+  handoffTriggered?: boolean;
+}
+
+export interface QaRun {
+  _id: string;
+  appSlug: string;
+  scenarioId: string;
+  scenarioName: string;
+  sessionId?: string;
+  status: string;
+  score: number;
+  totalChecks: number;
+  passedChecks: number;
+  results: QaCheckResult[];
+  input: QaRunInput;
+  createdAt: number;
+  completedAt: number;
+}
+
+// ─── Outbound Trigger Engine ───────────────────────────────────
+export interface OutboundTrigger {
+  _id: string;
+  appSlug: string;
+  name: string;
+  description?: string;
+  eventType: string;
+  channel: string;
+  condition: Record<string, unknown>;
+  template: string;
+  throttleMaxPerWindow: number;
+  throttleWindowMs: number;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastTriggeredAt?: number;
+}
+
+export interface OutboundDispatch {
+  _id: string;
+  appSlug: string;
+  triggerId: string;
+  triggerName: string;
+  eventType: string;
+  channel: string;
+  recipient: string;
+  payload: Record<string, unknown>;
+  status: string;
+  reason?: string;
+  createdAt: number;
+  sentAt?: number;
+}
+
 // ─── Conversations ─────────────────────────────────────────────
 export interface Conversation {
   _id: string;

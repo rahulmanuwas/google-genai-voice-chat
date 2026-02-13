@@ -15,6 +15,10 @@ import type {
   PersonaConfig,
   Persona,
   Experiment,
+  QaScenario,
+  QaRun,
+  OutboundTrigger,
+  OutboundDispatch,
   Message,
   Conversation,
 } from '@/types/api';
@@ -111,6 +115,34 @@ export function usePersonas() {
 
 export function useExperiments() {
   return useApiSWR<{ experiments: Experiment[] }>('/api/experiments?all=true');
+}
+
+// ─── QA Framework ───────────────────────────────────────────────
+
+export function useQaScenarios(active?: boolean) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (active !== undefined) params.set('active', String(active));
+  return useApiSWR<{ scenarios: QaScenario[] }>(`/api/qa/scenarios?${params.toString()}`);
+}
+
+export function useQaRuns(scenarioId?: string) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (scenarioId) params.set('scenarioId', scenarioId);
+  return useApiSWR<{ runs: QaRun[] }>(`/api/qa/runs?${params.toString()}`);
+}
+
+// ─── Outbound Trigger Engine ───────────────────────────────────
+
+export function useOutboundTriggers(active?: boolean) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (active !== undefined) params.set('active', String(active));
+  return useApiSWR<{ triggers: OutboundTrigger[] }>(`/api/outbound/triggers?${params.toString()}`);
+}
+
+export function useOutboundDispatches(eventType?: string) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (eventType) params.set('eventType', eventType);
+  return useApiSWR<{ dispatches: OutboundDispatch[] }>(`/api/outbound/dispatches?${params.toString()}`);
 }
 
 // ─── Messages ──────────────────────────────────────────────────
