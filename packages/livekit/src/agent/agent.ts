@@ -5,6 +5,7 @@ import {
   type llm,
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
+import * as deepgram from '@livekit/agents-plugin-deepgram';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import type { LiveKitAgentConfig } from '../types';
 import crypto from 'node:crypto';
@@ -134,15 +135,23 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
       console.log('[agent] Job received, connecting to room...');
 
       try {
-        // Validate GOOGLE_API_KEY before doing anything else
-        if (!process.env.GOOGLE_API_KEY) {
-          throw new Error('GOOGLE_API_KEY env var is not set — cannot create Gemini RealtimeModel');
-        }
-
         await ctx.connect();
 
         // Room name is only available after connect()
         roomName = ctx.room.name ?? 'unknown';
+
+        // Read agent mode from room metadata (set by UI via createRoom)
+        const roomMeta = (() => {
+          try { return JSON.parse(ctx.room.metadata ?? '{}'); }
+          catch { return {}; }
+        })();
+        const agentMode: 'realtime' | 'pipeline' = roomMeta.agentMode === 'pipeline' ? 'pipeline' : 'realtime';
+        console.log(`[agent] Mode: ${agentMode}`);
+
+        // Validate GOOGLE_API_KEY (required for both modes — realtime uses RealtimeModel, pipeline uses LLM)
+        if (!process.env.GOOGLE_API_KEY) {
+          throw new Error('GOOGLE_API_KEY env var is not set');
+        }
         const traceId = crypto.randomUUID();
         console.log(`[agent] Connected to room: ${roomName} (traceId: ${traceId})`);
 
@@ -402,7 +411,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         try {
           while (attempt <= maxReconnects) {
-            console.log(`[agent] Creating agent session (model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
+            console.log(`[agent] Creating agent session (mode: ${agentMode}, model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
 
             // On reconnect, inject conversation history so the model retains context
             let sessionInstructions = instructions;
@@ -419,14 +428,22 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             }
 
             const sessionVoice = personaVoice || config.voice;
-            const session = new voice.AgentSession({
-              llm: new google.beta.realtime.RealtimeModel({
-                model: config.model,
-                voice: sessionVoice,
-                temperature: config.temperature,
-                instructions: sessionInstructions,
-              }),
-            });
+
+            // Create session based on agent mode
+            const session = agentMode === 'pipeline'
+              ? new voice.AgentSession({
+                  stt: new deepgram.STT({ model: 'nova-3', language: 'en' }),
+                  llm: new google.LLM({ model: 'gemini-2.5-flash-preview-04-17' }),
+                  tts: new deepgram.TTS({ model: 'aura-2-asteria-en' }),
+                })
+              : new voice.AgentSession({
+                  llm: new google.beta.realtime.RealtimeModel({
+                    model: config.model,
+                    voice: sessionVoice,
+                    temperature: config.temperature,
+                    instructions: sessionInstructions,
+                  }),
+                });
 
             await session.start({ agent, room: ctx.room });
             console.log('[agent] Session started');

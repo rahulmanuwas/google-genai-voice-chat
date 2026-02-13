@@ -40,12 +40,14 @@ export const createLiveKitServerRoom = internalAction({
     roomName: v.string(),
     emptyTimeout: v.float64(),
     maxParticipants: v.float64(),
+    metadata: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
     await createRoom({
       roomName: args.roomName,
       emptyTimeout: args.emptyTimeout,
       maxParticipants: args.maxParticipants,
+      metadata: args.metadata,
     });
   },
 });

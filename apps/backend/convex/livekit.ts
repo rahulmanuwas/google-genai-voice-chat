@@ -35,7 +35,7 @@ export const generateToken = httpAction(async (ctx, request) => {
 /** POST /api/livekit/rooms — Create a room record */
 export const createRoom = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, sessionId, config } = body as {
+  const { appSlug, appSecret, sessionToken, sessionId, config, metadata } = body as {
     appSlug?: string;
     appSecret?: string;
     sessionToken?: string;
@@ -45,6 +45,7 @@ export const createRoom = httpAction(async (ctx, request) => {
       emptyTimeout?: number;
       enableRecording?: boolean;
     };
+    metadata?: Record<string, unknown>;
   };
 
   if (!sessionId) {
@@ -63,6 +64,7 @@ export const createRoom = httpAction(async (ctx, request) => {
     roomName,
     emptyTimeout,
     maxParticipants,
+    metadata: metadata ? JSON.stringify(metadata) : undefined,
   });
 
   // Store the room record in Convex

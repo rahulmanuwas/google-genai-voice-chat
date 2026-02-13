@@ -6,10 +6,16 @@
  * Convex (or any other backend).
  */
 
+/** Options for room creation */
+export interface CreateRoomOptions {
+  /** Arbitrary metadata to attach to the LiveKit room (serialized as JSON) */
+  metadata?: Record<string, unknown>;
+}
+
 /** Backend-agnostic callbacks for LiveKit room lifecycle */
 export interface LiveKitRoomCallbacks {
   /** Create a room and return the room name */
-  createRoom: (sessionId: string) => Promise<{ roomName: string }>;
+  createRoom: (sessionId: string, options?: CreateRoomOptions) => Promise<{ roomName: string }>;
 
   /** Fetch a token (and optional server URL) for joining the room */
   fetchToken: (roomName: string, identity: string, name?: string) => Promise<{ token: string; serverUrl?: string }>;
@@ -57,7 +63,7 @@ export function createConvexRoomCallbacks(config: ConvexRoomConfig): LiveKitRoom
   let cachedAuth: Record<string, string> = {};
 
   return {
-    async createRoom(sessionId: string): Promise<{ roomName: string }> {
+    async createRoom(sessionId: string, options?: CreateRoomOptions): Promise<{ roomName: string }> {
       const auth = await resolveAuth(config);
       cachedAuth = auth;
 
@@ -66,7 +72,7 @@ export function createConvexRoomCallbacks(config: ConvexRoomConfig): LiveKitRoom
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...auth, sessionId }),
+          body: JSON.stringify({ ...auth, sessionId, metadata: options?.metadata }),
         },
       );
 

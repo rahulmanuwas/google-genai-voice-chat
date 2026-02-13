@@ -23,6 +23,8 @@ export interface UseLiveKitVoiceChatOptions {
   name?: string;
   /** Auto-connect on mount (default: false) */
   autoConnect?: boolean;
+  /** Agent mode: 'realtime' (Gemini native audio) or 'pipeline' (Deepgram STT → Gemini LLM → Deepgram TTS) */
+  agentMode?: 'realtime' | 'pipeline';
 }
 
 export interface UseLiveKitVoiceChatReturn {
@@ -120,8 +122,9 @@ export function useLiveKitVoiceChat(
     try {
       const cb = resolveCallbacks();
 
-      // Step 1: Create a room
-      const { roomName: newRoomName } = await cb.createRoom(sessionIdRef.current);
+      // Step 1: Create a room (pass agentMode as metadata so the agent can read it)
+      const metadata = options.agentMode ? { agentMode: options.agentMode } : undefined;
+      const { roomName: newRoomName } = await cb.createRoom(sessionIdRef.current, metadata ? { metadata } : undefined);
 
       // Step 2: Get a token
       const { token: newToken, serverUrl: returnedServerUrl } =

@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { AgentModePicker, type AgentMode } from '@/components/demos/AgentModePicker';
 import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 import { PageHeader } from '@/components/layout/page-header';
@@ -20,6 +21,7 @@ export default function LiveKitDemo() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
+  const [agentMode, setAgentMode] = useState<AgentMode>('realtime');
   const scenario = getScenarioById(scenarioId);
   const { changes: stateChanges } = useScenarioStateChanges(scenario);
   const {
@@ -50,7 +52,10 @@ export default function LiveKitDemo() {
   return (
     <div className="space-y-6">
       <PageHeader title="LiveKit Agent" description="Click Start Voice Chat to connect to a server-side AI agent.">
-        <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
+        <div className="flex flex-wrap items-center gap-4">
+          <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
+          <AgentModePicker value={agentMode} onChange={setAgentMode} />
+        </div>
       </PageHeader>
 
       {missing.length > 0 ? (
@@ -63,11 +68,12 @@ export default function LiveKitDemo() {
           <Card>
             <CardContent className="pt-6">
               <LiveKitVoiceChat
-                key={scenario.id}
+                key={`${scenario.id}-${agentMode}`}
                 convexUrl={convexUrl!}
                 appSlug={scenario.appSlug}
                 getSessionToken={getSessionToken}
                 serverUrl={livekitUrl}
+                agentMode={agentMode}
                 thinkingAudioSrc="/chieuk-thinking-289286.mp3"
                 onAgentStateChange={handleAgentStateChange}
                 onTranscript={handleTranscript}

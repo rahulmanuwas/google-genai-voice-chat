@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { FadeIn } from '@/components/ui/fade-in';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { AgentModePicker, type AgentMode } from '@/components/demos/AgentModePicker';
 import { DemoObservabilityPanel } from '@/components/demos/DemoObservabilityPanel';
 import { useScenarioStateChanges } from '@/lib/hooks/use-scenario-state-changes';
 import { useDemoTimeline } from '@/lib/hooks/use-demo-timeline';
@@ -18,6 +19,7 @@ export function LiveDemo() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
+  const [agentMode, setAgentMode] = useState<AgentMode>('realtime');
   const scenario = getScenarioById(scenarioId);
 
   const getSessionToken = useCallback(async () => {
@@ -66,8 +68,9 @@ export function LiveDemo() {
           </p>
         </FadeIn>
 
-        <FadeIn delay={0.1} className="mb-8 flex justify-center">
+        <FadeIn delay={0.1} className="mb-8 flex flex-wrap justify-center gap-4">
           <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
+          <AgentModePicker value={agentMode} onChange={setAgentMode} />
         </FadeIn>
 
         {missing ? (
@@ -83,11 +86,12 @@ export function LiveDemo() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 backdrop-blur-sm">
                 <LiveKitVoiceChat
-                  key={scenario.id}
+                  key={`${scenario.id}-${agentMode}`}
                   convexUrl={convexUrl!}
                   appSlug={scenario.appSlug}
                   getSessionToken={getSessionToken}
                   serverUrl={livekitUrl!}
+                  agentMode={agentMode}
                   thinkingAudioSrc="/chieuk-thinking-289286.mp3"
                   onAgentStateChange={handleAgentStateChange}
                   onTranscript={handleTranscript}

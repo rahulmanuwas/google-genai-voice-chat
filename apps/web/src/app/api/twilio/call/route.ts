@@ -7,6 +7,7 @@ export const runtime = 'nodejs';
 interface StartCallRequest {
   to: string;
   appSlug?: string;
+  agentMode?: 'realtime' | 'pipeline';
 }
 
 const E164_NUMBER_REGEX = /^\+[1-9]\d{7,14}$/;
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Partial<StartCallRequest>;
     const to = typeof body.to === 'string' ? body.to.trim() : '';
     const appSlug = typeof body.appSlug === 'string' && body.appSlug ? body.appSlug : undefined;
+    const agentMode = body.agentMode === 'pipeline' ? 'pipeline' : 'realtime';
     const defaultSlug = getServerEnv('NEXT_PUBLIC_APP_SLUG') ?? 'demo';
 
     if (!E164_NUMBER_REGEX.test(to)) {
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
       apiKey: livekitApiKey,
       apiSecret: livekitApiSecret,
       maxParticipants: 4,
-      metadata: appSlug ? JSON.stringify({ appSlug }) : undefined,
+      metadata: JSON.stringify({ ...(appSlug ? { appSlug } : {}), agentMode }),
     });
 
     const participant = await createSipParticipant({

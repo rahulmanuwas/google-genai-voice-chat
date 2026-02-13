@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
+import { AgentModePicker, type AgentMode } from '@/components/demos/AgentModePicker';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 import { PageHeader } from '@/components/layout/page-header';
 import { DemoObservabilityPanel } from '@/components/demos/DemoObservabilityPanel';
@@ -31,6 +32,7 @@ export default function TwilioCallDemo() {
   const [callEnded, setCallEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
+  const [agentMode, setAgentMode] = useState<AgentMode>('realtime');
   const scenario = getScenarioById(scenarioId);
   const { changes: stateChanges } = useScenarioStateChanges(scenario);
   const {
@@ -65,7 +67,7 @@ export default function TwilioCallDemo() {
       const res = await fetch('/api/twilio/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, appSlug: scenario.appSlug }),
+        body: JSON.stringify({ to, appSlug: scenario.appSlug, agentMode }),
       });
 
       const data = await res.json();
@@ -132,7 +134,10 @@ export default function TwilioCallDemo() {
                   <CardTitle>LiveKit SIP Outbound Call</CardTitle>
                   <Badge variant="secondary">Twilio Trunk</Badge>
                 </div>
-                <ScenarioPicker value={scenarioId} onChange={handleScenarioChange} />
+                <div className="flex flex-wrap items-center gap-4">
+                  <ScenarioPicker value={scenarioId} onChange={handleScenarioChange} />
+                  <AgentModePicker value={agentMode} onChange={setAgentMode} />
+                </div>
               </div>
               <CardDescription>
                 Dials a phone number via LiveKit SIP using your configured Twilio SIP trunk,

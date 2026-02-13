@@ -1,6 +1,30 @@
 import Link from 'next/link';
 import { FadeIn } from '@/components/ui/fade-in';
 
+const FOOTER_LINKS = {
+  Product: [
+    { label: 'Live Demo', href: '#try' },
+    { label: 'Features', href: '#features' },
+    { label: 'Use Cases', href: '#use-cases' },
+    { label: 'Pricing', href: '#pricing' },
+    { label: 'Tech Stack', href: '#tech-stack' },
+  ],
+  Platform: [
+    { label: 'Dashboard', href: '/overview' },
+    { label: 'Knowledge Base', href: '/knowledge' },
+    { label: 'Guardrails', href: '/guardrails' },
+    { label: 'Tools', href: '/tools' },
+    { label: 'Experiments', href: '/experiments' },
+  ],
+  Developers: [
+    { label: 'Documentation', href: '/docs' },
+    { label: 'How It Works', href: '#how-it-works' },
+    { label: 'Code Examples', href: '#code' },
+    { label: 'LiveKit Agent', href: '/demos/livekit' },
+    { label: 'PSTN Calls', href: '/demos/twilio-call' },
+  ],
+} as const;
+
 export function CTAFooter() {
   return (
     <>
@@ -58,14 +82,70 @@ export function CTAFooter() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-6 sm:py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 text-center sm:text-left">
-          <span className="text-sm font-semibold tracking-tight text-muted-foreground">
-            <span className="text-brand">.</span>Riyaan
-          </span>
-          <p className="text-xs text-muted-foreground/60">
-            Enterprise AI platform — built with Gemini, LiveKit &amp; Convex
-          </p>
+      <footer className="relative border-t border-border overflow-hidden">
+        {/* Background video */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover opacity-[0.07] pointer-events-none"
+          aria-hidden="true"
+        >
+          <source src="/footer_video.mp4" type="video/mp4" />
+        </video>
+
+        {/* Gradient overlay to ensure text readability */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(to bottom, hsl(var(--background)) 0%, transparent 30%, transparent 70%, hsl(var(--background)) 100%)',
+          }}
+        />
+
+        <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-8">
+          {/* Top section: brand + link columns */}
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 lg:grid-cols-5">
+            {/* Brand column */}
+            <div className="col-span-2 sm:col-span-1 lg:col-span-2 mb-4 sm:mb-0">
+              <Link href="/" className="inline-block text-lg font-semibold tracking-tight mb-3">
+                <span className="text-brand">.</span>Riyaan
+              </Link>
+              <p className="text-sm text-muted-foreground/70 max-w-[260px] leading-relaxed">
+                Enterprise-grade AI voice agents. Built with Gemini, LiveKit &amp; Convex.
+              </p>
+            </div>
+
+            {/* Link columns */}
+            {Object.entries(FOOTER_LINKS).map(([heading, links]) => (
+              <div key={heading}>
+                <h3 className="text-sm font-semibold text-foreground/80 mb-3">
+                  {heading}
+                </h3>
+                <ul className="space-y-2">
+                  {links.map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="text-sm text-muted-foreground/60 hover:text-foreground/90 transition-colors"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          {/* Divider */}
+          <div className="mt-12 pt-6 border-t border-white/[0.06]">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground/50">
+              <p>&copy; {new Date().getFullYear()} Riyaan. All rights reserved.</p>
+              <p>Powered by Gemini &middot; LiveKit &middot; Convex &middot; Next.js</p>
+            </div>
+          </div>
         </div>
       </footer>
     </>

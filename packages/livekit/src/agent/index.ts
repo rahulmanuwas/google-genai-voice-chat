@@ -24,6 +24,7 @@ if (isDirectRun) {
   // Log env var status at startup for easier debugging
   const envCheck = {
     GOOGLE_API_KEY: !!process.env.GOOGLE_API_KEY,
+    DEEPGRAM_API_KEY: !!process.env.DEEPGRAM_API_KEY,
     LIVEKIT_URL: !!process.env.LIVEKIT_URL,
     LIVEKIT_API_KEY: !!process.env.LIVEKIT_API_KEY,
     LIVEKIT_API_SECRET: !!process.env.LIVEKIT_API_SECRET,
@@ -34,7 +35,10 @@ if (isDirectRun) {
   console.log('[agent] Env vars:', JSON.stringify(envCheck));
 
   if (!process.env.GOOGLE_API_KEY) {
-    console.error('[agent] WARNING: GOOGLE_API_KEY is not set — agent will fail to create Gemini RealtimeModel');
+    console.error('[agent] WARNING: GOOGLE_API_KEY is not set — agent will fail');
+  }
+  if (!process.env.DEEPGRAM_API_KEY) {
+    console.warn('[agent] WARNING: DEEPGRAM_API_KEY is not set — pipeline mode will not work');
   }
 
   cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url) }));
