@@ -433,7 +433,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             const session = agentMode === 'pipeline'
               ? new voice.AgentSession({
                   stt: new deepgram.STT({ model: 'nova-3', language: 'en' }),
-                  llm: new google.LLM({ model: 'gemini-2.5-flash-preview-04-17' }),
+                  llm: new google.LLM({ model: 'gemini-flash-latest', apiKey: process.env.GOOGLE_API_KEY }),
                   tts: new deepgram.TTS({ model: 'aura-2-asteria-en' }),
                 })
               : new voice.AgentSession({
