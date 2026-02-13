@@ -1,7 +1,11 @@
 'use client';
 
-import { forwardRef, useEffect, useMemo, useRef, useState, useImperativeHandle } from 'react';
-import { useVoiceChat, type ChatMessageType as ChatMessage } from '@genai-voice/react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, useImperativeHandle } from 'react';
+import {
+  useVoiceChat,
+  type ChatMessageType as ChatMessage,
+  type VoiceChatEvent,
+} from '@genai-voice/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +21,15 @@ import {
   saveDemoMemory,
   type DemoMemory,
 } from '@/lib/demo-memory';
+import { DemoObservabilityPanel } from '@/components/demos/DemoObservabilityPanel';
+import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
+import { useScenarioStateChanges } from '@/lib/hooks/use-scenario-state-changes';
+import {
+  createTimelineEvent,
+  inferSignalsFromAgentText,
+  mapVoiceEventToTimeline,
+  type DemoTimelineEvent,
+} from '@/lib/demo-observability';
 
 export default function CustomDemo() {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -52,6 +65,11 @@ function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario 
   const [memory, setMemory] = useState<DemoMemory | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryError, setMemoryError] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState<DemoTimelineEvent[]>([]);
+  const [transcriptMessages, setTranscriptMessages] = useState<ChatMessage[]>([]);
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
+  const seenStateChangeIdsRef = useRef<Set<string>>(new Set());
+  const { changes: stateChanges } = useScenarioStateChanges(scenario);
 
   useEffect(() => {
     setMemory(loadDemoMemory(scenario.appSlug));
@@ -62,9 +80,88 @@ function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario 
     return scenario.systemPrompt + buildMemoryPrompt(memory);
   }, [scenario.systemPrompt, memory]);
 
+  const pushTimeline = useCallback((event: Omit<DemoTimelineEvent, 'id' | 'ts'> & { ts?: number }) => {
+    setTimeline((prev) => [createTimelineEvent(event), ...prev].slice(0, 120));
+  }, []);
+
+  useEffect(() => {
+    for (const message of transcriptMessages) {
+      if (seenMessageIdsRef.current.has(message.id)) continue;
+      seenMessageIdsRef.current.add(message.id);
+
+      if (message.role === 'user') {
+        pushTimeline({
+          ts: message.ts,
+          subsystem: 'conversation',
+          status: 'info',
+          title: 'User turn received',
+          detail: message.content.slice(0, 180),
+        });
+        continue;
+      }
+
+      if (message.role === 'model') {
+        pushTimeline({
+          ts: message.ts,
+          subsystem: 'conversation',
+          status: 'success',
+          title: 'Agent response generated',
+          detail: message.content.slice(0, 180),
+        });
+
+        const inferred = inferSignalsFromAgentText(message.content);
+        for (const signal of inferred) {
+          pushTimeline({
+            ts: message.ts,
+            subsystem: signal.subsystem,
+            status: signal.status,
+            title: signal.title,
+            detail: signal.detail,
+          });
+        }
+      }
+    }
+  }, [pushTimeline, transcriptMessages]);
+
+  useEffect(() => {
+    for (const change of stateChanges) {
+      if (seenStateChangeIdsRef.current.has(change.id)) continue;
+      seenStateChangeIdsRef.current.add(change.id);
+
+      pushTimeline({
+        ts: change.ts,
+        subsystem: 'state',
+        status: 'success',
+        title: change.title,
+        detail: change.detail,
+      });
+
+      if (change.inferredTool) {
+        pushTimeline({
+          ts: change.ts,
+          subsystem: 'tool',
+          status: 'success',
+          title: `Tool effect detected: ${change.inferredTool}`,
+          detail: `State changed after ${change.inferredTool}.`,
+        });
+      }
+    }
+  }, [pushTimeline, stateChanges]);
+
+  const handleVoiceEvent = useCallback((event: VoiceChatEvent) => {
+    const mapped = mapVoiceEventToTimeline(event);
+    if (!mapped) return;
+    pushTimeline({
+      ts: mapped.ts,
+      subsystem: mapped.subsystem,
+      status: mapped.status,
+      title: mapped.title,
+      detail: mapped.detail,
+    });
+  }, [pushTimeline]);
+
   const extractMemory = async () => {
-    const msgs = sessionRef.current?.messages ?? [];
-    const usable = msgs
+    const usable = transcriptMessages
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role, content: m.content }));
 
@@ -118,16 +215,36 @@ function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario 
   const startNewChat = async () => {
     setMemoryError(null);
     await sessionRef.current?.disconnect();
+    setTimeline([]);
+    setTranscriptMessages([]);
+    seenMessageIdsRef.current.clear();
+    seenStateChangeIdsRef.current.clear();
     setChatNonce((n) => n + 1);
   };
+
+  const runGuidedPrompt = useCallback(async (prompt: string) => {
+    if (!sessionRef.current) return;
+    if (!sessionRef.current.isConnected) {
+      await sessionRef.current.connect();
+    }
+    sessionRef.current.sendText(prompt);
+    pushTimeline({
+      subsystem: 'conversation',
+      status: 'info',
+      title: 'Guided prompt sent',
+      detail: prompt,
+    });
+  }, [pushTimeline]);
 
   const hasMemory =
     Boolean(memory?.userName) ||
     (Array.isArray(memory?.facts) && memory!.facts.length > 0) ||
     Boolean(memory?.conversationSummary);
 
+  const hasStatePanel = scenario.id === 'dentist' || scenario.id === 'ecommerce';
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+    <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
       <VoiceChatSession
         // Remounting resets transcript + forces a fresh Gemini Live session.
         key={chatNonce}
@@ -139,78 +256,93 @@ function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario 
           replyAsAudio: true,
           sessionStorageKey: `genai-voice-demo:${scenario.appSlug}:session`,
           clearSessionOnMount: true,
+          onEvent: handleVoiceEvent,
         }}
+        onMessagesChange={setTranscriptMessages}
       />
 
-      <Card className="h-fit">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-sm">Memory (Demo)</CardTitle>
-            <Badge variant={hasMemory ? 'default' : 'secondary'}>
-              {hasMemory ? 'Loaded' : 'Empty'}
-            </Badge>
-          </div>
-          <CardDescription className="text-xs">
-            Extracts long-term user facts from the transcript, stores them in localStorage, and injects them into the next chat session.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {hasMemory ? (
-            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-              {memory?.userName && (
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Name:</span>{' '}
-                  <span className="font-medium">{memory.userName}</span>
+      <div className="space-y-4">
+        <DemoObservabilityPanel
+          scenario={scenario}
+          timeline={timeline}
+          stateChanges={stateChanges}
+          onRunPrompt={runGuidedPrompt}
+        />
+
+        {hasStatePanel && (
+          <ScenarioStatePanel scenario={scenario} />
+        )}
+
+        <Card className="h-fit">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm">Memory (Demo)</CardTitle>
+              <Badge variant={hasMemory ? 'default' : 'secondary'}>
+                {hasMemory ? 'Loaded' : 'Empty'}
+              </Badge>
+            </div>
+            <CardDescription className="text-xs">
+              Extracts long-term user facts from the transcript, stores them in localStorage, and injects them into the next chat session.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {hasMemory ? (
+              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                {memory?.userName && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Name:</span>{' '}
+                    <span className="font-medium">{memory.userName}</span>
+                  </div>
+                )}
+                {memory?.facts?.length ? (
+                  <ul className="space-y-1 text-sm">
+                    {memory.facts.slice(0, 5).map((f, i) => (
+                      <li key={`${i}-${f}`} className="text-muted-foreground">
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {memory?.conversationSummary ? (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground/80">Last:</span>{' '}
+                    {memory.conversationSummary}
+                  </div>
+                ) : null}
+                <div className="text-[11px] text-muted-foreground">
+                  Updated: {memory?.updatedAt ? new Date(memory.updatedAt).toLocaleString() : 'unknown'}
                 </div>
-              )}
-              {memory?.facts?.length ? (
-                <ul className="space-y-1 text-sm">
-                  {memory.facts.slice(0, 5).map((f, i) => (
-                    <li key={`${i}-${f}`} className="text-muted-foreground">
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {memory?.conversationSummary ? (
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground/80">Last:</span>{' '}
-                  {memory.conversationSummary}
-                </div>
-              ) : null}
-              <div className="text-[11px] text-muted-foreground">
-                Updated: {memory?.updatedAt ? new Date(memory.updatedAt).toLocaleString() : 'unknown'}
               </div>
+            ) : (
+              <div className="rounded-lg border bg-muted/10 p-3 text-xs text-muted-foreground">
+                No memory stored yet. Have a short conversation, then click &quot;Update memory&quot;.
+              </div>
+            )}
+
+            {memoryError && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+                {memoryError}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <Button onClick={extractMemory} disabled={memoryLoading} variant="default">
+                {memoryLoading ? 'Updating…' : 'Update Memory From Transcript'}
+              </Button>
+              <Button onClick={startNewChat} variant="outline">
+                Start New Chat (Keeps Memory)
+              </Button>
+              <Button onClick={clearMemory} variant="ghost">
+                Clear Memory
+              </Button>
             </div>
-          ) : (
+
             <div className="rounded-lg border bg-muted/10 p-3 text-xs text-muted-foreground">
-              No memory stored yet. Have a short conversation, then click &quot;Update memory&quot;.
+              Demo script: say &quot;Hi, I&apos;m Rahul. I prefer afternoon appointments.&quot; then click &quot;Update Memory&quot; and &quot;Start New Chat&quot;. Ask &quot;Do you remember me?&quot;
             </div>
-          )}
-
-          {memoryError && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
-              {memoryError}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-2">
-            <Button onClick={extractMemory} disabled={memoryLoading} variant="default">
-              {memoryLoading ? 'Updating…' : 'Update Memory From Transcript'}
-            </Button>
-            <Button onClick={startNewChat} variant="outline">
-              Start New Chat (Keeps Memory)
-            </Button>
-            <Button onClick={clearMemory} variant="ghost">
-              Clear Memory
-            </Button>
-          </div>
-
-          <div className="rounded-lg border bg-muted/10 p-3 text-xs text-muted-foreground">
-            Demo script: say &quot;Hi, I&apos;m Rahul. I prefer afternoon appointments.&quot; then click &quot;Update Memory&quot; and &quot;Start New Chat&quot;. Ask &quot;Do you remember me?&quot;
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -223,10 +355,23 @@ type VoiceChatSessionHandle = {
   isConnected: boolean;
 };
 
+interface VoiceChatSessionProps {
+  apiKey: string;
+  config: {
+    systemPrompt: string;
+    modelId: string;
+    replyAsAudio: boolean;
+    sessionStorageKey: string;
+    clearSessionOnMount: boolean;
+    onEvent?: (event: VoiceChatEvent) => void;
+  };
+  onMessagesChange?: (messages: ChatMessage[]) => void;
+}
+
 const VoiceChatSession = forwardRef<
   VoiceChatSessionHandle,
-  { apiKey: string; config: { systemPrompt: string; modelId: string; replyAsAudio: boolean; sessionStorageKey: string; clearSessionOnMount: boolean } }
->(function VoiceChatSession({ apiKey, config }, ref) {
+  VoiceChatSessionProps
+>(function VoiceChatSession({ apiKey, config, onMessagesChange }, ref) {
   const {
     messages,
     isConnected,
@@ -243,6 +388,11 @@ const VoiceChatSession = forwardRef<
       ...config,
     },
   });
+
+  useEffect(() => {
+    onMessagesChange?.(messages);
+  }, [messages, onMessagesChange]);
+
 
   useImperativeHandle(
     ref,

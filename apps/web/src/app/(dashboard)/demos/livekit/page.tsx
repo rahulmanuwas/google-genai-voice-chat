@@ -7,6 +7,9 @@ import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 import { PageHeader } from '@/components/layout/page-header';
+import { DemoObservabilityPanel } from '@/components/demos/DemoObservabilityPanel';
+import { useScenarioStateChanges } from '@/lib/hooks/use-scenario-state-changes';
+import { useDemoTimeline } from '@/lib/hooks/use-demo-timeline';
 
 const LiveKitVoiceChat = dynamic(
   () => import('@genai-voice/livekit').then((mod) => mod.LiveKitVoiceChat),
@@ -18,6 +21,13 @@ export default function LiveKitDemo() {
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
   const scenario = getScenarioById(scenarioId);
+  const { changes: stateChanges } = useScenarioStateChanges(scenario);
+  const {
+    mergedTimeline,
+    handleAgentStateChange,
+    handleTranscript,
+    handleHandoff,
+  } = useDemoTimeline(scenario.id, stateChanges);
 
   const missing = [
     !convexUrl && 'NEXT_PUBLIC_CONVEX_URL',
@@ -35,14 +45,6 @@ export default function LiveKitDemo() {
     return data.sessionToken as string;
   }, [scenario.appSlug]);
 
-  if (missing.length > 0) {
-    return (
-      <div>
-        <MissingEnvCard vars={missing} hint="This demo requires a deployed Convex backend with LiveKit endpoints and a LiveKit Cloud account." />
-      </div>
-    );
-  }
-
   const hasStatePanel = scenario.id === 'dentist' || scenario.id === 'ecommerce';
 
   return (
@@ -51,24 +53,42 @@ export default function LiveKitDemo() {
         <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
       </PageHeader>
 
-      <div className={`grid grid-cols-1 gap-6 ${hasStatePanel ? 'lg:grid-cols-2' : ''}`}>
-        <Card>
-          <CardContent className="pt-6">
-            <LiveKitVoiceChat
-              key={scenario.id}
-              convexUrl={convexUrl!}
-              appSlug={scenario.appSlug}
-              getSessionToken={getSessionToken}
-              serverUrl={livekitUrl}
-              thinkingAudioSrc="/chieuk-thinking-289286.mp3"
-            />
-          </CardContent>
-        </Card>
+      {missing.length > 0 ? (
+        <MissingEnvCard
+          vars={missing}
+          hint="This demo requires a deployed Convex backend with LiveKit endpoints and a LiveKit Cloud account."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_420px]">
+          <Card>
+            <CardContent className="pt-6">
+              <LiveKitVoiceChat
+                key={scenario.id}
+                convexUrl={convexUrl!}
+                appSlug={scenario.appSlug}
+                getSessionToken={getSessionToken}
+                serverUrl={livekitUrl}
+                thinkingAudioSrc="/chieuk-thinking-289286.mp3"
+                onAgentStateChange={handleAgentStateChange}
+                onTranscript={handleTranscript}
+                onHandoff={handleHandoff}
+              />
+            </CardContent>
+          </Card>
 
-        {hasStatePanel && (
-          <ScenarioStatePanel key={scenario.id} scenario={scenario} />
-        )}
-      </div>
+          <div className="space-y-6">
+            <DemoObservabilityPanel
+              scenario={scenario}
+              timeline={mergedTimeline}
+              stateChanges={stateChanges}
+            />
+
+            {hasStatePanel && (
+              <ScenarioStatePanel key={scenario.id} scenario={scenario} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

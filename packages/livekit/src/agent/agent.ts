@@ -267,11 +267,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // Append tool-acknowledgment instructions when tools are loaded
         const hasTools = Object.keys(loadedTools).length > 0;
         let instructions = hasTools
-          ? baseInstructions + ' Before using a tool, briefly tell the user (e.g. "Let me check that for you"). Never go silent while waiting for a tool result. Always call the tool — never fabricate or make up results.'
+          ? baseInstructions + ' Say "Let me check" before calling a tool. Always call the tool — never make up results.'
           : baseInstructions;
 
         if (confirmationRequired.length > 0) {
-          instructions += ` These tools require user confirmation before execution: [${confirmationRequired.join(', ')}]. Describe what you will do and wait for the user to confirm. After confirmation, you MUST call the tool — never skip the call or pretend it succeeded.`;
+          instructions += ` Confirm before calling: [${confirmationRequired.join(', ')}]. After user confirms, call the tool.`;
           console.log(`[agent] Tools requiring confirmation: ${confirmationRequired.join(', ')}`);
         }
 

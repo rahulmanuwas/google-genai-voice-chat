@@ -141,7 +141,7 @@ const DENTIST: ScenarioData = {
         },
         required: ["appointmentId", "newDate", "newTime"],
       }),
-      requiresConfirmation: true,
+      requiresConfirmation: false,
       requiresAuth: true,
     },
     {
@@ -161,7 +161,7 @@ const DENTIST: ScenarioData = {
         },
         required: ["appointmentId"],
       }),
-      requiresConfirmation: true,
+      requiresConfirmation: false,
       requiresAuth: true,
     },
   ],
@@ -615,7 +615,7 @@ const ECOMMERCE: ScenarioData = {
         },
         required: ["orderNumber", "itemSku", "reason"],
       }),
-      requiresConfirmation: true,
+      requiresConfirmation: false,
       requiresAuth: true,
     },
     {
