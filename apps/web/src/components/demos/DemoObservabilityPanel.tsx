@@ -18,8 +18,6 @@ import {
   Users,
   MessageCircle,
   Monitor,
-  Copy,
-  Check,
   Play,
   Eye,
   ChevronDown,
@@ -57,7 +55,7 @@ interface DemoObservabilityPanelProps {
   timeline: DemoTimelineEvent[];
   stateChanges?: ScenarioStateChange[];
   onRunPrompt?: (prompt: string) => void;
-  /** Hide copy/send buttons (e.g. for voice-only landing page demo) */
+  /** Hide action buttons (e.g. for voice-only landing page demo) */
   hideActions?: boolean;
 }
 
@@ -68,18 +66,7 @@ export function DemoObservabilityPanel({
   onRunPrompt,
   hideActions = false,
 }: DemoObservabilityPanelProps) {
-  const [copiedStep, setCopiedStep] = useState<string | null>(null);
   const steps = useMemo(() => getGuidedDemoSteps(scenario), [scenario]);
-
-  const copyPrompt = async (stepId: string, prompt: string) => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      setCopiedStep(stepId);
-      setTimeout(() => setCopiedStep((c) => (c === stepId ? null : c)), 1200);
-    } catch {
-      setCopiedStep(null);
-    }
-  };
 
   const hasActivity = timeline.length > 0;
   const hasStateChanges = stateChanges.length > 0;
@@ -94,7 +81,6 @@ export function DemoObservabilityPanel({
         <div className="space-y-2.5">
           {steps.map((step, index) => {
             const { Icon, color } = SUBSYSTEM_CONFIG[step.subsystem];
-            const isCopied = copiedStep === step.id;
 
             return (
               <div
@@ -126,28 +112,15 @@ export function DemoObservabilityPanel({
                 </div>
 
                 {/* Actions */}
-                {!hideActions && (
+                {!hideActions && onRunPrompt && (
                   <div className="flex items-center gap-2">
-                    {onRunPrompt && (
-                      <button
-                        type="button"
-                        onClick={() => onRunPrompt(step.prompt)}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-brand/90 px-3 py-1.5 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand"
-                      >
-                        <Play className="h-3 w-3" />
-                        Send to agent
-                      </button>
-                    )}
                     <button
                       type="button"
-                      onClick={() => void copyPrompt(step.id, step.prompt)}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground"
+                      onClick={() => onRunPrompt(step.prompt)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-brand/90 px-3 py-1.5 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand"
                     >
-                      {isCopied ? (
-                        <><Check className="h-3 w-3 text-emerald-400" /> Copied</>
-                      ) : (
-                        <><Copy className="h-3 w-3" /> Copy</>
-                      )}
+                      <Play className="h-3 w-3" />
+                      Send to agent
                     </button>
                   </div>
                 )}

@@ -40,6 +40,7 @@ export default function ChatBotDemo() {
           replyAsAudio: true,
           welcomeMessage: scenario.welcomeMessage,
           chatTitle: scenario.chatTitle,
+          theme: { primaryColor: 'hsl(38 92% 50%)' },
         }}
       />
     </div>
