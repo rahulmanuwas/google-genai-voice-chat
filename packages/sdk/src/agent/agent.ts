@@ -15,6 +15,27 @@ import { createToolsFromConvex } from './tools.js';
 
 const GUARDRAIL_TIMEOUT_MS = 3000;
 
+/**
+ * Voice agent preamble — prepended to every system prompt.
+ * Handles voice-specific constraints, response format, and conversation lifecycle.
+ */
+const VOICE_PREAMBLE = `You are a voice agent. All your responses are spoken aloud — never output markdown, bullet points, URLs, or formatted text.
+
+## Response Style
+- Keep responses to 1–3 sentences unless the user asks for detail.
+- Use natural, conversational language with contractions (I'm, don't, let's).
+- Never say "as an AI language model" or break character.
+
+## Conversation Flow
+- If you can't hear or understand the user, say "Sorry, I didn't catch that — could you say that again?"
+- If something goes wrong, apologize briefly and offer an alternative. Don't expose technical details.
+- If the user goes off-topic, gently redirect to your area of expertise.
+
+## Ending Calls
+- When the user says goodbye or all questions are answered, give a brief warm closing.
+- Do not ask open-ended follow-ups after a clear goodbye.
+`;
+
 /** Await input guardrail check with timeout. Returns null on timeout or error (fail-open). */
 async function checkInputGuardrail(
   checkGuardrails: NonNullable<AgentCallbacks['checkGuardrails']>,
@@ -126,7 +147,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
   const config: Required<Pick<AgentDefinitionOptions, 'model' | 'voice' | 'instructions' | 'temperature'>> = {
     model: options?.model ?? 'gemini-2.5-flash-native-audio-preview-12-2025',
     voice: options?.voice ?? 'Puck',
-    instructions: options?.instructions ?? 'You are a helpful voice AI assistant.',
+    instructions: options?.instructions ?? 'You are a helpful voice assistant. Answer questions clearly and concisely.',
     temperature: options?.temperature ?? 0.8,
   };
 
@@ -182,22 +203,26 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         // Load persona and tools in parallel with waiting for participant
         const personaPromise = (async (): Promise<{ instructions: string; voice?: string }> => {
-          if (!callbacks?.loadPersona) return { instructions: config.instructions };
+          if (!callbacks?.loadPersona) return { instructions: VOICE_PREAMBLE + config.instructions };
           try {
             const persona = await callbacks.loadPersona();
             if (persona) {
               const base = persona.systemPrompt || config.instructions;
-              const parts: string[] = [base];
-              if (persona.personaName) parts.push(`Your name is ${persona.personaName}.`);
-              if (persona.personaTone) parts.push(`Speak in a ${persona.personaTone} tone.`);
-              if (persona.preferredTerms) parts.push(`Preferred terms: ${persona.preferredTerms}.`);
-              if (persona.blockedTerms) parts.push(`Never use these terms: ${persona.blockedTerms}.`);
-              return { instructions: parts.join(' '), voice: persona.voice };
+              // Only append persona fields if they're not already in the system prompt
+              const extras: string[] = [];
+              if (persona.personaName && !base.includes(persona.personaName))
+                extras.push(`Your name is ${persona.personaName}.`);
+              if (persona.personaTone && !base.toLowerCase().includes(persona.personaTone.toLowerCase()))
+                extras.push(`Speak in a ${persona.personaTone} tone.`);
+              if (persona.preferredTerms) extras.push(`Preferred terms: ${persona.preferredTerms}.`);
+              if (persona.blockedTerms) extras.push(`Never use these terms: ${persona.blockedTerms}.`);
+              const combined = extras.length > 0 ? base + '\n\n' + extras.join(' ') : base;
+              return { instructions: VOICE_PREAMBLE + combined, voice: persona.voice };
             }
           } catch (err) {
             console.warn('[agent] Failed to load persona, using default instructions:', err);
           }
-          return { instructions: config.instructions };
+          return { instructions: VOICE_PREAMBLE + config.instructions };
         })();
 
         // Set up RoomServiceClient for metadata updates (e.g. handoff signaling)
@@ -278,14 +303,14 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         const personaVoice = personaResult.voice;
         const { tools: loadedTools, confirmationRequired } = toolsResult;
 
-        // Append tool-acknowledgment instructions when tools are loaded
+        // Append tool instructions when tools are loaded
         const hasTools = Object.keys(loadedTools).length > 0;
         let instructions = hasTools
-          ? baseInstructions + ' Say "Let me check" before calling a tool. Always call the tool — never make up results.'
+          ? baseInstructions + '\n\n## Tool Usage\n- Before calling a tool, briefly acknowledge what you\'re doing (e.g. "Let me look that up," "One moment," "Sure, checking now"). Vary your phrasing.\n- ALWAYS use tools for real data — NEVER fabricate or guess results.\n- If a tool fails or returns nothing, tell the user honestly.'
           : baseInstructions;
 
         if (confirmationRequired.length > 0) {
-          instructions += ` Confirm before calling: [${confirmationRequired.join(', ')}]. After user confirms, call the tool.`;
+          instructions += `\n- Ask for confirmation before calling: ${confirmationRequired.join(', ')}.`;
           console.log(`[agent] Tools requiring confirmation: ${confirmationRequired.join(', ')}`);
         }
 
