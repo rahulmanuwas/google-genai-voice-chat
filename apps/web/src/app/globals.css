@@ -86,6 +86,24 @@ h1, h2, h3 {
   }
 }
 
+@keyframes hero-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes hero-spin {
+  from {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateX(-50%) rotate(360deg);
+  }
+}
+
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 0.4;
@@ -159,4 +177,10 @@ h1, h2, h3 {
   );
   background-size: 200% 200%;
   animation: gradient-shift 6s ease infinite;
+}
+
+@media (min-width: 1024px) and (max-height: 900px) {
+  .hero-partner-rail {
+    display: none;
+  }
 }

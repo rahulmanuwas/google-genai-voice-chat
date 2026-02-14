@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { DemoShowcase } from './demo-showcase';
 import { ShaderBackground } from './shader-bg';
 
@@ -14,82 +15,84 @@ const LOGOS = [
 
 export function Hero() {
   return (
-    <section id="hero" className="relative min-h-[100svh] flex flex-col overflow-hidden">
+    <section id="hero" className="relative isolate flex min-h-[100svh] flex-col overflow-hidden">
       <ShaderBackground />
 
-      {/* Centered content */}
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-5 sm:px-6 pt-20 sm:pt-24 pb-12 sm:pb-16">
-        <div className="max-w-4xl mx-auto text-center mb-10 sm:mb-16">
-          {/* Badge */}
-          <div
-            className="inline-flex items-center rounded-full border border-brand/20 bg-brand/[0.06] px-3 py-1 text-xs sm:px-4 sm:py-1.5 sm:text-sm text-brand mb-6 sm:mb-8 backdrop-blur-sm"
+      <div className="pointer-events-none absolute inset-0 -z-0" aria-hidden="true">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_55%_at_50%_16%,hsl(38_92%_50%/0.2),transparent_62%)]" />
+        <div className="absolute left-1/2 top-[35%] h-[44rem] w-[44rem] -translate-x-1/2 rounded-full bg-[conic-gradient(from_130deg,hsl(38_92%_50%/.14),hsl(16_75%_48%/.09),transparent_58%,hsl(38_92%_50%/.16))] blur-3xl animate-[hero-spin_18s_linear_infinite]" />
+        <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(to_right,hsl(0_0%_100%/.04)_1px,transparent_1px),linear-gradient(to_bottom,hsl(0_0%_100%/.04)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(circle_at_50%_36%,black_0%,transparent_76%)]" />
+      </div>
+
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 pb-6 pt-[clamp(4.5rem,9vh,6.2rem)] sm:px-7 sm:pb-8 sm:pt-[clamp(5rem,11vh,6.6rem)]">
+        <div className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
+          <h1
+            className="max-w-5xl text-balance text-center text-[clamp(2.05rem,11.2vw,2.95rem)] font-semibold leading-[0.94] tracking-[-0.04em] sm:text-[clamp(2.35rem,5.6vw,4.2rem)] lg:text-[clamp(3.1rem,6vw,5.1rem)]"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.1s both' }}
           >
-            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-            AI Voice Agent Platform
-          </div>
-
-          {/* Headline */}
-          <h1
-            className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-[1.08]"
-            style={{ animation: 'fade-in-up 0.6s ease-out 0.15s both' }}
-          >
-            Build, deploy, and scale{' '}
-            <br className="hidden sm:block" />
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand via-[hsl(28_85%_49%)] to-brand-secondary">
-              AI agents.
+            <span className="sm:whitespace-nowrap">Build, deploy, and scale</span>
+            <br />
+            <span className="relative bg-gradient-to-r from-[hsl(42_95%_64%)] via-brand to-[hsl(14_86%_58%)] bg-clip-text text-transparent [text-shadow:0_0_32px_hsl(38_92%_50%/0.2)]">
+              AI agents that take action.
             </span>
           </h1>
 
-          {/* Tagline */}
           <p
-            className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed"
+            className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-lg"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.25s both' }}
           >
-            Guardrails, tools, handoffs, and multi-channel — ship products, not infrastructure.
+            Guardrails, tools, handoffs, and multi-channel deployment. Ship production agents, not
+            infrastructure.
           </p>
 
-          {/* CTAs */}
           <div
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            className="mt-6 flex flex-col items-center justify-center gap-2.5 sm:flex-row sm:gap-3.5"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.35s both' }}
           >
             <a
               href="#try"
-              className="group inline-flex items-center justify-center rounded-full bg-brand px-8 py-3 text-sm font-semibold text-background transition-all hover:brightness-110 shadow-[0_0_20px_hsl(38_92%_50%/0.2)]"
+              className="group inline-flex items-center justify-center rounded-full border border-brand/50 bg-brand px-7 py-3 text-sm font-semibold text-background transition-all hover:-translate-y-0.5 hover:brightness-110 shadow-[0_0_40px_hsl(38_92%_50%/0.28)]"
             >
-              Try It Live
-              <svg className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
+              Try Live Demo
+              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </a>
             <Link
               href="/overview"
-              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-8 py-3 text-sm font-semibold text-foreground backdrop-blur-sm transition-all hover:bg-white/[0.08] hover:border-white/15"
+              className="inline-flex items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-7 py-3 text-sm font-semibold text-foreground backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/[0.08] hover:border-white/20"
             >
               Open Dashboard
             </Link>
           </div>
         </div>
 
-        {/* Demo showcase card */}
         <div
-          className="w-full max-w-4xl"
-          style={{ animation: 'fade-in-up 0.8s ease-out 0.5s both' }}
+          className="relative mx-auto mt-6 w-full max-w-4xl sm:mt-7"
+          style={{ animation: 'fade-in-up 0.8s ease-out 0.55s both' }}
         >
-          <DemoShowcase />
+          <div className="pointer-events-none absolute inset-x-10 -top-8 h-24 rounded-full bg-[radial-gradient(ellipse,hsl(38_92%_50%/0.3),transparent_68%)] blur-2xl" />
+          <div className="relative rounded-[28px] border border-white/12 bg-[linear-gradient(155deg,hsl(0_0%_100%/.09),transparent_36%)] p-2.5 shadow-[0_34px_120px_hsl(0_0%_0%/0.55)] backdrop-blur-sm">
+            <div className="rounded-2xl border border-white/[0.08] bg-background/60 p-1.5 sm:p-2">
+              <DemoShowcase />
+            </div>
+          </div>
+
+          <div className="pointer-events-none absolute -left-4 top-14 hidden rounded-full border border-white/15 bg-background/85 px-4 py-2 text-[11px] uppercase tracking-wide text-foreground/80 shadow-[0_16px_30px_hsl(0_0%_0%/0.45)] backdrop-blur-sm 2xl:block animate-[hero-float_9s_ease-in-out_infinite]">
+            Intent routing + policy checks
+          </div>
+          <div className="pointer-events-none absolute -right-4 bottom-12 hidden rounded-full border border-brand/25 bg-brand/[0.12] px-4 py-2 text-[11px] uppercase tracking-wide text-brand shadow-[0_12px_28px_hsl(38_92%_50%/0.25)] backdrop-blur-sm 2xl:block animate-[hero-float_10s_ease-in-out_1.2s_infinite]">
+            Voice latency tuned for live calls
+          </div>
         </div>
 
-        {/* Built with marquee */}
         <div
-          className="mt-10 sm:mt-14 w-full flex flex-col items-center gap-3 overflow-hidden"
-          style={{ animation: 'fade-in-up 0.6s ease-out 0.6s both' }}
+          className="hero-partner-rail mt-5 flex w-full flex-col items-center gap-2 overflow-hidden"
+          style={{ animation: 'fade-in-up 0.6s ease-out 0.7s both' }}
         >
-          <span className="text-[11px] uppercase tracking-widest text-muted-foreground/40 font-medium">
-            Built with
+          <span className="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground/45">
+            Integrated with
           </span>
-          <div className="relative w-full max-w-3xl overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
-            <div className="flex w-max animate-[marquee_20s_linear_infinite] items-center gap-10">
+          <div className="relative w-full max-w-3xl overflow-hidden rounded-full border border-white/[0.08] bg-white/[0.02] py-2.5 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+            <div className="flex w-max animate-[marquee_20s_linear_infinite] items-center gap-10 px-4">
               {[...Array(2)].map((_, setIdx) => (
                 <div key={setIdx} className="flex items-center gap-10 shrink-0">
                   {LOGOS.map((logo) => (
@@ -109,8 +112,7 @@ export function Hero() {
         </div>
       </div>
 
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
     </section>
   );
 }

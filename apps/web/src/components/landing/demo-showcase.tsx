@@ -86,14 +86,14 @@ export function DemoShowcase() {
   const scenario = SCENARIOS[active];
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
+    <div className="mx-auto w-full max-w-4xl">
       {/* Gradient border wrapper */}
       <div className="rounded-xl gradient-border p-px">
-        <div className="rounded-xl bg-[hsl(0_0%_5%)] overflow-hidden">
+        <div className="overflow-hidden rounded-xl bg-[hsl(0_0%_5%)]">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 sm:px-6 pt-5 sm:pt-6 pb-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center justify-between px-4 pb-2.5 pt-3.5 sm:px-5 sm:pt-4">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
@@ -104,7 +104,7 @@ export function DemoShowcase() {
           </div>
 
           {/* Scenario pills */}
-          <div className="px-5 sm:px-6 pt-0.5 pb-4 overflow-x-auto scrollbar-none">
+          <div className="scrollbar-none overflow-x-auto px-4 pb-2.5 pt-0.5 sm:px-5">
             <div className="flex gap-2">
               {SCENARIOS.map((s, i) => {
                 const Icon = s.icon;
@@ -112,7 +112,7 @@ export function DemoShowcase() {
                   <button
                     key={s.id}
                     onClick={() => setActive(i)}
-                    className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-150 ${
+                    className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium transition-all duration-150 ${
                       i === active
                         ? 'bg-brand/12 text-brand ring-1 ring-brand/25'
                         : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]'
@@ -127,25 +127,25 @@ export function DemoShowcase() {
           </div>
 
           {/* Divider */}
-          <div className="mx-5 sm:mx-6 border-t border-white/[0.06]" />
+          <div className="mx-4 border-t border-white/[0.06] sm:mx-5" />
 
           {/* Conversation area */}
-          <div className="px-5 sm:px-6 py-5 sm:py-6 min-h-[140px] sm:min-h-[160px]">
-            <p className="text-sm sm:text-base leading-relaxed text-foreground/90 transition-opacity duration-200">
+          <div className="min-h-[102px] px-4 py-3.5 sm:min-h-[116px] sm:px-5 sm:py-4">
+            <p className="overflow-hidden text-xs leading-relaxed text-foreground/90 transition-opacity duration-200 sm:text-sm [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">
               {scenario.text}
             </p>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3 sm:py-4 border-t border-white/[0.06] bg-[hsl(0_0%_4%)]">
-            <div className="min-w-0 flex-1 text-xs text-muted-foreground truncate sm:whitespace-normal">
+          <div className="flex items-center justify-between gap-2 border-t border-white/[0.06] bg-[hsl(0_0%_4%)] px-4 py-2.5 sm:px-5 sm:py-3">
+            <div className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground sm:whitespace-normal sm:text-xs">
               <span>{scenario.context}</span>
               <span className="mx-1.5">·</span>
               <span className="text-brand/60">{scenario.capability}</span>
             </div>
             <Link
               href={scenario.href}
-              className="group inline-flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-background transition-all hover:brightness-110 shrink-0"
+              className="group inline-flex shrink-0 items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-[11px] font-semibold text-background transition-all hover:brightness-110 sm:px-3.5"
             >
               Try it live
               <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
