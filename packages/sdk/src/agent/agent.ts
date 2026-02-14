@@ -571,14 +571,23 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
             // Wire lifecycle event listeners
             emitter.on('agent_state_changed', (state: string) => {
+              // Reset idle timer on any active state (thinking, speaking, listening)
+              // This prevents timeout during tool calls or model processing
+              if (state !== 'idle' && state !== 'disconnected') {
+                resetIdleTimer();
+              }
               pushEvent('agent_state_changed', { state });
             });
 
             emitter.on('user_state_changed', (state: string) => {
+              if (state === 'speaking') {
+                resetIdleTimer();
+              }
               pushEvent('user_state_changed', { state });
             });
 
             emitter.on('function_tools_executed', (ev: { toolNames?: string[] }) => {
+              resetIdleTimer();
               pushEvent('function_tools_executed', { toolNames: ev.toolNames ?? [] });
             });
 
