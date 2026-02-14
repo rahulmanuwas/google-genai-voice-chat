@@ -1,14 +1,10 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/livekit/token — Generate a LiveKit access token */
-export const generateToken = httpAction(async (ctx, request) => {
+export const generateToken = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, roomName, identity, name, ttl } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { roomName, identity, name, ttl } = body as {
     roomName: string;
     identity: string;
     name?: string;
@@ -19,7 +15,7 @@ export const generateToken = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const token = await ctx.runAction(internal.livekitInternal.generateToken, {
@@ -33,12 +29,9 @@ export const generateToken = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/livekit/rooms — Create a room record */
-export const createRoom = httpAction(async (ctx, request) => {
+export const createRoom = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, sessionId, config, metadata } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { sessionId, config, metadata } = body as {
     sessionId: string;
     config?: {
       maxParticipants?: number;
@@ -52,7 +45,7 @@ export const createRoom = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const roomName = `${auth.app.slug}-${sessionId}-${Date.now()}`;
@@ -81,7 +74,7 @@ export const createRoom = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/livekit/rooms — List active rooms */
-export const listRooms = httpAction(async (ctx, request) => {
+export const listRooms = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
@@ -93,7 +86,7 @@ export const listRooms = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/livekit/webhook — Handle LiveKit webhook events (uses LiveKit's own auth) */
-export const handleWebhook = httpAction(async (ctx, request) => {
+export const handleWebhook = corsHttpAction(async (ctx, request) => {
   const body = await request.text();
   const authHeader = request.headers.get("Authorization") ?? "";
 
@@ -129,12 +122,9 @@ export const handleWebhook = httpAction(async (ctx, request) => {
 });
 
 /** DELETE /api/livekit/rooms — End a room */
-export const endRoom = httpAction(async (ctx, request) => {
+export const endRoom = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, roomName } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { roomName } = body as {
     roomName: string;
   };
 
@@ -142,7 +132,7 @@ export const endRoom = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const room = await ctx.runQuery(internal.livekitDb.getRoomByName, {

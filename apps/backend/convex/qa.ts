@@ -1,6 +1,5 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 interface QaScenarioTurn {
   role: "user";
@@ -107,12 +106,9 @@ function evaluateQaRun(args: {
 }
 
 /** POST /api/qa/scenarios — Create or update a QA scenario */
-export const upsertQaScenario = httpAction(async (ctx, request) => {
+export const upsertQaScenario = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     name,
     description,
     turns,
@@ -122,9 +118,6 @@ export const upsertQaScenario = httpAction(async (ctx, request) => {
     evaluatorType,
     llmJudgeCriteria,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     name: string;
     description?: string;
     turns: QaScenarioTurn[];
@@ -146,7 +139,7 @@ export const upsertQaScenario = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "turns must be [{ role: 'user', content: string }]" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const scenarioId = await ctx.runMutation(internal.qaDb.upsertScenario, {
@@ -165,7 +158,7 @@ export const upsertQaScenario = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/qa/scenarios — List QA scenarios */
-export const listQaScenarios = httpAction(async (ctx, request) => {
+export const listQaScenarios = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
   const active = url.searchParams.get("active");
@@ -196,12 +189,9 @@ export const listQaScenarios = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/qa/runs — Evaluate an answer against a QA scenario */
-export const runQaScenario = httpAction(async (ctx, request) => {
+export const runQaScenario = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     scenarioId,
     sessionId,
     responseText,
@@ -210,9 +200,6 @@ export const runQaScenario = httpAction(async (ctx, request) => {
     useLlmJudge,
     executionMode,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     scenarioId: string;
     sessionId?: string;
     responseText: string;
@@ -226,7 +213,7 @@ export const runQaScenario = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "scenarioId and responseText are required" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -293,7 +280,7 @@ export const runQaScenario = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/qa/runs — List QA run history */
-export const listQaRuns = httpAction(async (ctx, request) => {
+export const listQaRuns = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
   const scenarioId = url.searchParams.get("scenarioId");

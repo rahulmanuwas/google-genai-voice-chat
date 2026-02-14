@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { CORS_HEADERS } from "./helpers";
+import { corsHeaders } from "./helpers";
 
 // ─── Existing handlers ──────────────────────────────────────────
 import { createToken } from "./tokens";
@@ -49,8 +49,9 @@ import { getTraceTimeline } from "./traces";
 const http = httpRouter();
 
 // ─── CORS preflight ─────────────────────────────────────────────
-const handleOptions = httpAction(async () => {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+const handleOptions = httpAction(async (_ctx, request) => {
+  const origin = request.headers.get("Origin") ?? undefined;
+  return new Response(null, { status: 204, headers: corsHeaders(origin) });
 });
 
 // Helpers to reduce boilerplate

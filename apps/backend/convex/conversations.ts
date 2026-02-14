@@ -1,13 +1,9 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
-export const saveConversation = httpAction(async (ctx, request) => {
+export const saveConversation = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     sessionId,
     startedAt,
     messages,
@@ -15,9 +11,6 @@ export const saveConversation = httpAction(async (ctx, request) => {
     channel,
     resolution,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     sessionId: string;
     startedAt: number;
     messages: Array<{ role: string; content: string; ts: number }>;
@@ -30,7 +23,7 @@ export const saveConversation = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   await ctx.runMutation(internal.conversationsInternal.upsertConversation, {
@@ -48,7 +41,7 @@ export const saveConversation = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/conversations — List conversations */
-export const listConversations = httpAction(async (ctx, request) => {
+export const listConversations = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? undefined;
   const all = url.searchParams.get("all") === "true";

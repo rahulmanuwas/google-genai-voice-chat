@@ -1,14 +1,10 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/guardrails/check — Validate input or output against guardrail rules */
-export const checkGuardrails = httpAction(async (ctx, request) => {
+export const checkGuardrails = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, sessionId, content, direction } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { sessionId, content, direction } = body as {
     sessionId: string;
     content: string;
     direction: "input" | "output";
@@ -18,7 +14,7 @@ export const checkGuardrails = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
   const { app } = auth;
 
@@ -35,12 +31,9 @@ export const checkGuardrails = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/guardrails/rules — Create or update a guardrail rule */
-export const upsertRule = httpAction(async (ctx, request) => {
+export const upsertRule = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, type, pattern, action, userMessage } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { type, pattern, action, userMessage } = body as {
     type: string;
     pattern: string;
     action: string;
@@ -51,7 +44,7 @@ export const upsertRule = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const ruleId = await ctx.runMutation(
@@ -63,7 +56,7 @@ export const upsertRule = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/guardrails/violations — List guardrail violations */
-export const listViolations = httpAction(async (ctx, request) => {
+export const listViolations = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
 
@@ -79,12 +72,9 @@ export const listViolations = httpAction(async (ctx, request) => {
 });
 
 /** PATCH /api/guardrails/violations — Annotate violation correctness (TP/FP) */
-export const annotateViolation = httpAction(async (ctx, request) => {
+export const annotateViolation = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, violationId, annotatedCorrectness, annotatedBy } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { violationId, annotatedCorrectness, annotatedBy } = body as {
     violationId: string;
     annotatedCorrectness: "true_positive" | "false_positive";
     annotatedBy?: string;
@@ -98,7 +88,7 @@ export const annotateViolation = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "annotatedCorrectness must be 'true_positive' or 'false_positive'" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   await ctx.runMutation(internal.guardrailsInternal.annotateViolation, {
@@ -113,7 +103,7 @@ export const annotateViolation = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/guardrails/rules — List all guardrail rules */
-export const listRules = httpAction(async (ctx, request) => {
+export const listRules = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
 

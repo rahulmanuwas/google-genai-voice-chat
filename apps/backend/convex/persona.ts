@@ -1,9 +1,8 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** GET /api/persona — Get persona config for an app (resolves personaId if set) */
-export const getPersona = httpAction(async (ctx, request) => {
+export const getPersona = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
@@ -46,12 +45,9 @@ export const getPersona = httpAction(async (ctx, request) => {
 });
 
 /** PATCH /api/persona — Update persona config */
-export const updatePersona = httpAction(async (ctx, request) => {
+export const updatePersona = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     personaName,
     personaGreeting,
     personaTone,
@@ -59,9 +55,6 @@ export const updatePersona = httpAction(async (ctx, request) => {
     blockedTerms,
     uiStrings,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     personaName?: string;
     personaGreeting?: string;
     personaTone?: string;
@@ -70,7 +63,7 @@ export const updatePersona = httpAction(async (ctx, request) => {
     uiStrings?: string;
   };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   await ctx.runMutation(internal.personaDb.updatePersona, {

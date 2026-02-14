@@ -1,9 +1,8 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** GET /api/tools?appSlug=...&appSecret=...  or  ?sessionToken=... — List active tools for an app */
-export const listTools = httpAction(async (ctx, request) => {
+export const listTools = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
@@ -15,12 +14,9 @@ export const listTools = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/tools/execute — Execute a tool call */
-export const executeTool = httpAction(async (ctx, request) => {
+export const executeTool = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, sessionId, toolName, parameters, traceId, spanId } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { sessionId, toolName, parameters, traceId, spanId } = body as {
     sessionId: string;
     toolName: string;
     parameters: Record<string, unknown>;
@@ -32,7 +28,7 @@ export const executeTool = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
   const { app } = auth;
 
@@ -60,7 +56,7 @@ export const executeTool = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/tools/executions — List recent tool executions */
-export const listExecutions = httpAction(async (ctx, request) => {
+export const listExecutions = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
 
@@ -76,7 +72,7 @@ export const listExecutions = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/tools/all — List all tools (including inactive) for dashboard */
-export const listAllTools = httpAction(async (ctx, request) => {
+export const listAllTools = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
 
@@ -92,12 +88,9 @@ export const listAllTools = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/tools — Register a new tool */
-export const registerTool = httpAction(async (ctx, request) => {
+export const registerTool = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     name,
     description,
     parametersSchema,
@@ -107,9 +100,6 @@ export const registerTool = httpAction(async (ctx, request) => {
     requiresConfirmation,
     requiresAuth,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     name: string;
     description: string;
     parametersSchema: string;
@@ -128,7 +118,7 @@ export const registerTool = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Active tools must have an endpoint" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const toolId = await ctx.runMutation(internal.toolsDb.upsertTool, {

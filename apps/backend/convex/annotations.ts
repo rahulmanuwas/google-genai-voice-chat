@@ -1,13 +1,9 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 // POST /api/annotations — create or update annotation
-export const upsertAnnotation = httpAction(async (ctx, request) => {
+export const upsertAnnotation = corsHttpAction(async (ctx, request) => {
   const body = (await request.json()) as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     sessionId?: string;
     conversationId?: string;
     qualityRating?: string;
@@ -27,13 +23,7 @@ export const upsertAnnotation = httpAction(async (ctx, request) => {
     return jsonResponse({ error: `qualityRating must be one of: ${validRatings.join(", ")}` }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, {
-    appSlug: body.appSlug,
-    appSecret: body.appSecret,
-    sessionToken: body.sessionToken,
-    bearerToken: request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") || undefined,
-    bearerAppSlug: request.headers.get("X-App-Slug") ?? undefined,
-  });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const id = await ctx.runMutation(internal.annotationsDb.upsertAnnotation, {
@@ -50,7 +40,7 @@ export const upsertAnnotation = httpAction(async (ctx, request) => {
 });
 
 // GET /api/annotations?sessionId=... or ?all=true&quality=good
-export const listAnnotations = httpAction(async (ctx, request) => {
+export const listAnnotations = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 

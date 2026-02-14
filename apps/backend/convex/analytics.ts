@@ -1,14 +1,10 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/csat — Submit a CSAT rating */
-export const submitCSAT = httpAction(async (ctx, request) => {
+export const submitCSAT = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, sessionId, rating, comment } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { sessionId, rating, comment } = body as {
     sessionId: string;
     rating: number;
     comment?: string;
@@ -22,7 +18,7 @@ export const submitCSAT = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Rating must be between 1 and 5" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   await ctx.runMutation(internal.analyticsInternal.insertCSAT, {
@@ -36,7 +32,7 @@ export const submitCSAT = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/analytics/insights — Get insights for a period */
-export const getInsights = httpAction(async (ctx, request) => {
+export const getInsights = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const period = url.searchParams.get("period");
   const all = url.searchParams.get("all") === "true";
@@ -62,17 +58,14 @@ export const getInsights = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/analytics/cluster — Trigger conversation clustering */
-export const clusterTopics = httpAction(async (ctx, request) => {
+export const clusterTopics = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, maxConversations, similarityThreshold } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { maxConversations, similarityThreshold } = body as {
     maxConversations?: number;
     similarityThreshold?: number;
   };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const result = await ctx.runAction(internal.analyticsCluster.clusterConversations, {
@@ -85,7 +78,7 @@ export const clusterTopics = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/analytics/overview — Live overview stats */
-export const getOverview = httpAction(async (ctx, request) => {
+export const getOverview = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const since = url.searchParams.get("since");
   const all = url.searchParams.get("all") === "true";

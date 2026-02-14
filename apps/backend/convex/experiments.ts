@@ -1,14 +1,10 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/experiments — Create a new experiment */
-export const createExperiment = httpAction(async (ctx, request) => {
+export const createExperiment = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, name, variants } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { name, variants } = body as {
     name: string;
     variants: Array<{ id: string; weight: number; config?: Record<string, unknown> }>;
   };
@@ -17,7 +13,7 @@ export const createExperiment = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Name and at least 2 variants required" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const experimentId = await ctx.runMutation(internal.experimentsDb.createExperiment, {
@@ -30,7 +26,7 @@ export const createExperiment = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/experiments — List experiments */
-export const listExperiments = httpAction(async (ctx, request) => {
+export const listExperiments = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
 
@@ -50,12 +46,9 @@ export const listExperiments = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/experiments/assign — Assign a variant (weighted random) and log exposure */
-export const assignVariant = httpAction(async (ctx, request) => {
+export const assignVariant = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, experimentId, sessionId } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { experimentId, sessionId } = body as {
     experimentId: string;
     sessionId: string;
   };
@@ -64,7 +57,7 @@ export const assignVariant = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "experimentId and sessionId required" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   // Check for existing exposure (sticky assignment)

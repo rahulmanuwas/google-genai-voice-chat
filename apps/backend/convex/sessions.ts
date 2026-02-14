@@ -1,13 +1,12 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { getAuthCredentialsFromRequest, jsonResponse } from "./helpers";
+import { getAuthCredentialsFromRequest, jsonResponse, corsHttpAction } from "./helpers";
 
 /**
  * POST /api/auth/session — Create a short-lived session token.
  * Requires appSlug + appSecret (server-to-server only).
  * Returns { sessionToken, expiresAt } for use in browser clients.
  */
-export const createSession = httpAction(async (ctx, request) => {
+export const createSession = corsHttpAction(async (ctx, request) => {
   const body = await request.json().catch(() => ({}));
   const { appSlug: bodySlug, appSecret: bodySecret, ttlMs } = body as {
     appSlug?: string;

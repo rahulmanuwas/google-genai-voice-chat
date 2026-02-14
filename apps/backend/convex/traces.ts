@@ -1,6 +1,5 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, corsHttpAction } from "./helpers";
 
 interface TimelineEvent {
   type: string;
@@ -9,7 +8,7 @@ interface TimelineEvent {
 }
 
 // GET /api/traces?traceId=...&sessionId=...
-export const getTraceTimeline = httpAction(async (ctx, request) => {
+export const getTraceTimeline = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 

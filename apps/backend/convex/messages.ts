@@ -1,15 +1,11 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/messages — Insert messages (batch) */
-export const saveMessages = httpAction(async (ctx, request) => {
+export const saveMessages = corsHttpAction(async (ctx, request) => {
   const traceId = getTraceId(request);
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, messages } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { messages } = body as {
     messages: Array<{
       sessionId: string;
       roomName?: string;
@@ -26,7 +22,7 @@ export const saveMessages = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing or empty messages array" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const ids = await ctx.runMutation(internal.messagesDb.insertMessageBatch, {
@@ -47,8 +43,8 @@ export const saveMessages = httpAction(async (ctx, request) => {
   return jsonResponse({ ok: true, count: ids.length });
 });
 
-/** GET /api/messages?sessionId=...&appSlug=...&appSecret=...  or  ?sessionToken=... */
-export const listMessages = httpAction(async (ctx, request) => {
+/** GET /api/messages?sessionId=... — Authorization: Bearer <token> */
+export const listMessages = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("sessionId");
 

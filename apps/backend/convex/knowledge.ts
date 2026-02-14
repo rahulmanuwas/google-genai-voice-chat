@@ -1,15 +1,11 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/knowledge — Add or update a knowledge document */
-export const upsertDocument = httpAction(async (ctx, request) => {
+export const upsertDocument = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, title, content, category, sourceType, updatedBy } =
+  const { title, content, category, sourceType, updatedBy } =
     body as {
-      appSlug?: string;
-      appSecret?: string;
-      sessionToken?: string;
       title: string;
       content: string;
       category: string;
@@ -21,7 +17,7 @@ export const upsertDocument = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const docId = await ctx.runAction(internal.knowledgeInternal.upsertWithEmbedding, {
@@ -37,13 +33,10 @@ export const upsertDocument = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/knowledge/search — Search knowledge base via vector similarity */
-export const searchKnowledge = httpAction(async (ctx, request) => {
+export const searchKnowledge = corsHttpAction(async (ctx, request) => {
   const traceId = getTraceId(request);
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, query, category, topK, sessionId } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { query, category, topK, sessionId } = body as {
     query: string;
     category?: string;
     topK?: number;
@@ -54,7 +47,7 @@ export const searchKnowledge = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const results = await ctx.runAction(internal.knowledgeInternal.searchAction, {
@@ -70,7 +63,7 @@ export const searchKnowledge = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/knowledge/documents — List knowledge documents */
-export const listDocuments = httpAction(async (ctx, request) => {
+export const listDocuments = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
 
@@ -86,7 +79,7 @@ export const listDocuments = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/knowledge/gaps — List knowledge gaps */
-export const listGaps = httpAction(async (ctx, request) => {
+export const listGaps = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
 
@@ -101,7 +94,7 @@ export const listGaps = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/knowledge/metrics?since= — Get knowledge search quality metrics */
-export const searchMetrics = httpAction(async (ctx, request) => {
+export const searchMetrics = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const since = url.searchParams.get("since");
 

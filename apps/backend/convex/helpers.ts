@@ -1,14 +1,62 @@
 import { internal } from "./_generated/api";
+import { httpAction } from "./_generated/server";
 
-/** Shared CORS + JSON response headers */
+/**
+ * Default CORS headers (used when ALLOWED_ORIGINS env is not set → "*").
+ * When ALLOWED_ORIGINS is set (comma-separated), use `corsHeaders()` or
+ * `corsHttpAction` for per-request origin reflection.
+ */
 export const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-  // Keep permissive for now (will be locked down in a follow-up PR).
-  // Needed for header-based auth (Authorization + X-App-Slug).
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Slug, X-Trace-Id",
   "Access-Control-Max-Age": "86400",
 };
+
+/**
+ * Resolve CORS origin for a request. When ALLOWED_ORIGINS env is set
+ * (comma-separated), reflects the request origin if it's in the allow-list.
+ * When unset, returns "*" (open — suitable for local dev).
+ */
+export function corsHeaders(requestOrigin?: string): Record<string, string> {
+  const envOrigins = process.env.ALLOWED_ORIGINS;
+  if (!envOrigins) return CORS_HEADERS;
+
+  const allowed = new Set(envOrigins.split(",").map((s) => s.trim()));
+  const origin = requestOrigin && allowed.has(requestOrigin) ? requestOrigin : "";
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Slug, X-Trace-Id",
+    "Access-Control-Max-Age": "86400",
+    ...(origin ? { Vary: "Origin" } : {}),
+  };
+}
+
+/**
+ * Drop-in replacement for `httpAction` that applies per-request CORS origin
+ * reflection. When `ALLOWED_ORIGINS` env is set, overrides the wildcard CORS
+ * origin from `jsonResponse` with the matching request origin.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function corsHttpAction(handler: (ctx: any, request: Request) => Promise<Response>) {
+  return httpAction(async (ctx, request) => {
+    const response = await handler(ctx, request);
+    const envOrigins = process.env.ALLOWED_ORIGINS;
+    if (envOrigins) {
+      const allowed = new Set(envOrigins.split(",").map((s) => s.trim()));
+      const origin = request.headers.get("Origin") ?? "";
+      if (allowed.has(origin)) {
+        response.headers.set("Access-Control-Allow-Origin", origin);
+        response.headers.set("Vary", "Origin");
+      } else {
+        response.headers.set("Access-Control-Allow-Origin", "");
+      }
+    }
+    return response;
+  });
+}
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -113,6 +161,26 @@ export function getTraceId(request: Request): string | undefined {
  * - Authorization: Bearer <token> (token is sessionToken OR appSecret)
  * - X-App-Slug: <appSlug> (required when token is an appSecret)
  */
+/**
+ * Merge header-based auth with body-parsed auth (for POST/PATCH/DELETE).
+ * Header credentials take priority; body fields are fallback for SDK clients
+ * that still send auth in the request body.
+ */
+export function getFullAuthCredentials(
+  request: Request,
+  body?: Record<string, unknown>,
+): AuthCredentials {
+  const headerCreds = getAuthCredentialsFromRequest(request);
+  if (!body) return headerCreds;
+
+  return {
+    ...headerCreds,
+    sessionToken: headerCreds.sessionToken ?? (body.sessionToken as string | undefined),
+    appSlug: headerCreds.appSlug ?? (body.appSlug as string | undefined),
+    appSecret: headerCreds.appSecret ?? (body.appSecret as string | undefined),
+  };
+}
+
 export function getAuthCredentialsFromRequest(request: Request): AuthCredentials {
   const url = new URL(request.url);
 

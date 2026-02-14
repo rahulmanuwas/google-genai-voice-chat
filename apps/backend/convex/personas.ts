@@ -1,9 +1,8 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** GET /api/personas — List all active personas */
-export const listPersonas = httpAction(async (ctx, request) => {
+export const listPersonas = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
@@ -12,12 +11,9 @@ export const listPersonas = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/personas — Create a new persona */
-export const createPersona = httpAction(async (ctx, request) => {
+export const createPersona = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { sessionToken, appSlug, appSecret, name, systemPrompt, ...fields } = body as {
-    sessionToken?: string;
-    appSlug?: string;
-    appSecret?: string;
+  const { name, systemPrompt, ...fields } = body as {
     name?: string;
     systemPrompt?: string;
     voice?: string;
@@ -28,7 +24,7 @@ export const createPersona = httpAction(async (ctx, request) => {
     blockedTerms?: string;
   };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   if (!name || !systemPrompt) {
@@ -50,12 +46,9 @@ export const createPersona = httpAction(async (ctx, request) => {
 });
 
 /** PATCH /api/personas — Update an existing persona */
-export const updatePersona = httpAction(async (ctx, request) => {
+export const updatePersona = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { sessionToken, appSlug, appSecret, personaId, ...fields } = body as {
-    sessionToken?: string;
-    appSlug?: string;
-    appSecret?: string;
+  const { personaId, ...fields } = body as {
     personaId?: string;
     name?: string;
     systemPrompt?: string;
@@ -67,7 +60,7 @@ export const updatePersona = httpAction(async (ctx, request) => {
     blockedTerms?: string;
   };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   if (!personaId) {
@@ -90,16 +83,13 @@ export const updatePersona = httpAction(async (ctx, request) => {
 });
 
 /** DELETE /api/personas — Soft-delete a persona */
-export const deletePersona = httpAction(async (ctx, request) => {
+export const deletePersona = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { sessionToken, appSlug, appSecret, personaId } = body as {
-    sessionToken?: string;
-    appSlug?: string;
-    appSecret?: string;
+  const { personaId } = body as {
     personaId?: string;
   };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   if (!personaId) {
@@ -114,17 +104,14 @@ export const deletePersona = httpAction(async (ctx, request) => {
 });
 
 /** PATCH /api/personas/assign — Assign or clear a persona on an app */
-export const assignPersona = httpAction(async (ctx, request) => {
+export const assignPersona = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { sessionToken, appSlug, appSecret, personaId, targetAppSlug } = body as {
-    sessionToken?: string;
-    appSlug?: string;
-    appSecret?: string;
+  const { personaId, targetAppSlug } = body as {
     personaId?: string | null;
     targetAppSlug?: string;
   };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   if (!targetAppSlug) {

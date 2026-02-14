@@ -1,10 +1,9 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 import { getInitialState } from "./toolHandlers";
 
 /** GET /api/scenario-state — Get current scenario state for an app */
-export const getScenarioState = httpAction(async (ctx, request) => {
+export const getScenarioState = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
@@ -36,21 +35,10 @@ export const getScenarioState = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/scenario-state/reset — Reset scenario state to initial values */
-export const resetScenarioState = httpAction(async (ctx, request) => {
+export const resetScenarioState = corsHttpAction(async (ctx, request) => {
   const body = await request.json().catch(() => ({}));
-  const { appSlug, appSecret, sessionToken } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
-  };
 
-  const headerCreds = getAuthCredentialsFromRequest(request);
-  const auth = await authenticateRequest(ctx, {
-    ...headerCreds,
-    appSlug: appSlug ?? headerCreds.appSlug,
-    appSecret: appSecret ?? headerCreds.appSecret,
-    sessionToken: sessionToken ?? headerCreds.sessionToken,
-  });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const slug = auth.app.slug;

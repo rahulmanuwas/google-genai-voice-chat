@@ -1,14 +1,10 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getTraceId } from "./helpers";
+import { jsonResponse, authenticateRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
-export const logEvents = httpAction(async (ctx, request) => {
+export const logEvents = corsHttpAction(async (ctx, request) => {
   const traceId = getTraceId(request);
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, sessionId, events } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
+  const { sessionId, events } = body as {
     sessionId: string;
     events: Array<{ eventType: string; ts: number; data?: string }>;
   };
@@ -17,7 +13,7 @@ export const logEvents = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const batch = events.slice(0, 100);

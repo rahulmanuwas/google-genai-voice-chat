@@ -1,6 +1,5 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 const SUPPORTED_CHANNELS = new Set(["sms", "email", "push", "voice"]);
 
@@ -67,12 +66,9 @@ function conditionsMatch(
 }
 
 /** POST /api/outbound/triggers — Create or update outbound trigger */
-export const upsertOutboundTrigger = httpAction(async (ctx, request) => {
+export const upsertOutboundTrigger = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     name,
     description,
     eventType,
@@ -83,9 +79,6 @@ export const upsertOutboundTrigger = httpAction(async (ctx, request) => {
     throttleWindowMs,
     isActive,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     name: string;
     description?: string;
     eventType: string;
@@ -115,7 +108,7 @@ export const upsertOutboundTrigger = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "throttleWindowMs must be a positive number" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const triggerId = await ctx.runMutation(internal.outboundDb.upsertTrigger, {
@@ -135,7 +128,7 @@ export const upsertOutboundTrigger = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/outbound/triggers — List outbound triggers */
-export const listOutboundTriggers = httpAction(async (ctx, request) => {
+export const listOutboundTriggers = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
   const active = url.searchParams.get("active");
@@ -161,21 +154,15 @@ export const listOutboundTriggers = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/outbound/dispatch — Evaluate and dispatch outbound triggers */
-export const dispatchOutbound = httpAction(async (ctx, request) => {
+export const dispatchOutbound = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     eventType,
     recipient,
     eventData,
     channel,
     sessionId,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     eventType: string;
     recipient: string;
     eventData?: Record<string, unknown>;
@@ -187,7 +174,7 @@ export const dispatchOutbound = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "eventType and recipient are required" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const normalizedChannel = channel ? channel.toLowerCase() : undefined;
@@ -293,7 +280,7 @@ export const dispatchOutbound = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/outbound/dispatches — List outbound dispatch logs */
-export const listOutboundDispatches = httpAction(async (ctx, request) => {
+export const listOutboundDispatches = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
   const eventType = url.searchParams.get("eventType") ?? undefined;

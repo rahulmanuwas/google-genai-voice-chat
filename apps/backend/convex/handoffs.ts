@@ -1,14 +1,10 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/handoffs — Create a new handoff request */
-export const createHandoff = httpAction(async (ctx, request) => {
+export const createHandoff = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug,
-    appSecret,
-    sessionToken,
     sessionId,
     channel,
     reason,
@@ -18,9 +14,6 @@ export const createHandoff = httpAction(async (ctx, request) => {
     aiSummary,
     customerData,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     sessionId: string;
     channel?: string;
     reason: string;
@@ -35,7 +28,7 @@ export const createHandoff = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
   const { app } = auth;
 
@@ -77,16 +70,12 @@ export const createHandoff = httpAction(async (ctx, request) => {
 });
 
 /** PATCH /api/handoffs — Update handoff status (claim, resolve) with optional quality feedback */
-export const updateHandoff = httpAction(async (ctx, request) => {
+export const updateHandoff = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const {
-    appSlug, appSecret, sessionToken,
     handoffId, status, assignedAgent,
     necessityScore, resolutionQuality, agentFeedback,
   } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
     handoffId: string;
     status: string;
     assignedAgent?: string;
@@ -99,7 +88,7 @@ export const updateHandoff = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   await ctx.runMutation(internal.handoffsDb.updateHandoffStatus, {
@@ -116,7 +105,7 @@ export const updateHandoff = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/handoffs — List handoffs (filtered by status) */
-export const listHandoffs = httpAction(async (ctx, request) => {
+export const listHandoffs = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const all = url.searchParams.get("all") === "true";

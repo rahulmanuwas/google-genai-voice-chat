@@ -1,16 +1,10 @@
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { jsonResponse, authenticateRequest } from "./helpers";
+import { jsonResponse, authenticateRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
-export const createToken = httpAction(async (ctx, request) => {
+export const createToken = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken } = body as {
-    appSlug?: string;
-    appSecret?: string;
-    sessionToken?: string;
-  };
 
-  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
   const { app } = auth;
 
