@@ -153,6 +153,24 @@ export const handleWebhookEvent = internalMutation({
           status: "ended",
           endedAt: Date.now(),
         });
+        // Safety net: resolve any conversation still marked "active" for this room's session.
+        // The agent process may have been killed before its finally block completed the
+        // resolveConversation HTTP call, leaving the conversation stuck in "active".
+        {
+          const conversation = await ctx.db
+            .query("conversations")
+            .withIndex("by_app_session", (q) =>
+              q.eq("appSlug", room.appSlug).eq("sessionId", room.sessionId)
+            )
+            .first();
+          if (conversation && conversation.status === "active") {
+            await ctx.db.patch(conversation._id, {
+              status: "resolved",
+              resolution: "room_ended",
+              endedAt: Date.now(),
+            });
+          }
+        }
         break;
 
       case "participant_joined":

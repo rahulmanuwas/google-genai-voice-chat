@@ -339,15 +339,17 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         // Sync the conversation record periodically so dashboard stays current
         let lastSyncedMessageCount = 0;
+        // Track in-flight sync so finally block can wait for it before resolving
+        const syncState = { promise: null as Promise<void> | null };
         const syncConversation = async () => {
           if (!resolveConversation || conversationResolved) return;
           if (allMessages.length === lastSyncedMessageCount) return;
           lastSyncedMessageCount = allMessages.length;
-          try {
-            await resolveConversation(sessionId, channel, sessionStart, allMessages, { status: 'active' });
-          } catch (err) {
-            console.warn('[agent] Failed to sync conversation:', err);
-          }
+          const p = resolveConversation(sessionId, channel, sessionStart, allMessages, { status: 'active' })
+            .catch((err) => console.warn('[agent] Failed to sync conversation:', err));
+          syncState.promise = p;
+          await p;
+          syncState.promise = null;
         };
 
         const flushTimer = setInterval(flushAll, 2000);
@@ -620,10 +622,15 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             break;
           }
         } finally {
-          // Cleanup: mark resolved first to prevent any in-flight sync from overwriting status
+          // Cleanup: stop timers and prevent future syncs from firing
           conversationResolved = true;
           clearInterval(flushTimer);
           clearInterval(syncTimer);
+
+          // Wait for any in-flight sync to finish before final resolution
+          if (syncState.promise) {
+            await syncState.promise.catch(() => {});
+          }
 
           pushEvent('session_ended', {
             reason: lastCloseReason,
