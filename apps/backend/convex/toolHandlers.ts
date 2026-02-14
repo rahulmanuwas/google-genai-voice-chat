@@ -33,7 +33,7 @@ const DENTIST_INITIAL_STATE = {
     {
       id: "APT-10041",
       patient: "Maria Garcia",
-      date: "2026-02-10",
+      date: "2026-04-07",
       time: "9:00 AM",
       provider: "Dr. Emily Chen",
       type: "Routine Cleaning",
@@ -42,7 +42,7 @@ const DENTIST_INITIAL_STATE = {
     {
       id: "APT-10042",
       patient: "James Wilson",
-      date: "2026-02-10",
+      date: "2026-04-09",
       time: "10:30 AM",
       provider: "Lisa Thompson",
       type: "Deep Cleaning",
@@ -51,7 +51,7 @@ const DENTIST_INITIAL_STATE = {
     {
       id: "APT-10043",
       patient: "Sarah Johnson",
-      date: "2026-02-11",
+      date: "2026-04-14",
       time: "2:30 PM",
       provider: "Dr. James Park",
       type: "Invisalign Consultation",
@@ -60,7 +60,7 @@ const DENTIST_INITIAL_STATE = {
     {
       id: "APT-10044",
       patient: "David Kim",
-      date: "2026-02-12",
+      date: "2026-04-16",
       time: "1:00 PM",
       provider: "Dr. Emily Chen",
       type: "Crown Fitting",
@@ -276,7 +276,7 @@ function handleCheckAvailability(params: ToolParams, state?: ScenarioState): Han
 
 function handleRescheduleAppointment(params: ToolParams, state?: ScenarioState): HandlerResult {
   const appointmentId = params.appointmentId ?? "APT-10042";
-  const newDate = params.newDate ?? "2026-02-14";
+  const newDate = params.newDate ?? "2026-04-18";
   const newTime = params.newTime ?? "2:30 PM";
 
   if (!state?.appointments) {

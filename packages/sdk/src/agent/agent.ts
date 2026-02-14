@@ -455,29 +455,29 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // --- Session loop with auto-reconnect ---
         let attempt = 0;
         let isFirstSession = true;
+        let currentMode = agentMode;
 
         try {
           while (attempt <= maxReconnects) {
-            console.log(`[agent] Creating agent session (mode: ${agentMode}, model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
+            console.log(`[agent] Creating agent session (mode: ${currentMode}, model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
 
-            // On reconnect, inject conversation history so the model retains context
+            // On reconnect, inject full conversation history so the model retains context
             let sessionInstructions = instructions;
             if (!isFirstSession && allMessages.length > 0) {
-              const recentMessages = allMessages.slice(-20);
-              const historyLines = recentMessages.map(
+              const historyLines = allMessages.map(
                 (m) => `${m.role === 'user' ? 'User' : 'You'}: ${m.content}`
               ).join('\n');
               sessionInstructions = instructions
                 + '\n\nIMPORTANT: This is a resumed session. The conversation so far:\n'
                 + historyLines
                 + '\n\nContinue naturally from where you left off. Do NOT re-introduce yourself or greet the user again.';
-              console.log(`[agent] Injected ${recentMessages.length} messages as history for reconnect`);
+              console.log(`[agent] Injected ${allMessages.length} messages as history for reconnect`);
             }
 
             const sessionVoice = personaVoice || config.voice;
 
-            // Create session based on agent mode
-            const session = agentMode === 'pipeline'
+            // Create session based on current mode (may switch from realtime → pipeline on tool call failure)
+            const session = currentMode === 'pipeline'
               ? new voice.AgentSession({
                   stt: new deepgram.STT({ model: 'nova-3', language: 'en' }),
                   llm: new google.LLM({ model: 'gemini-flash-latest', apiKey: process.env.GOOGLE_API_KEY }),
@@ -676,7 +676,18 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                 break;
               }
 
-              console.log(`[agent] Gemini error, reconnecting in ${reconnectDelayMs}ms (attempt ${attempt}/${maxReconnects})...`);
+              // Detect error 1008 ("Operation is not implemented, or supported, or enabled")
+              // which indicates Gemini native audio rejected a function call.
+              // Fall back to pipeline mode (STT + LLM + TTS) where tool calling works reliably.
+              // Close event error shape: { error: { body: { code: 1008, reason: "..." } } }
+              const err = closeInfo.error as { error?: { body?: { code?: number } }; body?: { code?: number } } | undefined;
+              const errorCode = err?.error?.body?.code ?? err?.body?.code;
+              if (currentMode === 'realtime' && errorCode === 1008 && hasTools) {
+                currentMode = 'pipeline';
+                console.log(`[agent] Error 1008 (tool call rejected) — falling back to pipeline mode`);
+              }
+
+              console.log(`[agent] Reconnecting in ${reconnectDelayMs}ms (attempt ${attempt}/${maxReconnects}, mode: ${currentMode})...`);
               await new Promise((r) => setTimeout(r, reconnectDelayMs));
               continue;
             }
