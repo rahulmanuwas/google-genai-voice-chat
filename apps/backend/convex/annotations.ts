@@ -57,6 +57,7 @@ export const listAnnotations = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("sessionId");
   const all = url.searchParams.get("all") === "true";
+  const filterApp = url.searchParams.get("appSlug") ?? undefined;
   const quality = url.searchParams.get("quality") ?? undefined;
   const limit = url.searchParams.get("limit");
 
@@ -74,7 +75,7 @@ export const listAnnotations = httpAction(async (ctx, request) => {
 
   // List annotations
   const annotations = await ctx.runQuery(internal.annotationsDb.list, {
-    appSlug: all ? undefined : auth.app.slug,
+    appSlug: filterApp ?? (all ? undefined : auth.app.slug),
     quality,
     limit: limit ? Number(limit) : undefined,
   });

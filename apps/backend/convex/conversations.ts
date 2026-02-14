@@ -52,13 +52,14 @@ export const listConversations = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? undefined;
   const all = url.searchParams.get("all") === "true";
+  const filterApp = url.searchParams.get("appSlug") ?? undefined;
 
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const conversations = await ctx.runQuery(
     internal.conversationsInternal.listConversations,
-    { appSlug: all ? undefined : auth.app.slug, status }
+    { appSlug: filterApp ?? (all ? undefined : auth.app.slug), status }
   );
 
   return jsonResponse({ conversations });

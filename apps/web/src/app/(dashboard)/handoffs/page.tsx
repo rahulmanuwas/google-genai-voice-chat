@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useHandoffs } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
+import { useAppFilter } from '@/lib/context/app-filter-context';
 import { ArrowRightLeft, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,10 +33,11 @@ import { formatDuration, timeAgo } from '@/lib/utils';
 
 export default function HandoffsPage() {
   const { api, ready } = useSession();
+  const { selectedApp } = useAppFilter();
   const [tab, setTab] = useState('all');
-  const { data, isLoading, mutate } = useHandoffs(tab === 'all' ? undefined : tab);
+  const { data, isLoading, mutate } = useHandoffs(tab === 'all' ? undefined : tab, selectedApp);
   // Fetch all handoffs separately for time metrics (always across all data)
-  const { data: allData } = useHandoffs();
+  const { data: allData } = useHandoffs(undefined, selectedApp);
 
   const [resolveDialogId, setResolveDialogId] = useState<string | null>(null);
   const [resolutionQuality, setResolutionQuality] = useState<string>('good');
@@ -108,7 +110,7 @@ export default function HandoffsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Handoffs" count={handoffs.length} />
+      <PageHeader title="Handoffs" count={handoffs.length} showAppFilter />
 
       {/* Time Metrics — always visible, computed from ALL resolved handoffs */}
       {timeMetrics && (

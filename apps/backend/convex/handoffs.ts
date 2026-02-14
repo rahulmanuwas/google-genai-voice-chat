@@ -120,13 +120,14 @@ export const listHandoffs = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const all = url.searchParams.get("all") === "true";
+  const filterApp = url.searchParams.get("appSlug") ?? undefined;
 
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const handoffs = await ctx.runQuery(
     internal.handoffsDb.listHandoffs,
-    { appSlug: all ? undefined : auth.app.slug, status: status ?? undefined }
+    { appSlug: filterApp ?? (all ? undefined : auth.app.slug), status: status ?? undefined }
   );
 
   return jsonResponse({ handoffs });

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useConversations, useMessages, useAnnotations } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
+import { useAppFilter } from '@/lib/context/app-filter-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,12 +65,13 @@ function AnnotationDot({ rating }: { rating?: string }) {
 
 export default function ConversationsPage() {
   const { ready } = useSession();
+  const { selectedApp } = useAppFilter();
   const [tab, setTab] = useState('all');
-  const { data, isLoading } = useConversations(tab === 'all' ? undefined : tab);
+  const { data, isLoading } = useConversations(tab === 'all' ? undefined : tab, selectedApp);
   const [sessionId, setSessionId] = useState('');
   const [searchId, setSearchId] = useState<string | null>(null);
   const { data: messagesData, isLoading: messagesLoading } = useMessages(searchId);
-  const { data: annotationsData } = useAnnotations();
+  const { data: annotationsData } = useAnnotations(undefined, selectedApp);
   const [annotationFilter, setAnnotationFilter] = useState('all');
 
   const annotationMap = useMemo(() => {

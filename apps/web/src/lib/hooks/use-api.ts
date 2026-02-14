@@ -43,34 +43,37 @@ function useApiSWR<T>(path: string | null, opts?: SWRConfiguration) {
 
 // ─── Overview ──────────────────────────────────────────────────
 
-export function useOverview(since?: number) {
+export function useOverview(since?: number, appSlug?: string | null) {
   const params = new URLSearchParams({ all: 'true' });
   if (since) params.set('since', String(since));
+  if (appSlug) params.set('appSlug', appSlug);
   return useApiSWR<OverviewData>(`/api/analytics/overview?${params}`);
 }
 
 // ─── Insights ──────────────────────────────────────────────────
 
-export function useInsights() {
-  return useApiSWR<{ insights: Insight[] }>('/api/analytics/insights?all=true');
+export function useInsights(appSlug?: string | null) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (appSlug) params.set('appSlug', appSlug);
+  return useApiSWR<{ insights: Insight[] }>(`/api/analytics/insights?${params}`);
 }
 
 // ─── Conversations ─────────────────────────────────────────────
 
-export function useConversations(status?: string) {
-  const path = status
-    ? `/api/conversations?all=true&status=${status}`
-    : '/api/conversations?all=true';
-  return useApiSWR<{ conversations: Conversation[] }>(path);
+export function useConversations(status?: string, appSlug?: string | null) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (status) params.set('status', status);
+  if (appSlug) params.set('appSlug', appSlug);
+  return useApiSWR<{ conversations: Conversation[] }>(`/api/conversations?${params}`);
 }
 
 // ─── Handoffs ──────────────────────────────────────────────────
 
-export function useHandoffs(status?: string) {
-  const path = status
-    ? `/api/handoffs?all=true&status=${status}`
-    : '/api/handoffs?all=true';
-  return useApiSWR<{ handoffs: Handoff[] }>(path);
+export function useHandoffs(status?: string, appSlug?: string | null) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (status) params.set('status', status);
+  if (appSlug) params.set('appSlug', appSlug);
+  return useApiSWR<{ handoffs: Handoff[] }>(`/api/handoffs?${params}`);
 }
 
 // ─── Tools ─────────────────────────────────────────────────────
@@ -173,9 +176,10 @@ export function useAnnotation(sessionId: string | null) {
   );
 }
 
-export function useAnnotations(quality?: string) {
+export function useAnnotations(quality?: string, appSlug?: string | null) {
   const params = new URLSearchParams({ all: 'true' });
   if (quality) params.set('quality', quality);
+  if (appSlug) params.set('appSlug', appSlug);
   return useApiSWR<{ annotations: ConversationAnnotation[] }>(`/api/annotations?${params}`);
 }
 

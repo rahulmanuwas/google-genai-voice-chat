@@ -71,18 +71,20 @@ export default function OverviewPage() {
     setSince(ms > 0 ? Date.now() - ms : undefined);
   }, []);
 
-  const { data: overview, isLoading: overviewLoading } = useOverview(since);
-  const { data: insightsData } = useInsights();
-  const { data: annotationsData } = useAnnotations();
-  const { data: conversationsData } = useConversations();
-  const { setAvailableApps } = useAppFilter();
+  const { selectedApp, setAvailableApps } = useAppFilter();
+  const { data: overview, isLoading: overviewLoading } = useOverview(since, selectedApp);
+  const { data: insightsData } = useInsights(selectedApp);
+  const { data: annotationsData } = useAnnotations(undefined, selectedApp);
+  const { data: conversationsData } = useConversations(undefined, selectedApp);
+  // Always fetch all conversations (unfiltered) to populate available apps
+  const { data: allConversationsData } = useConversations();
 
-  // Populate available apps from conversations data
+  // Populate available apps from all conversations
   useEffect(() => {
-    const conversations = conversationsData?.conversations ?? [];
+    const conversations = allConversationsData?.conversations ?? [];
     const apps = [...new Set(conversations.map((c) => c.appSlug).filter(Boolean))].sort();
     if (apps.length > 0) setAvailableApps(apps);
-  }, [conversationsData, setAvailableApps]);
+  }, [allConversationsData, setAvailableApps]);
 
   const unannotatedCount = useMemo(() => {
     const conversations = conversationsData?.conversations ?? [];
