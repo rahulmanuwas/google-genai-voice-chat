@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import type { Scenario } from '@/lib/scenarios';
 import {
@@ -20,33 +20,47 @@ import {
   Monitor,
   Play,
   Eye,
-  ChevronDown,
   ChevronRight,
-  CircleCheck,
-  CircleAlert,
-  Info,
-  CircleX,
   type LucideIcon,
 } from 'lucide-react';
 
 // ── Icon + color mapping ──────────────────────────────────────────
 
-const SUBSYSTEM_CONFIG: Record<DemoSubsystem, { Icon: LucideIcon; color: string; label: string }> = {
-  tool:         { Icon: Wrench,         color: 'text-emerald-400', label: 'Action' },
-  guardrail:    { Icon: ShieldCheck,    color: 'text-amber-400',   label: 'Safety' },
-  knowledge:    { Icon: BookOpen,       color: 'text-blue-400',    label: 'Knowledge' },
-  state:        { Icon: ArrowRightLeft, color: 'text-violet-400',  label: 'Data change' },
-  handoff:      { Icon: Users,          color: 'text-orange-400',  label: 'Escalation' },
-  conversation: { Icon: MessageCircle,  color: 'text-cyan-400',    label: 'Conversation' },
-  system:       { Icon: Monitor,        color: 'text-zinc-400',    label: 'System' },
+const SUBSYSTEM_CONFIG: Record<DemoSubsystem, { Icon: LucideIcon; color: string; dotColor: string; label: string }> = {
+  tool:         { Icon: Wrench,         color: 'text-emerald-400', dotColor: 'bg-emerald-400', label: 'Action' },
+  guardrail:    { Icon: ShieldCheck,    color: 'text-amber-400',   dotColor: 'bg-amber-400',   label: 'Safety' },
+  knowledge:    { Icon: BookOpen,       color: 'text-blue-400',    dotColor: 'bg-blue-400',    label: 'Knowledge' },
+  state:        { Icon: ArrowRightLeft, color: 'text-violet-400',  dotColor: 'bg-violet-400',  label: 'Data change' },
+  handoff:      { Icon: Users,          color: 'text-orange-400',  dotColor: 'bg-orange-400',  label: 'Escalation' },
+  conversation: { Icon: MessageCircle,  color: 'text-cyan-400',    dotColor: 'bg-cyan-400',    label: 'Conversation' },
+  system:       { Icon: Monitor,        color: 'text-zinc-400',    dotColor: 'bg-zinc-400',    label: 'System' },
 };
 
-const STATUS_ICON: Record<string, { Icon: LucideIcon; color: string }> = {
-  success: { Icon: CircleCheck, color: 'text-emerald-400' },
-  info:    { Icon: Info,        color: 'text-blue-400' },
-  warning: { Icon: CircleAlert, color: 'text-amber-400' },
-  error:   { Icon: CircleX,     color: 'text-red-400' },
-};
+// ── New item detection hook ───────────────────────────────────────
+
+function useNewItemIds(ids: string[]): Set<string> {
+  const prevIdsRef = useRef<Set<string>>(new Set());
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const prev = prevIdsRef.current;
+    const fresh = new Set<string>();
+    for (const id of ids) {
+      if (!prev.has(id)) fresh.add(id);
+    }
+
+    if (fresh.size > 0) {
+      setNewIds(fresh);
+      const timer = setTimeout(() => setNewIds(new Set()), 400);
+      prevIdsRef.current = new Set(ids);
+      return () => clearTimeout(timer);
+    }
+
+    prevIdsRef.current = new Set(ids);
+  }, [ids]);
+
+  return newIds;
+}
 
 // ── Component ─────────────────────────────────────────────────────
 
@@ -143,10 +157,12 @@ export function DemoObservabilityPanel({
   );
 }
 
-// ── Activity feed (collapsible) ───────────────────────────────────
+// ── Activity feed — vertical timeline ─────────────────────────────
 
 function ActivitySection({ timeline }: { timeline: DemoTimelineEvent[] }) {
   const [open, setOpen] = useState(true);
+  const eventIds = useMemo(() => timeline.slice(0, 10).map((e) => e.id), [timeline]);
+  const newIds = useNewItemIds(eventIds);
 
   return (
     <div>
@@ -155,34 +171,39 @@ function ActivitySection({ timeline }: { timeline: DemoTimelineEvent[] }) {
         onClick={() => setOpen((prev) => !prev)}
         className="mb-2 flex w-full items-center gap-2 text-left"
       >
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
+        <ChevronRight
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+        />
         <span className="text-[13px] font-medium text-muted-foreground">Activity</span>
         <Badge variant="secondary" className="ml-1 text-[10px]">{timeline.length}</Badge>
+        <div className="ml-2 h-px flex-1 bg-border" />
       </button>
       {open && (
-        <div className="space-y-1 pl-1">
+        <div className="relative ml-[7px] border-l border-border pl-4 pt-1">
           {timeline.slice(0, 10).map((event) => {
             const subsystem = SUBSYSTEM_CONFIG[event.subsystem];
-            const status = STATUS_ICON[event.status] ?? STATUS_ICON.info;
-            const StatusIcon = status.Icon;
+            const isNew = newIds.has(event.id);
 
             return (
-              <div key={event.id} className="flex items-start gap-2 rounded-md px-2 py-1.5">
-                <StatusIcon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${status.color}`} />
+              <div
+                key={event.id}
+                className={`relative mb-2.5 flex items-start gap-2.5 last:mb-0 ${isNew ? 'animate-slide-in-left' : ''}`}
+              >
+                {/* Timeline dot */}
+                <span
+                  className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-2 ring-background ${subsystem.dotColor}`}
+                />
+                {/* Content */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <subsystem.Icon className={`h-3 w-3 shrink-0 ${subsystem.color}`} />
                     <span className="text-xs font-medium">{event.title}</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{timeAgo(event.ts)}</span>
                   </div>
                   {event.detail && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug">{event.detail}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug line-clamp-1">{event.detail}</p>
                   )}
                 </div>
-                <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(event.ts)}</span>
               </div>
             );
           })}
@@ -192,10 +213,12 @@ function ActivitySection({ timeline }: { timeline: DemoTimelineEvent[] }) {
   );
 }
 
-// ── Data changes (collapsible) ────────────────────────────────────
+// ── Data changes — compact inline diffs ───────────────────────────
 
 function DataChangesSection({ stateChanges }: { stateChanges: ScenarioStateChange[] }) {
   const [open, setOpen] = useState(true);
+  const changeIds = useMemo(() => stateChanges.slice(0, 6).map((c) => c.id), [stateChanges]);
+  const newIds = useNewItemIds(changeIds);
 
   return (
     <div>
@@ -204,40 +227,45 @@ function DataChangesSection({ stateChanges }: { stateChanges: ScenarioStateChang
         onClick={() => setOpen((prev) => !prev)}
         className="mb-2 flex w-full items-center gap-2 text-left"
       >
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
+        <ChevronRight
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+        />
         <span className="text-[13px] font-medium text-muted-foreground">Data Changes</span>
         <Badge variant="secondary" className="ml-1 text-[10px]">{stateChanges.length}</Badge>
+        <div className="ml-2 h-px flex-1 bg-border" />
       </button>
       {open && (
         <div className="space-y-2 pl-1">
-          {stateChanges.slice(0, 6).map((change) => (
-            <div key={change.id} className="rounded-lg border border-border bg-card/50 px-3 py-2.5">
-              <div className="mb-2 flex items-center gap-2">
-                <ArrowRightLeft className="h-3.5 w-3.5 text-violet-400" />
-                <span className="text-xs font-medium">{change.title}</span>
+          {stateChanges.slice(0, 6).map((change) => {
+            const isNew = newIds.has(change.id);
+
+            return (
+              <div
+                key={change.id}
+                className={`rounded-lg border border-border bg-card/50 px-3 py-2.5 ${isNew ? 'animate-scale-in' : ''}`}
+              >
+                {/* Header: title + tool chip */}
+                <div className="mb-1.5 flex items-center gap-2">
+                  <ArrowRightLeft className="h-3.5 w-3.5 text-violet-400" />
+                  <span className="text-xs font-medium">{change.title}</span>
+                  {change.inferredTool && (
+                    <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                      <Wrench className="h-2.5 w-2.5" />
+                      {change.inferredTool}
+                    </span>
+                  )}
+                </div>
+                {/* Inline diff: old → new */}
+                <div className="flex items-center gap-2 text-[12px]">
+                  <span className="text-muted-foreground/60 line-through">{change.before}</span>
+                  <span className="text-muted-foreground">→</span>
+                  <span className={`font-medium text-emerald-400 ${isNew ? 'animate-highlight-flash' : ''}`}>
+                    {change.after}
+                  </span>
+                </div>
               </div>
-              <div className="space-y-1 rounded-md bg-muted/30 px-2.5 py-2 font-mono text-[11px]">
-                <div className="flex gap-2">
-                  <span className="shrink-0 text-red-400">−</span>
-                  <span className="text-muted-foreground">{change.before}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="shrink-0 text-emerald-400">+</span>
-                  <span className="text-foreground/80">{change.after}</span>
-                </div>
-              </div>
-              {change.inferredTool && (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <Wrench className="h-3 w-3 text-emerald-400" />
-                  <span className="text-[11px] text-muted-foreground">{change.inferredTool}</span>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
