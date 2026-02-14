@@ -24,8 +24,10 @@ import {
   ScanSearch,
   NotebookPen,
   ChevronDown,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/context/auth-context';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -107,6 +109,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
 
   const [groupStates, setGroupStates] = useState<Record<string, boolean>>(() => {
     const states: Record<string, boolean> = {};
@@ -247,8 +250,50 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         </div>
       </nav>
 
-      {/* Bottom brand glow */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-brand/[0.03] to-transparent" />
+      {/* User info */}
+      {user && (
+        <div className={cn('border-t border-sidebar-border p-3', collapsed && 'md:px-2')}>
+          <div className={cn('flex items-center gap-3', collapsed && 'md:justify-center')}>
+            {user.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-full"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/20 text-xs font-medium text-brand">
+                {(user.displayName || user.email || '?')[0].toUpperCase()}
+              </div>
+            )}
+            {isExpanded && (
+              <>
+                <div className={cn('min-w-0 flex-1', collapsed && 'md:hidden')}>
+                  <p className="truncate text-sm font-medium text-sidebar-foreground">
+                    {user.displayName || 'User'}
+                  </p>
+                  <p className="truncate text-xs text-sidebar-foreground/50">
+                    {user.email}
+                  </p>
+                </div>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={signOut}
+                      className={cn('h-7 w-7 shrink-0 text-sidebar-foreground/50 hover:text-sidebar-foreground', collapsed && 'md:hidden')}
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Sign out</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
