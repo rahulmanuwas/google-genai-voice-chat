@@ -10,6 +10,8 @@ export const upsertScenario = internalMutation({
     turns: v.string(),
     expectations: v.string(),
     tags: v.optional(v.string()),
+    evaluatorType: v.optional(v.string()),
+    llmJudgeCriteria: v.optional(v.string()),
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -27,6 +29,8 @@ export const upsertScenario = internalMutation({
         turns: args.turns,
         expectations: args.expectations,
         tags: args.tags,
+        evaluatorType: args.evaluatorType,
+        llmJudgeCriteria: args.llmJudgeCriteria,
         isActive: args.isActive,
         updatedAt: now,
       });
@@ -40,6 +44,8 @@ export const upsertScenario = internalMutation({
       turns: args.turns,
       expectations: args.expectations,
       tags: args.tags,
+      evaluatorType: args.evaluatorType,
+      llmJudgeCriteria: args.llmJudgeCriteria,
       isActive: args.isActive,
       createdAt: now,
       updatedAt: now,
@@ -99,6 +105,8 @@ export const createRun = internalMutation({
     passedChecks: v.float64(),
     results: v.string(),
     input: v.optional(v.string()),
+    executionMode: v.optional(v.string()),
+    llmJudgeScores: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();

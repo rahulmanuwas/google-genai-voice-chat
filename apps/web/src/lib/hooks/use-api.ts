@@ -21,6 +21,8 @@ import type {
   OutboundDispatch,
   Message,
   Conversation,
+  ConversationAnnotation,
+  TraceTimelineEvent,
 } from '@/types/api';
 
 function useAuthFetcher() {
@@ -161,4 +163,29 @@ export function useConversationBySession(sessionId: string | null) {
   );
   const conversation = data?.conversations?.find((c) => c.sessionId === sessionId) ?? null;
   return { data: conversation, ...rest };
+}
+
+// ─── Annotations (Error Analysis) ──────────────────────────────
+
+export function useAnnotation(sessionId: string | null) {
+  return useApiSWR<{ annotation: ConversationAnnotation | null }>(
+    sessionId ? `/api/annotations?sessionId=${sessionId}` : null,
+  );
+}
+
+export function useAnnotations(quality?: string) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (quality) params.set('quality', quality);
+  return useApiSWR<{ annotations: ConversationAnnotation[] }>(`/api/annotations?${params}`);
+}
+
+// ─── Trace Timeline ─────────────────────────────────────────────
+
+export function useTraceTimeline(traceId: string | null, sessionId?: string) {
+  const params = new URLSearchParams();
+  if (traceId) params.set('traceId', traceId);
+  if (sessionId) params.set('sessionId', sessionId);
+  return useApiSWR<{ traceId: string; timeline: TraceTimelineEvent[] }>(
+    traceId ? `/api/traces?${params}` : null,
+  );
 }

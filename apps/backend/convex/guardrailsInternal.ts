@@ -137,6 +137,28 @@ export const getRules = internalQuery({
   },
 });
 
+/** Annotate a violation's correctness (true positive / false positive) */
+export const annotateViolation = internalMutation({
+  args: {
+    violationId: v.id("guardrailViolations"),
+    annotatedCorrectness: v.string(), // 'true_positive' | 'false_positive'
+    annotatedBy: v.string(),
+    appSlug: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const violation = await ctx.db.get(args.violationId);
+    if (!violation) throw new Error("Violation not found");
+    if (violation.appSlug !== args.appSlug) {
+      throw new Error("Violation does not belong to this app");
+    }
+    await ctx.db.patch(args.violationId, {
+      annotatedCorrectness: args.annotatedCorrectness,
+      annotatedBy: args.annotatedBy,
+      annotatedAt: Date.now(),
+    });
+  },
+});
+
 /** List guardrail violations (optionally filtered by app) */
 export const listViolations = internalQuery({
   args: { appSlug: v.optional(v.string()) },

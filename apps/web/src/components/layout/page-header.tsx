@@ -1,13 +1,15 @@
 import { Badge } from '@/components/ui/badge';
+import { AppSelector } from './app-selector';
 
 interface PageHeaderProps {
   title: string;
   description?: string;
   count?: number;
+  showAppFilter?: boolean;
   children?: React.ReactNode;
 }
 
-export function PageHeader({ title, description, count, children }: PageHeaderProps) {
+export function PageHeader({ title, description, count, showAppFilter, children }: PageHeaderProps) {
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between pb-2">
       <div>
@@ -18,6 +20,7 @@ export function PageHeader({ title, description, count, children }: PageHeaderPr
               {count}
             </Badge>
           )}
+          {showAppFilter && <AppSelector />}
         </div>
         {description && (
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>

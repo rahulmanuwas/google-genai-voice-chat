@@ -118,6 +118,10 @@ export default defineSchema({
     aiSummary: v.optional(v.string()),
     assignedAgent: v.optional(v.string()),
     customerData: v.optional(v.string()),
+    // Quality metrics
+    necessityScore: v.optional(v.float64()), // 0-1
+    resolutionQuality: v.optional(v.string()), // 'excellent' | 'good' | 'poor'
+    agentFeedback: v.optional(v.string()),
     createdAt: v.float64(),
     claimedAt: v.optional(v.float64()),
     resolvedAt: v.optional(v.float64()),
@@ -150,6 +154,10 @@ export default defineSchema({
     direction: v.string(),
     content: v.string(),
     action: v.string(),
+    // Effectiveness annotations
+    annotatedCorrectness: v.optional(v.string()), // 'true_positive' | 'false_positive'
+    annotatedBy: v.optional(v.string()),
+    annotatedAt: v.optional(v.float64()),
     createdAt: v.float64(),
   })
     .index("by_app", ["appSlug"])
@@ -256,6 +264,8 @@ export default defineSchema({
     turns: v.string(),
     expectations: v.string(),
     tags: v.optional(v.string()),
+    evaluatorType: v.optional(v.string()), // 'string_match' | 'llm_judge' | 'hybrid'
+    llmJudgeCriteria: v.optional(v.string()), // JSON array of {name, description, weight}
     isActive: v.boolean(),
     createdAt: v.float64(),
     updatedAt: v.float64(),
@@ -275,6 +285,8 @@ export default defineSchema({
     passedChecks: v.float64(),
     results: v.string(),
     input: v.optional(v.string()),
+    executionMode: v.optional(v.string()), // 'manual' | 'automated' | 'ci'
+    llmJudgeScores: v.optional(v.string()), // JSON per-criterion scores + reasoning
     createdAt: v.float64(),
     completedAt: v.float64(),
   })
@@ -402,6 +414,25 @@ export default defineSchema({
     createdAt: v.float64(),
     updatedAt: v.float64(),
   }).index("by_active", ["isActive"]),
+
+  // ─── Conversation Annotations (Error Analysis) ─────────────────
+
+  conversationAnnotations: defineTable({
+    appSlug: v.string(),
+    sessionId: v.string(),
+    conversationId: v.optional(v.id("conversations")),
+    qualityRating: v.string(), // 'good' | 'bad' | 'mixed'
+    failureModes: v.string(),  // JSON string[]
+    notes: v.string(),
+    annotatedBy: v.string(),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+  })
+    .index("by_conversation", ["conversationId"])
+    .index("by_session", ["sessionId"])
+    .index("by_app", ["appSlug"])
+    .index("by_quality", ["qualityRating"])
+    .index("by_app_createdAt", ["appSlug", "createdAt"]),
 
   // ─── Scenario State (Live Demo Data) ──────────────────────────
 

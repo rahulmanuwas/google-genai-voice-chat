@@ -78,6 +78,40 @@ export const listViolations = httpAction(async (ctx, request) => {
   return jsonResponse({ violations });
 });
 
+/** PATCH /api/guardrails/violations — Annotate violation correctness (TP/FP) */
+export const annotateViolation = httpAction(async (ctx, request) => {
+  const body = await request.json();
+  const { appSlug, appSecret, sessionToken, violationId, annotatedCorrectness, annotatedBy } = body as {
+    appSlug?: string;
+    appSecret?: string;
+    sessionToken?: string;
+    violationId: string;
+    annotatedCorrectness: "true_positive" | "false_positive";
+    annotatedBy?: string;
+  };
+
+  if (!violationId || !annotatedCorrectness) {
+    return jsonResponse({ error: "Missing required fields: violationId, annotatedCorrectness" }, 400);
+  }
+
+  if (!["true_positive", "false_positive"].includes(annotatedCorrectness)) {
+    return jsonResponse({ error: "annotatedCorrectness must be 'true_positive' or 'false_positive'" }, 400);
+  }
+
+  const auth = await authenticateRequest(ctx, { appSlug, appSecret, sessionToken });
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  await ctx.runMutation(internal.guardrailsInternal.annotateViolation, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    violationId: violationId as any,
+    annotatedCorrectness,
+    annotatedBy: annotatedBy ?? "dashboard-user",
+    appSlug: auth.app.slug,
+  });
+
+  return jsonResponse({ ok: true });
+});
+
 /** GET /api/guardrails/rules — List all guardrail rules */
 export const listRules = httpAction(async (ctx, request) => {
   const url = new URL(request.url);

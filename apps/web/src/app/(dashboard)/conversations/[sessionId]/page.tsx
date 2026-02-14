@@ -1,14 +1,19 @@
 'use client';
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
-import { useMessages, useConversationBySession } from '@/lib/hooks/use-api';
+import Link from 'next/link';
+import { useMessages, useConversationBySession, useAnnotation } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { formatDuration, timeAgo } from '@/lib/utils';
-import { Sparkles, ThumbsUp, ThumbsDown, Minus, ArrowUpDown } from 'lucide-react';
+import { Sparkles, ThumbsUp, ThumbsDown, Minus, ArrowUpDown, ScanSearch, Save, CheckCircle2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { FAILURE_MODES, type FailureMode } from '@/types/api';
 
 interface TranscriptMessage {
   id: string;
@@ -37,13 +42,56 @@ export default function ConversationDetailPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = use(params);
-  const { ready } = useSession();
+  const { api, ready } = useSession();
   const { data: messagesData, isLoading: messagesLoading } = useMessages(ready ? sessionId : null);
   const { data: conversation, isLoading: convLoading } = useConversationBySession(ready ? sessionId : null);
+  const { data: annotationData, mutate: mutateAnnotation } = useAnnotation(ready ? sessionId : null);
 
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  // Annotation state
+  const [qualityRating, setQualityRating] = useState<'good' | 'bad' | 'mixed' | null>(null);
+  const [selectedFailureModes, setSelectedFailureModes] = useState<FailureMode[]>([]);
+  const [annotationNotes, setAnnotationNotes] = useState('');
+  const [annotationSaving, setAnnotationSaving] = useState(false);
+  const [annotationSaved, setAnnotationSaved] = useState(false);
+
+  // Hydrate from existing annotation
+  useEffect(() => {
+    const annotation = annotationData?.annotation;
+    if (annotation) {
+      setQualityRating(annotation.qualityRating);
+      setSelectedFailureModes(annotation.failureModes as FailureMode[]);
+      setAnnotationNotes(annotation.notes);
+    }
+  }, [annotationData]);
+
+  const toggleFailureMode = useCallback((mode: FailureMode) => {
+    setSelectedFailureModes((prev) =>
+      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode],
+    );
+    setAnnotationSaved(false);
+  }, []);
+
+  const handleSaveAnnotation = useCallback(async () => {
+    if (!api || !qualityRating) return;
+    setAnnotationSaving(true);
+    try {
+      await api.post('/api/annotations', {
+        sessionId,
+        conversationId: conversation?._id,
+        qualityRating,
+        failureModes: selectedFailureModes,
+        notes: annotationNotes,
+      });
+      setAnnotationSaved(true);
+      mutateAnnotation();
+    } finally {
+      setAnnotationSaving(false);
+    }
+  }, [api, sessionId, conversation, qualityRating, selectedFailureModes, annotationNotes, mutateAnnotation]);
 
   // Combine messages from the messages table and the conversation transcript field
   const transcript = useMemo<TranscriptMessage[]>(() => {
@@ -220,6 +268,106 @@ export default function ConversationDetailPage({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Annotation Panel */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-3">
+          <CheckCircle2 className="h-4 w-4 text-blue-500" />
+          <CardTitle className="text-sm font-medium">Quality Annotation</CardTitle>
+          {annotationData?.annotation && (
+            <Badge variant="secondary" className="ml-auto text-xs">
+              Annotated {timeAgo(annotationData.annotation.updatedAt)}
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Quality Rating */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Quality Rating</Label>
+            <div className="flex gap-2">
+              {(['good', 'bad', 'mixed'] as const).map((rating) => (
+                <Button
+                  key={rating}
+                  size="sm"
+                  variant={qualityRating === rating ? 'default' : 'outline'}
+                  onClick={() => { setQualityRating(rating); setAnnotationSaved(false); }}
+                  className="gap-1.5"
+                >
+                  {rating === 'good' && <ThumbsUp className="h-3.5 w-3.5" />}
+                  {rating === 'bad' && <ThumbsDown className="h-3.5 w-3.5" />}
+                  {rating === 'mixed' && <ArrowUpDown className="h-3.5 w-3.5" />}
+                  <span className="capitalize">{rating}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Failure Modes */}
+          {(qualityRating === 'bad' || qualityRating === 'mixed') && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Failure Modes</Label>
+              <div className="flex flex-wrap gap-2">
+                {FAILURE_MODES.map((mode) => (
+                  <Badge
+                    key={mode}
+                    variant={selectedFailureModes.includes(mode) ? 'default' : 'outline'}
+                    className="cursor-pointer text-xs hover:opacity-80"
+                    onClick={() => toggleFailureMode(mode)}
+                  >
+                    {mode.replace(/_/g, ' ')}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Notes</Label>
+            <Textarea
+              value={annotationNotes}
+              onChange={(e) => { setAnnotationNotes(e.target.value); setAnnotationSaved(false); }}
+              placeholder="What went wrong? What could be improved?"
+              rows={3}
+              className="text-sm"
+            />
+          </div>
+
+          {/* Save */}
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              onClick={() => void handleSaveAnnotation()}
+              disabled={!qualityRating || annotationSaving}
+            >
+              {annotationSaving ? (
+                <>
+                  <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-1.5 h-3.5 w-3.5" />
+                  Save Annotation
+                </>
+              )}
+            </Button>
+            {annotationSaved && (
+              <span className="text-xs text-emerald-500">Saved</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* View Full Trace */}
+      {messagesData?.messages?.[0]?.traceId && (
+        <Link href={`/traces/${messagesData.messages[0].traceId}?sessionId=${sessionId}`}>
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <ScanSearch className="h-3.5 w-3.5" />
+            View Full Trace
+          </Button>
+        </Link>
       )}
 
       {/* Transcript */}

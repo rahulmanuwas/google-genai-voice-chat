@@ -23,12 +23,15 @@ export const createHandoff = internalMutation({
   },
 });
 
-/** Update handoff status (claim or resolve) */
+/** Update handoff status (claim or resolve) with optional quality feedback */
 export const updateHandoffStatus = internalMutation({
   args: {
     handoffId: v.id("handoffs"),
     status: v.string(),
     assignedAgent: v.optional(v.string()),
+    necessityScore: v.optional(v.float64()),
+    resolutionQuality: v.optional(v.string()),
+    agentFeedback: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const handoff = await ctx.db.get(args.handoffId);
@@ -42,6 +45,11 @@ export const updateHandoffStatus = internalMutation({
     } else if (args.status === "resolved") {
       updates.resolvedAt = Date.now();
     }
+
+    // Quality feedback fields
+    if (args.necessityScore !== undefined) updates.necessityScore = args.necessityScore;
+    if (args.resolutionQuality) updates.resolutionQuality = args.resolutionQuality;
+    if (args.agentFeedback) updates.agentFeedback = args.agentFeedback;
 
     await ctx.db.patch(handoff._id, updates);
   },

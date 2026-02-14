@@ -13,7 +13,7 @@ import { createSession } from "./sessions";
 // ─── Phase 1 handlers ───────────────────────────────────────────
 import { listTools, executeTool, registerTool, listExecutions as listToolExecutions, listAllTools } from "./tools";
 import { createHandoff, updateHandoff, listHandoffs } from "./handoffs";
-import { checkGuardrails, upsertRule, listRules, listViolations } from "./guardrails";
+import { checkGuardrails, upsertRule, listRules, listViolations, annotateViolation } from "./guardrails";
 import { upsertDocument, searchKnowledge, listGaps, listDocuments as listKnowledgeDocs, searchMetrics } from "./knowledge";
 import { submitCSAT, getInsights, getOverview, clusterTopics } from "./analytics";
 import {
@@ -43,6 +43,8 @@ import {
   listOutboundDispatches,
 } from "./outbound";
 import { getScenarioState, resetScenarioState } from "./scenarioState";
+import { upsertAnnotation, listAnnotations } from "./annotations";
+import { getTraceTimeline } from "./traces";
 
 const http = httpRouter();
 
@@ -106,6 +108,7 @@ post("/api/guardrails/check", checkGuardrails);
 post("/api/guardrails/rules", upsertRule);
 get("/api/guardrails/rules", listRules);
 get("/api/guardrails/violations", listViolations);
+patch("/api/guardrails/violations", annotateViolation);
 
 // ─── Knowledge (RAG) ────────────────────────────────────────────
 post("/api/knowledge", upsertDocument);
@@ -158,6 +161,13 @@ post("/api/outbound/triggers", upsertOutboundTrigger);
 get("/api/outbound/triggers", listOutboundTriggers);
 post("/api/outbound/dispatch", dispatchOutbound);
 get("/api/outbound/dispatches", listOutboundDispatches);
+
+// ─── Annotations (Error Analysis) ───────────────────────────────
+post("/api/annotations", upsertAnnotation);
+get("/api/annotations", listAnnotations);
+
+// ─── Trace Timeline ─────────────────────────────────────────────
+get("/api/traces", getTraceTimeline);
 
 // ─── Scenario State (Live Demo Data) ───────────────────────────
 get("/api/scenario-state", getScenarioState);

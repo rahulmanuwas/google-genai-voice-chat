@@ -76,16 +76,23 @@ export const createHandoff = httpAction(async (ctx, request) => {
   return jsonResponse({ id: handoffId });
 });
 
-/** PATCH /api/handoffs — Update handoff status (claim, resolve) */
+/** PATCH /api/handoffs — Update handoff status (claim, resolve) with optional quality feedback */
 export const updateHandoff = httpAction(async (ctx, request) => {
   const body = await request.json();
-  const { appSlug, appSecret, sessionToken, handoffId, status, assignedAgent } = body as {
+  const {
+    appSlug, appSecret, sessionToken,
+    handoffId, status, assignedAgent,
+    necessityScore, resolutionQuality, agentFeedback,
+  } = body as {
     appSlug?: string;
     appSecret?: string;
     sessionToken?: string;
     handoffId: string;
     status: string;
     assignedAgent?: string;
+    necessityScore?: number;
+    resolutionQuality?: string;
+    agentFeedback?: string;
   };
 
   if (!handoffId || !status) {
@@ -96,9 +103,13 @@ export const updateHandoff = httpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   await ctx.runMutation(internal.handoffsDb.updateHandoffStatus, {
-    handoffId,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    handoffId: handoffId as any,
     status,
     assignedAgent,
+    necessityScore,
+    resolutionQuality,
+    agentFeedback,
   });
 
   return jsonResponse({ ok: true });

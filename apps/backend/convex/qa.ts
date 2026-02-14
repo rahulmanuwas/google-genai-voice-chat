@@ -119,6 +119,8 @@ export const upsertQaScenario = httpAction(async (ctx, request) => {
     expectations,
     tags,
     isActive,
+    evaluatorType,
+    llmJudgeCriteria,
   } = body as {
     appSlug?: string;
     appSecret?: string;
@@ -129,6 +131,8 @@ export const upsertQaScenario = httpAction(async (ctx, request) => {
     expectations?: QaExpectations;
     tags?: string[];
     isActive?: boolean;
+    evaluatorType?: string;
+    llmJudgeCriteria?: Array<{ name: string; description: string; weight?: number }>;
   };
 
   if (!name || !Array.isArray(turns) || turns.length === 0) {
@@ -152,6 +156,8 @@ export const upsertQaScenario = httpAction(async (ctx, request) => {
     turns: JSON.stringify(turns),
     expectations: JSON.stringify(expectations ?? {}),
     tags: tags && tags.length > 0 ? JSON.stringify(tags) : undefined,
+    evaluatorType: evaluatorType ?? undefined,
+    llmJudgeCriteria: llmJudgeCriteria ? JSON.stringify(llmJudgeCriteria) : undefined,
     isActive: isActive ?? true,
   });
 
@@ -175,11 +181,16 @@ export const listQaScenarios = httpAction(async (ctx, request) => {
   });
 
   return jsonResponse({
-    scenarios: scenarios.map((scenario) => ({
+    scenarios: scenarios.map((scenario: any) => ({
       ...scenario,
       turns: parseJson<QaScenarioTurn[]>(scenario.turns, []),
       expectations: parseJson<QaExpectations>(scenario.expectations, {}),
       tags: parseJson<string[]>(scenario.tags, []),
+      evaluatorType: scenario.evaluatorType ?? "string_match",
+      llmJudgeCriteria: parseJson<Array<{ name: string; description: string; weight?: number }>>(
+        scenario.llmJudgeCriteria,
+        [],
+      ),
     })),
   });
 });
@@ -196,6 +207,8 @@ export const runQaScenario = httpAction(async (ctx, request) => {
     responseText,
     calledTools,
     handoffTriggered,
+    useLlmJudge,
+    executionMode,
   } = body as {
     appSlug?: string;
     appSecret?: string;
@@ -205,6 +218,8 @@ export const runQaScenario = httpAction(async (ctx, request) => {
     responseText: string;
     calledTools?: string[];
     handoffTriggered?: boolean;
+    useLlmJudge?: boolean;
+    executionMode?: string;
   };
 
   if (!scenarioId || typeof responseText !== "string") {
@@ -220,6 +235,22 @@ export const runQaScenario = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "Scenario not found" }, 404);
   }
 
+  // If scenario has LLM judge criteria or useLlmJudge flag, use the LLM judge path
+  const evaluatorType = scenario.evaluatorType ?? "string_match";
+  if (useLlmJudge || evaluatorType === "llm_judge" || evaluatorType === "hybrid") {
+    const result = await ctx.runAction(internal.qaInternal.runWithLlmJudge, {
+      appSlug: auth.app.slug,
+      scenarioId,
+      sessionId,
+      responseText,
+      calledTools: JSON.stringify(Array.isArray(calledTools) ? calledTools : []),
+      handoffTriggered: Boolean(handoffTriggered),
+      executionMode: executionMode ?? "manual",
+    });
+    return jsonResponse(result);
+  }
+
+  // Standard string_match evaluation
   const expectations = parseJson<QaExpectations>(scenario.expectations, {});
   const evaluation = evaluateQaRun({
     responseText,
@@ -248,6 +279,7 @@ export const runQaScenario = httpAction(async (ctx, request) => {
     passedChecks: evaluation.passedChecks,
     results: JSON.stringify(evaluation.results),
     input: JSON.stringify(input),
+    executionMode: executionMode ?? "manual",
   });
 
   return jsonResponse({
@@ -278,10 +310,15 @@ export const listQaRuns = httpAction(async (ctx, request) => {
   });
 
   return jsonResponse({
-    runs: runs.map((run) => ({
+    runs: runs.map((run: any) => ({
       ...run,
       results: parseJson<QaCheckResult[]>(run.results, []),
       input: parseJson<Record<string, unknown>>(run.input, {}),
+      llmJudgeScores: parseJson<Array<{ criterion: string; passed: boolean; reasoning: string }>>(
+        run.llmJudgeScores,
+        [],
+      ),
+      executionMode: run.executionMode ?? "manual",
     })),
   });
 });

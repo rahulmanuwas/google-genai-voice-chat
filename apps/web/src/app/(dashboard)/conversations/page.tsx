@@ -1,14 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useConversations, useMessages } from '@/lib/hooks/use-api';
+import { useConversations, useMessages, useAnnotations } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Search, MessageSquare } from 'lucide-react';
 import { timeAgo, formatDuration } from '@/lib/utils';
 import { PageHeader } from '@/components/layout/page-header';
@@ -27,7 +34,6 @@ function getTranscriptPreview(c: Conversation): string {
         ? firstUser.content.slice(0, 80) + '...'
         : firstUser.content;
     }
-    // If no user message, show first message
     const first = msgs.find((m) => m.content);
     if (first?.content) {
       return first.content.length > 80
@@ -40,6 +46,22 @@ function getTranscriptPreview(c: Conversation): string {
   return '—';
 }
 
+const ANNOTATION_DOT_COLORS: Record<string, string> = {
+  good: 'bg-emerald-500',
+  bad: 'bg-red-500',
+  mixed: 'bg-amber-500',
+};
+
+function AnnotationDot({ rating }: { rating?: string }) {
+  if (!rating) return null;
+  return (
+    <span
+      className={`inline-block h-2 w-2 rounded-full shrink-0 ${ANNOTATION_DOT_COLORS[rating] ?? 'bg-muted-foreground'}`}
+      title={`Quality: ${rating}`}
+    />
+  );
+}
+
 export default function ConversationsPage() {
   const { ready } = useSession();
   const [tab, setTab] = useState('all');
@@ -47,6 +69,30 @@ export default function ConversationsPage() {
   const [sessionId, setSessionId] = useState('');
   const [searchId, setSearchId] = useState<string | null>(null);
   const { data: messagesData, isLoading: messagesLoading } = useMessages(searchId);
+  const { data: annotationsData } = useAnnotations();
+  const [annotationFilter, setAnnotationFilter] = useState('all');
+
+  const annotationMap = useMemo(() => {
+    const map = new Map<string, { qualityRating: string }>();
+    for (const a of annotationsData?.annotations ?? []) {
+      map.set(a.sessionId, { qualityRating: a.qualityRating });
+    }
+    return map;
+  }, [annotationsData]);
+
+  const allConversations = data?.conversations ?? [];
+  const messages = messagesData?.messages ?? [];
+
+  const conversations = useMemo(() => {
+    if (annotationFilter === 'all') return allConversations;
+    if (annotationFilter === 'annotated') return allConversations.filter((c) => annotationMap.has(c.sessionId));
+    if (annotationFilter === 'unannotated') return allConversations.filter((c) => !annotationMap.has(c.sessionId));
+    return allConversations.filter((c) => annotationMap.get(c.sessionId)?.qualityRating === annotationFilter);
+  }, [allConversations, annotationFilter, annotationMap]);
+
+  const unannotatedCount = useMemo(() => {
+    return allConversations.filter((c) => !annotationMap.has(c.sessionId)).length;
+  }, [allConversations, annotationMap]);
 
   const handleSearch = () => {
     if (sessionId.trim()) setSearchId(sessionId.trim());
@@ -60,13 +106,28 @@ export default function ConversationsPage() {
     );
   }
 
-  const conversations = data?.conversations ?? [];
-  const messages = messagesData?.messages ?? [];
-
   return (
     <div className="space-y-6">
-      <PageHeader title="Conversations" count={conversations.length}>
+      <PageHeader
+        title="Conversations"
+        count={conversations.length}
+        description={unannotatedCount > 0 ? `${unannotatedCount} need review` : undefined}
+        showAppFilter
+      >
         <div className="flex items-center gap-2">
+          <Select value={annotationFilter} onValueChange={setAnnotationFilter}>
+            <SelectTrigger className="h-8 w-36 text-xs">
+              <SelectValue placeholder="Annotations" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="annotated">Annotated</SelectItem>
+              <SelectItem value="unannotated">Unannotated</SelectItem>
+              <SelectItem value="good">Good</SelectItem>
+              <SelectItem value="bad">Bad</SelectItem>
+              <SelectItem value="mixed">Mixed</SelectItem>
+            </SelectContent>
+          </Select>
           <Input
             placeholder="Session ID lookup..."
             value={sessionId}
@@ -137,59 +198,71 @@ export default function ConversationsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-muted-foreground">
-                        <th className="p-3 font-medium">App</th>
-                        <th className="p-3 font-medium">Preview</th>
+                        <th className="p-3 font-medium w-[50%]">Preview</th>
                         <th className="p-3 font-medium">Status</th>
-                        <th className="p-3 font-medium">Channel</th>
                         <th className="p-3 font-medium">Msgs</th>
                         <th className="p-3 font-medium">Duration</th>
                         <th className="p-3 font-medium">Started</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {conversations.map((c) => (
-                        <tr key={c._id} className="border-b border-border last:border-0 hover:bg-muted/50">
-                          <td className="p-3">
-                            <Badge variant="secondary" className="text-xs">{c.appSlug}</Badge>
-                          </td>
-                          <td className="p-3 max-w-xs">
-                            <Link href={`/conversations/${c.sessionId}`} className="text-blue-400 hover:underline text-xs">
-                              {getTranscriptPreview(c)}
-                            </Link>
-                          </td>
-                          <td className="p-3">
-                            <StatusBadge value={c.status ?? 'active'} />
-                          </td>
-                          <td className="p-3 text-muted-foreground">{c.channel ?? '—'}</td>
-                          <td className="p-3">{c.messageCount}</td>
-                          <td className="p-3 text-muted-foreground">
-                            {c.endedAt ? formatDuration(c.endedAt - c.startedAt) : 'ongoing'}
-                          </td>
-                          <td className="p-3 text-muted-foreground">{timeAgo(c.startedAt)}</td>
-                        </tr>
-                      ))}
+                      {conversations.map((c) => {
+                        const annotation = annotationMap.get(c.sessionId);
+                        return (
+                          <tr key={c._id} className="border-b border-border last:border-0 hover:bg-muted/50">
+                            <td className="p-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.appSlug}</Badge>
+                                  {c.channel && <span className="text-[10px] text-muted-foreground">{c.channel}</span>}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <AnnotationDot rating={annotation?.qualityRating} />
+                                  <Link href={`/conversations/${c.sessionId}`} className="text-blue-400 hover:underline text-xs">
+                                    {getTranscriptPreview(c)}
+                                  </Link>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <StatusBadge value={c.status ?? 'active'} />
+                            </td>
+                            <td className="p-3">{c.messageCount}</td>
+                            <td className="p-3 text-muted-foreground">
+                              {c.endedAt ? formatDuration(c.endedAt - c.startedAt) : 'ongoing'}
+                            </td>
+                            <td className="p-3 text-muted-foreground">{timeAgo(c.startedAt)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
 
                 {/* Mobile card list */}
                 <div className="divide-y divide-border md:hidden">
-                  {conversations.map((c) => (
-                    <div key={c._id} className="space-y-1.5 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant="secondary" className="text-xs">{c.appSlug}</Badge>
-                        <StatusBadge value={c.status ?? 'active'} />
+                  {conversations.map((c) => {
+                    const annotation = annotationMap.get(c.sessionId);
+                    return (
+                      <div key={c._id} className="space-y-1.5 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="text-xs">{c.appSlug}</Badge>
+                            <AnnotationDot rating={annotation?.qualityRating} />
+                          </div>
+                          <StatusBadge value={c.status ?? 'active'} />
+                        </div>
+                        <Link href={`/conversations/${c.sessionId}`} className="block text-blue-400 hover:underline text-xs">
+                          {getTranscriptPreview(c)}
+                        </Link>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>{c.messageCount} msgs</span>
+                          <span>{c.endedAt ? formatDuration(c.endedAt - c.startedAt) : 'ongoing'}</span>
+                          <span>{timeAgo(c.startedAt)}</span>
+                        </div>
                       </div>
-                      <Link href={`/conversations/${c.sessionId}`} className="block text-blue-400 hover:underline text-xs">
-                        {getTranscriptPreview(c)}
-                      </Link>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span>{c.messageCount} msgs</span>
-                        <span>{c.endedAt ? formatDuration(c.endedAt - c.startedAt) : 'ongoing'}</span>
-                        <span>{timeAgo(c.startedAt)}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

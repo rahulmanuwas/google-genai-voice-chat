@@ -13,6 +13,8 @@ import type * as analytics from "../analytics.js";
 import type * as analyticsCluster from "../analyticsCluster.js";
 import type * as analyticsClusterDb from "../analyticsClusterDb.js";
 import type * as analyticsInternal from "../analyticsInternal.js";
+import type * as annotations from "../annotations.js";
+import type * as annotationsDb from "../annotationsDb.js";
 import type * as apps from "../apps.js";
 import type * as conversations from "../conversations.js";
 import type * as conversationsInternal from "../conversationsInternal.js";
@@ -43,6 +45,7 @@ import type * as personas from "../personas.js";
 import type * as personasDb from "../personasDb.js";
 import type * as qa from "../qa.js";
 import type * as qaDb from "../qaDb.js";
+import type * as qaInternal from "../qaInternal.js";
 import type * as scenarioState from "../scenarioState.js";
 import type * as scenarioStateDb from "../scenarioStateDb.js";
 import type * as seed from "../seed.js";
@@ -56,6 +59,8 @@ import type * as toolHandlers from "../toolHandlers.js";
 import type * as tools from "../tools.js";
 import type * as toolsDb from "../toolsDb.js";
 import type * as toolsInternal from "../toolsInternal.js";
+import type * as traces from "../traces.js";
+import type * as tracesDb from "../tracesDb.js";
 
 import type {
   ApiFromModules,
@@ -69,6 +74,8 @@ declare const fullApi: ApiFromModules<{
   analyticsCluster: typeof analyticsCluster;
   analyticsClusterDb: typeof analyticsClusterDb;
   analyticsInternal: typeof analyticsInternal;
+  annotations: typeof annotations;
+  annotationsDb: typeof annotationsDb;
   apps: typeof apps;
   conversations: typeof conversations;
   conversationsInternal: typeof conversationsInternal;
@@ -99,6 +106,7 @@ declare const fullApi: ApiFromModules<{
   personasDb: typeof personasDb;
   qa: typeof qa;
   qaDb: typeof qaDb;
+  qaInternal: typeof qaInternal;
   scenarioState: typeof scenarioState;
   scenarioStateDb: typeof scenarioStateDb;
   seed: typeof seed;
@@ -112,6 +120,8 @@ declare const fullApi: ApiFromModules<{
   tools: typeof tools;
   toolsDb: typeof toolsDb;
   toolsInternal: typeof toolsInternal;
+  traces: typeof traces;
+  tracesDb: typeof tracesDb;
 }>;
 
 /**

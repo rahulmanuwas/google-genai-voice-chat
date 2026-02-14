@@ -45,6 +45,9 @@ export interface Handoff {
   aiSummary?: string;
   assignedAgent?: string;
   customerData?: string;
+  necessityScore?: number;
+  resolutionQuality?: 'excellent' | 'good' | 'poor';
+  agentFeedback?: string;
   createdAt: number;
   claimedAt?: number;
   resolvedAt?: number;
@@ -150,6 +153,12 @@ export interface QaExpectations {
   shouldHandoff?: boolean;
 }
 
+export interface LlmJudgeCriterion {
+  name: string;
+  description: string;
+  weight?: number;
+}
+
 export interface QaScenario {
   _id: string;
   appSlug: string;
@@ -158,6 +167,8 @@ export interface QaScenario {
   turns: QaScenarioTurn[];
   expectations: QaExpectations;
   tags: string[];
+  evaluatorType: 'string_match' | 'llm_judge' | 'hybrid';
+  llmJudgeCriteria: LlmJudgeCriterion[];
   isActive: boolean;
   createdAt: number;
   updatedAt: number;
@@ -175,6 +186,12 @@ export interface QaRunInput {
   handoffTriggered?: boolean;
 }
 
+export interface LlmJudgeScore {
+  criterion: string;
+  passed: boolean;
+  reasoning: string;
+}
+
 export interface QaRun {
   _id: string;
   appSlug: string;
@@ -187,6 +204,8 @@ export interface QaRun {
   passedChecks: number;
   results: QaCheckResult[];
   input: QaRunInput;
+  executionMode: 'manual' | 'automated' | 'ci';
+  llmJudgeScores: LlmJudgeScore[];
   createdAt: number;
   completedAt: number;
 }
@@ -222,6 +241,40 @@ export interface OutboundDispatch {
   reason?: string;
   createdAt: number;
   sentAt?: number;
+}
+
+// ─── Conversation Annotations ─────────────────────────────────
+export interface ConversationAnnotation {
+  _id: string;
+  appSlug: string;
+  sessionId: string;
+  conversationId?: string;
+  qualityRating: 'good' | 'bad' | 'mixed';
+  failureModes: string[];
+  notes: string;
+  annotatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const FAILURE_MODES = [
+  'hallucination',
+  'wrong_tool',
+  'tone_issue',
+  'premature_handoff',
+  'missed_handoff',
+  'incomplete_response',
+  'context_loss',
+  'other',
+] as const;
+
+export type FailureMode = (typeof FAILURE_MODES)[number];
+
+// ─── Trace Timeline ──────────────────────────────────────────────
+export interface TraceTimelineEvent {
+  type: 'event' | 'message' | 'tool_execution' | 'knowledge_search' | 'guardrail_violation' | 'handoff';
+  timestamp: number;
+  data: Record<string, unknown>;
 }
 
 // ─── Conversations ─────────────────────────────────────────────
@@ -262,6 +315,9 @@ export interface GuardrailViolation {
   direction: string;
   content: string;
   action: string;
+  annotatedCorrectness?: 'true_positive' | 'false_positive';
+  annotatedBy?: string;
+  annotatedAt?: number;
   createdAt: number;
 }
 
@@ -288,5 +344,6 @@ export interface Message {
   content: string;
   isFinal: boolean;
   language?: string;
+  traceId?: string;
   createdAt: number;
 }

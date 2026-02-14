@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useOverview, useInsights } from '@/lib/hooks/use-api';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useOverview, useInsights, useAnnotations, useConversations } from '@/lib/hooks/use-api';
 import { useSession } from '@/lib/hooks/use-session';
+import { useAppFilter } from '@/lib/context/app-filter-context';
 import { KPICards } from '@/components/overview/kpi-cards';
 import { ToolUsageChart } from '@/components/overview/tool-usage-chart';
 import { InsightsChart } from '@/components/overview/insights-chart';
-import { ActivityFeed } from '@/components/overview/activity-feed';
+import { NeedsAttention } from '@/components/overview/needs-attention';
 import { PageHeader } from '@/components/layout/page-header';
 
 const TIME_RANGES = [
@@ -19,25 +20,29 @@ const TIME_RANGES = [
 function LoadingSkeleton() {
   return (
     <div className="space-y-6">
-      {/* Header skeleton */}
       <div className="flex items-center justify-between">
         <div className="h-7 w-28 rounded-lg shimmer" />
         <div className="h-9 w-48 rounded-lg shimmer" />
       </div>
-      {/* KPI grid skeleton */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="rounded-xl border border-border bg-card p-5 space-y-3">
+      <div className="grid gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card p-6 space-y-3">
             <div className="flex items-center justify-between">
               <div className="h-3 w-24 rounded shimmer" />
-              <div className="h-8 w-8 rounded-lg shimmer" />
+              <div className="h-10 w-10 rounded-lg shimmer" />
             </div>
-            <div className="h-7 w-16 rounded shimmer" />
+            <div className="h-8 w-16 rounded shimmer" />
             <div className="h-3 w-20 rounded shimmer" />
           </div>
         ))}
       </div>
-      {/* Chart skeletons */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card px-4 py-3">
+            <div className="h-5 w-32 rounded shimmer" />
+          </div>
+        ))}
+      </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-6 space-y-4">
           <div className="h-4 w-36 rounded shimmer" />
@@ -68,6 +73,23 @@ export default function OverviewPage() {
 
   const { data: overview, isLoading: overviewLoading } = useOverview(since);
   const { data: insightsData } = useInsights();
+  const { data: annotationsData } = useAnnotations();
+  const { data: conversationsData } = useConversations();
+  const { setAvailableApps } = useAppFilter();
+
+  // Populate available apps from conversations data
+  useEffect(() => {
+    const conversations = conversationsData?.conversations ?? [];
+    const apps = [...new Set(conversations.map((c) => c.appSlug).filter(Boolean))].sort();
+    if (apps.length > 0) setAvailableApps(apps);
+  }, [conversationsData, setAvailableApps]);
+
+  const unannotatedCount = useMemo(() => {
+    const conversations = conversationsData?.conversations ?? [];
+    const annotations = annotationsData?.annotations ?? [];
+    const annotatedSessionIds = new Set(annotations.map((a) => a.sessionId));
+    return conversations.filter((c) => !annotatedSessionIds.has(c.sessionId)).length;
+  }, [conversationsData, annotationsData]);
 
   if (!ready || overviewLoading) {
     return <LoadingSkeleton />;
@@ -88,7 +110,7 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Overview">
+      <PageHeader title="Overview" showAppFilter>
         <div className="inline-flex items-center rounded-lg border border-border bg-card p-0.5 text-sm">
           {TIME_RANGES.map((r) => (
             <button
@@ -107,11 +129,17 @@ export default function OverviewPage() {
       </PageHeader>
 
       <KPICards data={overview} />
+
       <div className="grid gap-6 lg:grid-cols-2">
         <InsightsChart insights={insightsData?.insights ?? []} />
-        <ToolUsageChart toolUsage={overview.toolUsage} />
+        <NeedsAttention
+          pendingHandoffs={overview.pendingHandoffs}
+          unannotatedConversations={unannotatedCount}
+          unresolvedGaps={overview.unresolvedGaps}
+        />
       </div>
-      <ActivityFeed data={overview} />
+
+      <ToolUsageChart toolUsage={overview.toolUsage} />
     </div>
   );
 }
