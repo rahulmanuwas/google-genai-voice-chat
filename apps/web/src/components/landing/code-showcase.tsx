@@ -26,7 +26,7 @@ const txt = (v: string): Token => ({ t: 'txt', v });
 /* ── Snippets ────────────────────────────────────────────────── */
 
 const WIDGET_TOKENS: Token[][] = [
-  [kw('import'), txt(' '), op('{'), txt(' '), tag('ChatBot'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/livekit/chatbot'"), op(';')],
+  [kw('import'), txt(' '), op('{'), txt(' '), tag('ChatBot'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/sdk/chatbot'"), op(';')],
   [],
   [op('<'), tag('ChatBot')],
   [txt('  '), prop('apiKey'), op('={'), txt('process.env.NEXT_PUBLIC_GEMINI_API_KEY'), op('}')],
@@ -38,7 +38,7 @@ const WIDGET_TOKENS: Token[][] = [
 ];
 
 const HOOK_TOKENS: Token[][] = [
-  [kw('import'), txt(' '), op('{'), txt(' '), fn('useVoiceChat'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/livekit/chatbot'"), op(';')],
+  [kw('import'), txt(' '), op('{'), txt(' '), fn('useVoiceChat'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/sdk/chatbot'"), op(';')],
   [],
   [kw('const'), txt(' '), op('{')],
   [txt('  '), txt('messages'), op(','), txt(' isConnected'), op(','), txt(' isListening'), op(',')],
@@ -53,7 +53,7 @@ const HOOK_TOKENS: Token[][] = [
 ];
 
 const LIVEKIT_TOKENS: Token[][] = [
-  [kw('import'), txt(' '), op('{'), txt(' '), tag('LiveKitVoiceChat'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/livekit'"), op(';')],
+  [kw('import'), txt(' '), op('{'), txt(' '), tag('LiveKitVoiceChat'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/sdk'"), op(';')],
   [],
   [cmt('// Session tokens, personas, guardrails — handled automatically')],
   [op('<'), tag('LiveKitVoiceChat')],
@@ -70,21 +70,21 @@ const TABS = [
     label: 'Drop-in Widget',
     description: 'One component. Floating chat widget with voice and text, zero config.',
     tokens: WIDGET_TOKENS,
-    package: '@genai-voice/livekit/chatbot',
+    package: '@genai-voice/sdk/chatbot',
   },
   {
     id: 'hook',
     label: 'Custom Hook',
     description: 'Full control over UI. Messages, mic state, connection — all yours.',
     tokens: HOOK_TOKENS,
-    package: '@genai-voice/livekit/chatbot',
+    package: '@genai-voice/sdk/chatbot',
   },
   {
     id: 'livekit',
     label: 'Production',
     description: 'Backend-powered with guardrails, tools, handoffs, and persona management.',
     tokens: LIVEKIT_TOKENS,
-    package: '@genai-voice/livekit',
+    package: '@genai-voice/sdk',
   },
 ] as const;
 

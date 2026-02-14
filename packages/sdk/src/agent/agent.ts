@@ -50,6 +50,8 @@ export interface AgentDefinitionOptions {
   maxReconnects?: number;
   /** Delay between reconnect attempts in ms (default: 2000) */
   reconnectDelayMs?: number;
+  /** Idle timeout in ms — auto-disconnect if no speech activity (default: 30000) */
+  idleTimeoutMs?: number;
 }
 
 /**
@@ -104,6 +106,8 @@ function mapCloseReasonToResolution(reason: string): { status: string; resolutio
       return { status: 'resolved', resolution: 'shutdown' };
     case 'participant_disconnected':
       return { status: 'resolved', resolution: 'completed' };
+    case 'idle_timeout':
+      return { status: 'resolved', resolution: 'idle_timeout' };
     default:
       return { status: 'resolved', resolution: reason === 'unknown' ? 'completed' : reason };
   }
@@ -128,6 +132,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
   const maxReconnects = options?.maxReconnects ?? 5;
   const reconnectDelayMs = options?.reconnectDelayMs ?? 2000;
+  const idleTimeoutMs = options?.idleTimeoutMs ?? 30_000;
 
   return defineAgent({
     entry: async (ctx: JobContext) => {
@@ -407,6 +412,21 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           }, 500);
         });
 
+        // --- Idle timeout: auto-disconnect when no speech activity ---
+        let idleTimer: ReturnType<typeof setTimeout> | null = null;
+        let idleResolve: (() => void) | null = null;
+        const idlePromise = new Promise<void>((resolve) => {
+          idleResolve = resolve;
+        });
+
+        function resetIdleTimer() {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            console.log(`[agent] Idle timeout (${idleTimeoutMs}ms) — auto-disconnecting`);
+            idleResolve?.();
+          }, idleTimeoutMs);
+        }
+
         // --- Session loop with auto-reconnect ---
         let attempt = 0;
         let isFirstSession = true;
@@ -474,6 +494,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             emitter.on('user_input_transcribed', (ev: { transcript: string; isFinal: boolean; createdAt: number }) => {
               const transcript = (ev.transcript ?? '').replace(/<noise>/gi, '').trim();
               if (!transcript || !ev.isFinal) return;
+              resetIdleTimer();
               console.log(`[agent] User said: "${transcript}"`);
               const ts = ev.createdAt ?? Date.now();
               messageBuffer.push({
@@ -521,6 +542,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               // Strip control characters (e.g. <ctrl46>) that Gemini occasionally emits
               const text = (item.textContent ?? '').replace(/<ctrl\d+>/gi, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
               if (!text) return;
+              resetIdleTimer();
               console.log(`[agent] Agent said: "${text.slice(0, 80)}..."`);
               const ts = item.createdAt ?? Date.now();
               messageBuffer.push({
@@ -571,7 +593,10 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               });
             });
 
-            // Wait for this session to close OR for all participants to leave
+            // Start idle timer after session is live
+            resetIdleTimer();
+
+            // Wait for this session to close, all participants to leave, OR idle timeout
             const closeInfo = await Promise.race([
               new Promise<{ reason: string; error?: unknown }>((resolve) => {
                 emitter.on('close', (info?: { reason?: string; error?: unknown }) => {
@@ -585,13 +610,17 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                 reason: 'participant_disconnected' as string,
                 error: undefined as unknown,
               })),
+              idlePromise.then(() => ({
+                reason: 'idle_timeout' as string,
+                error: undefined as unknown,
+              })),
             ]);
 
             lastCloseReason = closeInfo.reason;
             console.log(`[agent] Session closed (reason: ${closeInfo.reason})`);
 
-            // If participant disconnected, try to close the session gracefully
-            if (closeInfo.reason === 'participant_disconnected') {
+            // If participant disconnected or idle timeout, close the session gracefully
+            if (closeInfo.reason === 'participant_disconnected' || closeInfo.reason === 'idle_timeout') {
               try {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 await (session as any).close?.();
@@ -624,6 +653,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         } finally {
           // Cleanup: stop timers and prevent future syncs from firing
           conversationResolved = true;
+          if (idleTimer) clearTimeout(idleTimer);
           clearInterval(flushTimer);
           clearInterval(syncTimer);
 

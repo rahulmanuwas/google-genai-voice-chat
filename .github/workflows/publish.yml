@@ -47,8 +47,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish @genai-voice/livekit
-        working-directory: packages/livekit
+      - name: Publish @genai-voice/sdk
+        working-directory: packages/sdk
         run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

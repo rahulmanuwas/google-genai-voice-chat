@@ -6,7 +6,7 @@ export default tseslint.config(
     eslint.configs.recommended,
     ...tseslint.configs.recommended,
     {
-        files: ['packages/livekit/src/**/*.{ts,tsx}'],
+        files: ['packages/sdk/src/**/*.{ts,tsx}'],
         plugins: {
             'react-hooks': reactHooks,
         },

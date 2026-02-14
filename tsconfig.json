@@ -3,12 +3,12 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@genai-voice/livekit": ["packages/livekit/src/index.ts"],
-      "@genai-voice/livekit/*": ["packages/livekit/src/*"]
+      "@genai-voice/sdk": ["packages/sdk/src/index.ts"],
+      "@genai-voice/sdk/*": ["packages/sdk/src/*"]
     }
   },
   "references": [
-    { "path": "packages/livekit" }
+    { "path": "packages/sdk" }
   ],
   "include": [],
   "exclude": ["node_modules"]

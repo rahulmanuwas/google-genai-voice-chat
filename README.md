@@ -2,7 +2,7 @@
 
 AI voice agent platform powered by Google Gemini. From a drop-in React chat widget to a full enterprise agent backend with tools, handoff, guardrails, knowledge base, and multi-channel telephony.
 
-[![npm version](https://badge.fury.io/js/%40genai-voice%2Flivekit.svg)](https://www.npmjs.com/package/@genai-voice/livekit)
+[![npm version](https://badge.fury.io/js/%40genai-voice%2Flivekit.svg)](https://www.npmjs.com/package/@genai-voice/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Packages
@@ -10,7 +10,7 @@ AI voice agent platform powered by Google Gemini. From a drop-in React chat widg
 | Package | Description | Status |
 |---|---|---|
 | [`@genai-voice/backend`](./apps/backend) | Convex backend: tools, handoff, guardrails, RAG, analytics, QA framework, outbound triggers, persona, A/B testing, transcription storage | Repo-only |
-| [`@genai-voice/livekit`](./packages/livekit) | Unified SDK: chatbot React UI, LiveKit WebRTC agent/server, telephony adapters, shared platform types | Stable |
+| [`@genai-voice/sdk`](./packages/sdk) | Unified SDK: chatbot React UI, LiveKit WebRTC agent/server, telephony adapters, shared platform types | Stable |
 
 ## Architecture
 
@@ -28,11 +28,11 @@ packages/
 ### Tier 1 — Just a voice widget
 
 ```bash
-npm install @genai-voice/livekit @google/genai
+npm install @genai-voice/sdk @google/genai
 ```
 
 ```tsx
-import { ChatBot } from '@genai-voice/livekit/chatbot';
+import { ChatBot } from '@genai-voice/sdk/chatbot';
 
 function App() {
   return (
@@ -55,18 +55,18 @@ Deploy the Convex backend from this repo, register tools the AI can call, config
 ### Tier 3 — LiveKit WebRTC voice agent
 
 ```bash
-npm install @genai-voice/livekit
+npm install @genai-voice/sdk
 ```
 
-Add a production-grade voice AI agent using LiveKit rooms and Gemini Live API (speech-to-speech). Includes server-side token generation, webhook handling, React components with live transcriptions, an agent runner, and automatic transcription persistence to Convex. See the [LiveKit docs](./packages/livekit/README.md).
+Add a production-grade voice AI agent using LiveKit rooms and Gemini Live API (speech-to-speech). Includes server-side token generation, webhook handling, React components with live transcriptions, an agent runner, and automatic transcription persistence to Convex. See the [LiveKit docs](./packages/sdk/README.md).
 
 ### Tier 4 — Multi-channel (phone + SMS)
 
 ```bash
-npm install @genai-voice/livekit
+npm install @genai-voice/sdk
 ```
 
-Add Telnyx for voice calls and Twilio for SMS, all feeding into the same Convex conversation engine. See the [LiveKit telephony docs](./packages/livekit/README.md#telephony-adapters).
+Add Telnyx for voice calls and Twilio for SMS, all feeding into the same Convex conversation engine. See the [LiveKit telephony docs](./packages/sdk/README.md#telephony-adapters).
 
 ## Monorepo Setup
 
@@ -137,7 +137,7 @@ All three scenario apps share the same `APP_SECRET` as the base `demo` app.
 For custom UIs, use the hooks directly:
 
 ```tsx
-import { useVoiceChat } from '@genai-voice/livekit/chatbot';
+import { useVoiceChat } from '@genai-voice/sdk/chatbot';
 
 function CustomChat() {
   const {
@@ -214,7 +214,7 @@ function CustomChat() {
 Built-in helpers for logging events and conversations to a [Convex](https://convex.dev) backend.
 
 ```tsx
-import { createConvexHelper, useTelemetry } from '@genai-voice/livekit/chatbot';
+import { createConvexHelper, useTelemetry } from '@genai-voice/sdk/chatbot';
 
 // Server route example (Next.js): POST /api/session
 // Exchanges APP_SECRET (server env) for a short-lived session token.
@@ -273,7 +273,7 @@ For server-side text chat (Next.js):
 
 ```ts
 // app/api/chat/route.ts
-import { createChatHandler } from '@genai-voice/livekit/chatbot/api';
+import { createChatHandler } from '@genai-voice/sdk/chatbot/api';
 
 export const POST = createChatHandler({
   systemPrompt: 'You are a helpful assistant...',

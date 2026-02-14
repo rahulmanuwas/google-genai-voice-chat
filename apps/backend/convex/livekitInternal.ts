@@ -2,7 +2,7 @@
 
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { createLiveKitToken, handleLiveKitWebhook, createRoom, deleteRoom } from "@genai-voice/livekit/server";
+import { createLiveKitToken, handleLiveKitWebhook, createRoom, deleteRoom } from "@genai-voice/sdk/server";
 
 /** Generate a LiveKit access token for a participant */
 export const generateTokenAction = internalAction({

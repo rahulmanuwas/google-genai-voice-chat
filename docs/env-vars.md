@@ -117,7 +117,7 @@ CONVEX_DEPLOY_KEY=... npx convex deploy --typecheck disable -y
 
 ## 5. Telephony (Optional)
 
-Only needed if using `@genai-voice/livekit/telephony` for SMS or direct voice calls (not LiveKit SIP):
+Only needed if using `@genai-voice/sdk/telephony` for SMS or direct voice calls (not LiveKit SIP):
 
 | Variable | Required | Service | Description |
 |----------|----------|---------|-------------|

@@ -11,7 +11,7 @@ import { useDemoTimeline } from '@/lib/hooks/use-demo-timeline';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 
 const LiveKitVoiceChat = dynamic(
-  () => import('@genai-voice/livekit').then((mod) => mod.LiveKitVoiceChat),
+  () => import('@genai-voice/sdk').then((mod) => mod.LiveKitVoiceChat),
   { ssr: false },
 );
 

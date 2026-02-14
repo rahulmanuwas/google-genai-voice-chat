@@ -13,7 +13,7 @@ import { useScenarioStateChanges } from '@/lib/hooks/use-scenario-state-changes'
 import { useDemoTimeline } from '@/lib/hooks/use-demo-timeline';
 
 const LiveKitVoiceChat = dynamic(
-  () => import('@genai-voice/livekit').then((mod) => mod.LiveKitVoiceChat),
+  () => import('@genai-voice/sdk').then((mod) => mod.LiveKitVoiceChat),
   { ssr: false },
 );
 

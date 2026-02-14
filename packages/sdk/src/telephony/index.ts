@@ -1,4 +1,4 @@
-// @genai-voice/livekit/telephony — provider-agnostic telephony adapters
+// @genai-voice/sdk/telephony — provider-agnostic telephony adapters
 
 // Core types
 export type {

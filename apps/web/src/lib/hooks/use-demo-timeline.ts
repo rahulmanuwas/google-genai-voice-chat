@@ -7,7 +7,7 @@ import {
   type DemoTimelineEvent,
   type ScenarioStateChange,
 } from '@/lib/demo-observability';
-import type { AgentState, TranscriptMessage } from '@genai-voice/livekit';
+import type { AgentState, TranscriptMessage } from '@genai-voice/sdk';
 
 export function useDemoTimeline(scenarioId: string, stateChanges: ScenarioStateChange[]) {
   const [timelineByScenario, setTimelineByScenario] = useState<Record<string, DemoTimelineEvent[]>>({});

@@ -1,30 +1,30 @@
-# @genai-voice/livekit
+# @genai-voice/sdk
 
 Unified SDK for genai-voice. Provides chatbot React components/hooks, LiveKit server utilities, a voice AI agent powered by Gemini Live API, and telephony adapters.
 
 ## Installation
 
 ```bash
-npm install @genai-voice/livekit
+npm install @genai-voice/sdk
 ```
 
 ## Subpath Exports
 
 | Export | Purpose | Key Dependencies |
 |---|---|---|
-| `@genai-voice/livekit/chatbot` | Drop-in ChatBot UI + hooks + telemetry for Gemini Live API | `react`, `react-dom`, `@google/genai` |
-| `@genai-voice/livekit/chatbot/api` | Next.js/Node text chat handler (`createChatHandler`) | `@google/genai` |
-| `@genai-voice/livekit/server` | Token generation, webhook validation, room management | `livekit-server-sdk` |
-| `@genai-voice/livekit/agent` | Voice AI agent with Gemini Live API + backend-agnostic callbacks | `@livekit/agents`, `@livekit/agents-plugin-google` |
-| `@genai-voice/livekit/react` | React hook + components with backend-agnostic callbacks | `@livekit/components-react`, `livekit-client` |
-| `@genai-voice/livekit/telephony` | Provider-agnostic Telnyx/Twilio adapters + telephony interfaces | Twilio/Telnyx HTTP APIs |
-| `@genai-voice/livekit/core` | Shared conversation/tool/guardrail/knowledge/persona types | Type-only |
+| `@genai-voice/sdk/chatbot` | Drop-in ChatBot UI + hooks + telemetry for Gemini Live API | `react`, `react-dom`, `@google/genai` |
+| `@genai-voice/sdk/chatbot/api` | Next.js/Node text chat handler (`createChatHandler`) | `@google/genai` |
+| `@genai-voice/sdk/server` | Token generation, webhook validation, room management | `livekit-server-sdk` |
+| `@genai-voice/sdk/agent` | Voice AI agent with Gemini Live API + backend-agnostic callbacks | `@livekit/agents`, `@livekit/agents-plugin-google` |
+| `@genai-voice/sdk/react` | React hook + components with backend-agnostic callbacks | `@livekit/components-react`, `livekit-client` |
+| `@genai-voice/sdk/telephony` | Provider-agnostic Telnyx/Twilio adapters + telephony interfaces | Twilio/Telnyx HTTP APIs |
+| `@genai-voice/sdk/core` | Shared conversation/tool/guardrail/knowledge/persona types | Type-only |
 
 ## Chatbot UI (Gemini Live API)
 
 ```tsx
-import { ChatBot, useVoiceChat } from '@genai-voice/livekit/chatbot';
-import { createChatHandler } from '@genai-voice/livekit/chatbot/api';
+import { ChatBot, useVoiceChat } from '@genai-voice/sdk/chatbot';
+import { createChatHandler } from '@genai-voice/sdk/chatbot/api';
 ```
 
 ## Server Utilities
@@ -32,7 +32,7 @@ import { createChatHandler } from '@genai-voice/livekit/chatbot/api';
 ### Token Generation
 
 ```typescript
-import { createLiveKitToken } from '@genai-voice/livekit/server';
+import { createLiveKitToken } from '@genai-voice/sdk/server';
 
 const token = await createLiveKitToken({
   identity: 'user-123',
@@ -46,7 +46,7 @@ const token = await createLiveKitToken({
 ### Room Management
 
 ```typescript
-import { createRoom, deleteRoom } from '@genai-voice/livekit/server';
+import { createRoom, deleteRoom } from '@genai-voice/sdk/server';
 
 const room = await createRoom({
   roomName: 'room-abc',
@@ -63,7 +63,7 @@ await deleteRoom('room-abc');
 ### Webhook Handling
 
 ```typescript
-import { handleLiveKitWebhook } from '@genai-voice/livekit/server';
+import { handleLiveKitWebhook } from '@genai-voice/sdk/server';
 
 const result = await handleLiveKitWebhook(requestBody, authorizationHeader, {
   apiKey: process.env.LIVEKIT_API_KEY!,
@@ -85,13 +85,13 @@ The agent uses Gemini Live API (speech-to-speech) via `@livekit/agents-plugin-go
 
 ```bash
 # Run the default agent in development mode
-pnpm --filter @genai-voice/livekit run agent:dev
+pnpm --filter @genai-voice/sdk run agent:dev
 ```
 
 ### Custom Agent
 
 ```typescript
-import { createAgentDefinition } from '@genai-voice/livekit/agent';
+import { createAgentDefinition } from '@genai-voice/sdk/agent';
 
 createAgentDefinition({
   model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -115,7 +115,7 @@ import {
   createAgentDefinition,
   createConvexAgentCallbacks,
   createToolsFromConvex,
-} from '@genai-voice/livekit/agent';
+} from '@genai-voice/sdk/agent';
 
 // Create Convex-backed callbacks
 const callbacks = createConvexAgentCallbacks({
@@ -150,7 +150,7 @@ APP_SECRET=your-app-secret
 Implement `AgentCallbacks` to use any backend:
 
 ```typescript
-import { createAgentDefinition, type AgentCallbacks, type AgentEvent } from '@genai-voice/livekit/agent';
+import { createAgentDefinition, type AgentCallbacks, type AgentEvent } from '@genai-voice/sdk/agent';
 
 const callbacks: AgentCallbacks = {
   loadPersona: async () => ({ personaName: 'Aria', personaTone: 'friendly' }),
@@ -172,7 +172,7 @@ createAgentDefinition({ instructions: '...', callbacks });
 Drop-in component that handles room creation, token fetching, audio visualization, and live transcriptions.
 
 ```tsx
-import { LiveKitVoiceChat, createConvexRoomCallbacks } from '@genai-voice/livekit/react';
+import { LiveKitVoiceChat, createConvexRoomCallbacks } from '@genai-voice/sdk/react';
 
 const callbacks = createConvexRoomCallbacks({
   convexUrl: 'https://your-deployment.convex.cloud',
@@ -215,7 +215,7 @@ Transcriptions require the agent's Gemini RealtimeModel to have `inputAudioTrans
 For custom UIs, use the hook directly:
 
 ```tsx
-import { useLiveKitVoiceChat, createConvexRoomCallbacks } from '@genai-voice/livekit/react';
+import { useLiveKitVoiceChat, createConvexRoomCallbacks } from '@genai-voice/sdk/react';
 
 const callbacks = createConvexRoomCallbacks({
   convexUrl: 'https://your-deployment.convex.cloud',
@@ -257,15 +257,15 @@ const callbacks: LiveKitRoomCallbacks = {
 Use LiveKit's telephony subpath for direct provider integrations:
 
 ```ts
-import { TelnyxVoiceAdapter } from '@genai-voice/livekit/telephony/telnyx';
-import { TwilioVoiceAdapter, TwilioSMSAdapter } from '@genai-voice/livekit/telephony/twilio';
+import { TelnyxVoiceAdapter } from '@genai-voice/sdk/telephony/telnyx';
+import { TwilioVoiceAdapter, TwilioSMSAdapter } from '@genai-voice/sdk/telephony/twilio';
 ```
 
 Shared telephony interfaces are available from:
 
 ```ts
-import type { VoiceAdapter, SMSAdapter, TelephonyContext } from '@genai-voice/livekit/telephony';
-import type { Conversation, ToolDefinition } from '@genai-voice/livekit/core';
+import type { VoiceAdapter, SMSAdapter, TelephonyContext } from '@genai-voice/sdk/telephony';
+import type { Conversation, ToolDefinition } from '@genai-voice/sdk/core';
 ```
 
 ## Environment Variables
@@ -288,7 +288,7 @@ For browser clients (React), you typically connect to `wss://<project>.livekit.c
 If you have LiveKit SIP enabled (often backed by a Twilio SIP trunk), you can dial a phone number and bridge it into a LiveKit room:
 
 ```ts
-import { createRoom, createSipParticipant } from '@genai-voice/livekit/server';
+import { createRoom, createSipParticipant } from '@genai-voice/sdk/server';
 
 await createRoom({ roomName: 'pstn-demo' });
 
@@ -354,7 +354,7 @@ The agent also registers a `ctx.addShutdownCallback()` as a safety net — if th
 ## Architecture
 
 ```
-@genai-voice/livekit
+@genai-voice/sdk
 ├── server/          Token, webhook, room management (livekit-server-sdk)
 ├── agent/           Voice AI agent (Gemini Live API via @livekit/agents)
 ├── react/           React hook + components (@livekit/components-react)

@@ -5,15 +5,15 @@ RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /app
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig.base.json ./
-COPY packages/livekit/package.json packages/livekit/package.json
+COPY packages/sdk/package.json packages/sdk/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY apps/backend/package.json apps/backend/package.json
 
 RUN pnpm install --frozen-lockfile
 
-COPY packages/livekit packages/livekit
+COPY packages/sdk packages/sdk
 
-RUN pnpm turbo run build --filter=@genai-voice/livekit...
+RUN pnpm turbo run build --filter=@genai-voice/sdk...
 
 # ---- runner ----
 FROM node:20-slim AS runner
@@ -26,10 +26,10 @@ ENV NODE_ENV=production
 
 # Copy built workspace — agent needs node_modules at runtime
 COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/livekit/dist ./packages/livekit/dist
-COPY --from=build /app/packages/livekit/package.json ./packages/livekit/package.json
-COPY --from=build /app/packages/livekit/node_modules ./packages/livekit/node_modules
+COPY --from=build /app/packages/sdk/dist ./packages/sdk/dist
+COPY --from=build /app/packages/sdk/package.json ./packages/sdk/package.json
+COPY --from=build /app/packages/sdk/node_modules ./packages/sdk/node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
-CMD ["node", "packages/livekit/dist/agent/index.mjs", "start"]
+CMD ["node", "packages/sdk/dist/agent/index.mjs", "start"]

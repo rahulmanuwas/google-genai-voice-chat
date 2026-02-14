@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createLiveKitToken, createRoom, deleteRoom } from '@genai-voice/livekit/server';
+import { createLiveKitToken, createRoom, deleteRoom } from '@genai-voice/sdk/server';
 
 const integrationEnabled = process.env.E2E_INTEGRATION === '1';
 const livekitUrl = process.env.LIVEKIT_URL;

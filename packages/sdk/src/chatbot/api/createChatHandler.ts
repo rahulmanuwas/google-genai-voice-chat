@@ -23,7 +23,7 @@ interface ChatResponse {
  * @example
  * ```ts
  * // app/api/chat/route.ts
- * import { createChatHandler } from '@genai-voice/livekit/chatbot/api';
+ * import { createChatHandler } from '@genai-voice/sdk/chatbot/api';
  * 
  * export const POST = createChatHandler({
  *   systemPrompt: 'You are a helpful assistant...',

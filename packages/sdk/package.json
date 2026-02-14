@@ -1,5 +1,5 @@
 {
-  "name": "@genai-voice/livekit",
+  "name": "@genai-voice/sdk",
   "version": "0.1.0",
   "description": "Unified SDK for genai-voice: chatbot React UI, LiveKit server/agent/react utilities, telephony adapters, and shared types",
   "main": "./dist/index.js",

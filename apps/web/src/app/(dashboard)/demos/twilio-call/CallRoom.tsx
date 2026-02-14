@@ -7,7 +7,7 @@ import {
   ConversationEventBridge,
   type AgentState,
   type TranscriptMessage,
-} from '@genai-voice/livekit';
+} from '@genai-voice/sdk';
 
 interface CallRoomProps {
   token: string;

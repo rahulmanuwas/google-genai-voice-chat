@@ -8,7 +8,7 @@ import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
 import { PageHeader } from '@/components/layout/page-header';
 
 const ChatBot = dynamic(
-  () => import('@genai-voice/livekit/chatbot').then((mod) => mod.ChatBot),
+  () => import('@genai-voice/sdk/chatbot').then((mod) => mod.ChatBot),
   { ssr: false },
 );
 

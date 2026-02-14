@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerEnv } from '../../../../server/env';
-import { createRoom, createSipParticipant, createLiveKitToken } from '@genai-voice/livekit/server';
+import { createRoom, createSipParticipant, createLiveKitToken } from '@genai-voice/sdk/server';
 
 export const runtime = 'nodejs';
 

@@ -1,4 +1,4 @@
-// @genai-voice/livekit/core — shared types for the genai-voice platform
+// @genai-voice/sdk/core — shared types for the genai-voice platform
 
 // Conversation protocol
 export type {

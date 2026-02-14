@@ -32,9 +32,9 @@ importers:
 
   apps/backend:
     dependencies:
-      '@genai-voice/livekit':
+      '@genai-voice/sdk':
         specifier: workspace:*
-        version: link:../../packages/livekit
+        version: link:../../packages/sdk
       '@google/genai':
         specifier: ^1.40.0
         version: 1.41.0
@@ -47,9 +47,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@genai-voice/livekit':
+      '@genai-voice/sdk':
         specifier: workspace:*
-        version: link:../../packages/livekit
+        version: link:../../packages/sdk
       '@livekit/components-react':
         specifier: ^2.9.0
         version: 2.9.19(livekit-client@2.17.1(@types/dom-mediacapture-record@1.0.22))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tslib@2.8.1)
@@ -145,7 +145,7 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/livekit:
+  packages/sdk:
     dependencies:
       '@livekit/agents':
         specifier: '>=1.0.0'

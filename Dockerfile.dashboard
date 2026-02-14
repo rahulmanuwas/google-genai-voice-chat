@@ -4,7 +4,7 @@ RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /app
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
-COPY packages/livekit/package.json packages/livekit/package.json
+COPY packages/sdk/package.json packages/sdk/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY apps/backend/package.json apps/backend/package.json
 
@@ -26,11 +26,11 @@ ENV NEXT_PUBLIC_GEMINI_API_KEY=$NEXT_PUBLIC_GEMINI_API_KEY
 ENV NEXT_PUBLIC_LIVEKIT_URL=$NEXT_PUBLIC_LIVEKIT_URL
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/livekit/node_modules ./packages/livekit/node_modules
+COPY --from=deps /app/packages/sdk/node_modules ./packages/sdk/node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig.base.json ./
-COPY packages/livekit packages/livekit
+COPY packages/sdk packages/sdk
 COPY apps/web apps/web
 COPY apps/backend/package.json apps/backend/package.json
 
