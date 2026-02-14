@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { FadeIn } from '@/components/ui/fade-in';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
@@ -9,6 +9,7 @@ import { DemoObservabilityPanel } from '@/components/demos/DemoObservabilityPane
 import { useScenarioStateChanges } from '@/lib/hooks/use-scenario-state-changes';
 import { useDemoTimeline } from '@/lib/hooks/use-demo-timeline';
 import { DEFAULT_SCENARIO, getScenarioById } from '@/lib/scenarios';
+import { createConvexRoomCallbacks } from '@genai-voice/sdk';
 
 const LiveKitVoiceChat = dynamic(
   () => import('@genai-voice/sdk').then((mod) => mod.LiveKitVoiceChat),
@@ -32,6 +33,15 @@ export function LiveDemo() {
     const data = await res.json();
     return data.sessionToken as string;
   }, [scenario.appSlug]);
+
+  const callbacks = useMemo(
+    () => convexUrl ? createConvexRoomCallbacks({
+      convexUrl,
+      appSlug: scenario.appSlug,
+      getSessionToken,
+    }) : undefined,
+    [convexUrl, scenario.appSlug, getSessionToken],
+  );
 
   const { changes: stateChanges } = useScenarioStateChanges(scenario);
   const {
@@ -86,9 +96,7 @@ export function LiveDemo() {
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 backdrop-blur-sm">
                 <LiveKitVoiceChat
                   key={`${scenario.id}-${agentMode}`}
-                  convexUrl={convexUrl!}
-                  appSlug={scenario.appSlug}
-                  getSessionToken={getSessionToken}
+                  callbacks={callbacks!}
                   serverUrl={livekitUrl!}
                   agentMode={agentMode}
                   thinkingAudioSrc="/chieuk-thinking-289286.mp3"

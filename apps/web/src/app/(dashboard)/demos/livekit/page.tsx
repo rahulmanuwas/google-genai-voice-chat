@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { DemoObservabilityPanel } from '@/components/demos/DemoObservabilityPanel';
 import { useScenarioStateChanges } from '@/lib/hooks/use-scenario-state-changes';
 import { useDemoTimeline } from '@/lib/hooks/use-demo-timeline';
+import { createConvexRoomCallbacks } from '@genai-voice/sdk';
 
 const LiveKitVoiceChat = dynamic(
   () => import('@genai-voice/sdk').then((mod) => mod.LiveKitVoiceChat),
@@ -47,6 +48,15 @@ export default function LiveKitDemo() {
     return data.sessionToken as string;
   }, [scenario.appSlug]);
 
+  const callbacks = useMemo(
+    () => convexUrl ? createConvexRoomCallbacks({
+      convexUrl,
+      appSlug: scenario.appSlug,
+      getSessionToken,
+    }) : undefined,
+    [convexUrl, scenario.appSlug, getSessionToken],
+  );
+
   const hasStatePanel = scenario.id === 'dentist' || scenario.id === 'ecommerce';
 
   return (
@@ -69,9 +79,7 @@ export default function LiveKitDemo() {
             <CardContent className="pt-6">
               <LiveKitVoiceChat
                 key={`${scenario.id}-${agentMode}`}
-                convexUrl={convexUrl!}
-                appSlug={scenario.appSlug}
-                getSessionToken={getSessionToken}
+                callbacks={callbacks!}
                 serverUrl={livekitUrl}
                 agentMode={agentMode}
                 thinkingAudioSrc="/chieuk-thinking-289286.mp3"
