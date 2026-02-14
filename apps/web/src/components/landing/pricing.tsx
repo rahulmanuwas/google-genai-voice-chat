@@ -70,9 +70,8 @@ export function Pricing() {
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Pay for outcomes, not seats.
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Charged when your agent resolves a conversation. Escalations and
-            unresolved conversations? Free.
+          <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+            Charged per resolved conversation. Escalations? Free.
           </p>
         </FadeIn>
 

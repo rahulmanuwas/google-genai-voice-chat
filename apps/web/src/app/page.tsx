@@ -6,7 +6,6 @@ import { Features } from '@/components/landing/features';
 import { CodeShowcase } from '@/components/landing/code-showcase';
 import { HowItWorks } from '@/components/landing/how-it-works';
 import { Pricing } from '@/components/landing/pricing';
-import { TechStack } from '@/components/landing/tech-stack';
 import { CTAFooter } from '@/components/landing/cta-footer';
 import { ScrollSpy } from '@/components/landing/scroll-spy';
 export default function LandingPage() {
@@ -21,7 +20,6 @@ export default function LandingPage() {
       <CodeShowcase />
       <HowItWorks />
       <Pricing />
-      <TechStack />
       <CTAFooter />
     </div>
   );

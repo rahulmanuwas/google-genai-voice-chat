@@ -13,7 +13,7 @@ const FOOTER_LINKS = {
     { label: 'Features', href: '#features' },
     { label: 'Use Cases', href: '#use-cases' },
     { label: 'Pricing', href: '#pricing' },
-    { label: 'Tech Stack', href: '#tech-stack' },
+    { label: 'How It Works', href: '#how-it-works' },
   ],
   Platform: [
     { label: 'Dashboard', href: '/overview' },
@@ -77,8 +77,7 @@ export function CTAFooter() {
           </FadeIn>
           <FadeIn delay={0.1}>
             <p className="text-muted-foreground text-lg mb-10 max-w-xl mx-auto">
-              Drop in the React SDK, configure guardrails and tools in the
-              dashboard, and go live. No AI team required.
+              React SDK, guardrails, tools — configure and go live. No AI team required.
             </p>
           </FadeIn>
           <FadeIn delay={0.2}>

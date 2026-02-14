@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="108" fill="#0e0e0e"/>
+  <!-- Dot -->
+  <circle cx="148" cy="276" r="28" fill="#E8981E"/>
+  <!-- Inner arc -->
+  <path d="M200 176 a140 140 0 0 1 0 200" fill="none" stroke="#E8981E" stroke-width="40" stroke-linecap="round"/>
+  <!-- Middle arc -->
+  <path d="M260 116 a200 200 0 0 1 0 320" fill="none" stroke="#E8981E" stroke-width="40" stroke-linecap="round" opacity="0.7"/>
+  <!-- Outer arc -->
+  <path d="M320 66 a250 250 0 0 1 0 400" fill="none" stroke="#E8981E" stroke-width="40" stroke-linecap="round" opacity="0.4"/>
+</svg>

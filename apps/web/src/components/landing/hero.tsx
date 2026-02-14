@@ -46,9 +46,7 @@ export function Hero() {
             className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.25s both' }}
           >
-            An open-source platform with guardrails, tool integration,
-            human handoffs, and multi-channel support — so you ship
-            products, not infrastructure.
+            Guardrails, tools, handoffs, and multi-channel — ship products, not infrastructure.
           </p>
 
           {/* CTAs */}

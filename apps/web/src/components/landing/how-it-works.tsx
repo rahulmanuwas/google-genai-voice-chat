@@ -1,7 +1,6 @@
 import React from 'react';
 import { Settings, Plug, Activity, ChevronRight } from 'lucide-react';
 import { FadeIn } from '@/components/ui/fade-in';
-import { WaveVisualizer } from './wave-visualizer';
 
 const STEPS = [
   {
@@ -9,21 +8,21 @@ const STEPS = [
     icon: Settings,
     title: 'Configure',
     description:
-      'Set your persona, knowledge base, guardrail rules, and tools through the dashboard. Or use the API if that\'s more your speed.',
+      'Set persona, knowledge base, guardrails, and tools in the dashboard.',
   },
   {
     number: '02',
     icon: Plug,
     title: 'Connect',
     description:
-      'Drop in the React SDK for web. Point a SIP trunk for phone. Your agent handles its first call today.',
+      'Drop in the React SDK for web. Point a SIP trunk for phone.',
   },
   {
     number: '03',
     icon: Activity,
     title: 'Monitor',
     description:
-      'Watch conversations live, review blocked inputs, track resolution rates, and iterate. Ship improvements in minutes, not sprints.',
+      'Watch conversations live, track resolution rates, iterate in minutes.',
   },
 ];
 
@@ -35,9 +34,6 @@ export function HowItWorks() {
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Days to production. Not quarters.
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Three steps from zero to production.
-          </p>
         </FadeIn>
 
         <div className="relative grid gap-4 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-start">
@@ -71,11 +67,6 @@ export function HowItWorks() {
             </React.Fragment>
           ))}
         </div>
-
-        {/* WaveVisualizer as visual divider — reinforces "voice" identity */}
-        <FadeIn delay={0.2} className="mt-16 sm:mt-24 opacity-60">
-          <WaveVisualizer />
-        </FadeIn>
       </div>
     </section>
   );

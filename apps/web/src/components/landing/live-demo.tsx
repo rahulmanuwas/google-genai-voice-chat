@@ -62,9 +62,8 @@ export function LiveDemo() {
               Right now.
             </span>
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-2">
-            LiveKit WebRTC, Gemini multimodal, Convex backend, real tool
-            execution — all running live below.
+          <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-2">
+            Real tool execution, real backend — running live below.
           </p>
         </FadeIn>
 

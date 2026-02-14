@@ -133,8 +133,8 @@ export function CodeShowcase() {
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
             Three lines to your first agent
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Drop in a widget, wire up a hook, or go full production with backend integration. Same SDK, your choice of depth.
+          <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+            Widget, hook, or full production. Same SDK, your choice of depth.
           </p>
         </FadeIn>
 
