@@ -2,7 +2,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 /** Evaluate content against all active guardrail rules for an app */
-export const evaluateContent = internalMutation({
+export const evaluateGuardrailContentRecord = internalMutation({
   args: {
     appSlug: v.string(),
     sessionId: v.string(),
@@ -106,7 +106,7 @@ export const evaluateContent = internalMutation({
 });
 
 /** Create a guardrail rule */
-export const createRule = internalMutation({
+export const createGuardrailRuleRecord = internalMutation({
   args: {
     appSlug: v.string(),
     type: v.string(),
@@ -124,7 +124,7 @@ export const createRule = internalMutation({
 });
 
 /** Get all rules (optionally filtered by app) */
-export const getRules = internalQuery({
+export const listGuardrailRuleRecords = internalQuery({
   args: { appSlug: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (args.appSlug) {
@@ -138,7 +138,7 @@ export const getRules = internalQuery({
 });
 
 /** Annotate a violation's correctness (true positive / false positive) */
-export const annotateViolation = internalMutation({
+export const annotateGuardrailViolationRecord = internalMutation({
   args: {
     violationId: v.id("guardrailViolations"),
     annotatedCorrectness: v.string(), // 'true_positive' | 'false_positive'
@@ -160,7 +160,7 @@ export const annotateViolation = internalMutation({
 });
 
 /** List guardrail violations (optionally filtered by app) */
-export const listViolations = internalQuery({
+export const listGuardrailViolationRecords = internalQuery({
   args: { appSlug: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (args.appSlug) {

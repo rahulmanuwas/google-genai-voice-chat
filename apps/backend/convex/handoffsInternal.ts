@@ -4,7 +4,7 @@ import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
 /** Notify an external system about a new handoff via webhook */
-export const notifyWebhook = internalAction({
+export const notifyWebhookAction = internalAction({
   args: {
     webhookUrl: v.string(),
     handoffId: v.string(),

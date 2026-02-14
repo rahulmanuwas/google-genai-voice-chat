@@ -1,4 +1,6 @@
 import { internal } from "./_generated/api";
+import { internalMutation } from "./_generated/server";
+import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 export const logEvents = corsHttpAction(async (ctx, request) => {
@@ -17,7 +19,7 @@ export const logEvents = corsHttpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const batch = events.slice(0, 100);
-  await ctx.runMutation(internal.eventsInternal.insertEventBatch, {
+  await ctx.runMutation(internal.events.insertEventBatchRecords, {
     appSlug: auth.app.slug,
     sessionId,
     traceId,
@@ -25,4 +27,44 @@ export const logEvents = corsHttpAction(async (ctx, request) => {
   });
 
   return jsonResponse({ inserted: batch.length });
+});
+
+export const insertEventRecord = internalMutation({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    eventType: v.string(),
+    ts: v.float64(),
+    data: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("events", args);
+  },
+});
+
+export const insertEventBatchRecords = internalMutation({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    traceId: v.optional(v.string()),
+    events: v.array(
+      v.object({
+        eventType: v.string(),
+        ts: v.float64(),
+        data: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    for (const event of args.events) {
+      await ctx.db.insert("events", {
+        appSlug: args.appSlug,
+        sessionId: args.sessionId,
+        eventType: event.eventType,
+        ts: event.ts,
+        data: event.data,
+        traceId: args.traceId,
+      });
+    }
+  },
 });

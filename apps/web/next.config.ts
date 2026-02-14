@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  transpilePackages: ['@genai-voice/react', '@genai-voice/livekit'],
+  transpilePackages: ['@genai-voice/livekit'],
 };
 
 export default nextConfig;

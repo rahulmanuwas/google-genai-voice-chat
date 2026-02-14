@@ -11,7 +11,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetTrigger,
   SheetClose,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -60,6 +59,7 @@ function useActiveSection(ids: string[]): string | null {
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const activeSection = useActiveSection(SECTION_IDS);
 
   useEffect(() => {
@@ -132,13 +132,17 @@ export function Navbar() {
         </Button>
 
         {/* Mobile menu */}
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Menu</span>
-            </Button>
-          </SheetTrigger>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          aria-label="Open menu"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Menu</span>
+        </Button>
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetContent side="right" className="w-72">
             <SheetHeader>
               <SheetTitle>

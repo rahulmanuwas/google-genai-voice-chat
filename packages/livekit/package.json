@@ -1,7 +1,7 @@
 {
   "name": "@genai-voice/livekit",
   "version": "0.1.0",
-  "description": "LiveKit WebRTC integration for genai-voice: server utilities, voice agent, and React components",
+  "description": "Unified SDK for genai-voice: chatbot React UI, LiveKit server/agent/react utilities, telephony adapters, and shared types",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -10,6 +10,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./chatbot": {
+      "types": "./dist/chatbot/index.d.ts",
+      "import": "./dist/chatbot/index.mjs",
+      "require": "./dist/chatbot/index.js"
+    },
+    "./chatbot/api": {
+      "types": "./dist/chatbot/api.d.ts",
+      "import": "./dist/chatbot/api.mjs",
+      "require": "./dist/chatbot/api.js"
     },
     "./server": {
       "types": "./dist/server/index.d.ts",
@@ -25,6 +35,26 @@
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.mjs",
       "require": "./dist/react/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.mjs",
+      "require": "./dist/core/index.js"
+    },
+    "./telephony": {
+      "types": "./dist/telephony/index.d.ts",
+      "import": "./dist/telephony/index.mjs",
+      "require": "./dist/telephony/index.js"
+    },
+    "./telephony/telnyx": {
+      "types": "./dist/telephony/adapters/telnyx.d.ts",
+      "import": "./dist/telephony/adapters/telnyx.mjs",
+      "require": "./dist/telephony/adapters/telnyx.js"
+    },
+    "./telephony/twilio": {
+      "types": "./dist/telephony/adapters/twilio.d.ts",
+      "import": "./dist/telephony/adapters/twilio.mjs",
+      "require": "./dist/telephony/adapters/twilio.js"
     }
   },
   "files": [
@@ -58,14 +88,19 @@
     "zod": "^4.3.6"
   },
   "peerDependencies": {
+    "@google/genai": ">=1.0.0",
     "@livekit/agents": ">=1.0.0",
     "@livekit/agents-plugin-deepgram": ">=1.0.0",
     "@livekit/agents-plugin-google": ">=1.0.0",
     "@livekit/components-react": ">=2.0.0",
     "livekit-client": ">=2.17.0",
-    "react": ">=18.0.0"
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
   },
   "peerDependenciesMeta": {
+    "@google/genai": {
+      "optional": true
+    },
     "@livekit/agents": {
       "optional": true
     },
@@ -83,12 +118,18 @@
     },
     "react": {
       "optional": true
+    },
+    "react-dom": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@google/genai": "^1.40.0",
     "@types/node": "^22.19.9",
     "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.3.0"

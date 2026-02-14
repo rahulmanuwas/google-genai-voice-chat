@@ -32,7 +32,7 @@ async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /** Upsert a knowledge document with auto-generated embedding */
-export const upsertWithEmbedding = internalAction({
+export const upsertWithEmbeddingAction = internalAction({
   args: {
     appSlug: v.string(),
     title: v.string(),
@@ -46,7 +46,7 @@ export const upsertWithEmbedding = internalAction({
       `${args.title}\n\n${args.content}`
     );
 
-    return await ctx.runMutation(internal.knowledgeDb.upsertDocument, {
+    return await ctx.runMutation(internal.knowledge.upsertKnowledgeDocumentRecord, {
       ...args,
       embedding,
     });
@@ -54,7 +54,7 @@ export const upsertWithEmbedding = internalAction({
 });
 
 /** Search knowledge base using vector similarity */
-export const searchAction = internalAction({
+export const searchKnowledgeAction = internalAction({
   args: {
     appSlug: v.string(),
     query: v.string(),
@@ -67,7 +67,7 @@ export const searchAction = internalAction({
     const queryEmbedding = await generateEmbedding(args.query);
 
     const results = await ctx.runQuery(
-      internal.knowledgeDb.vectorSearch,
+      internal.knowledge.searchKnowledgeVectorRecords,
       {
         embedding: queryEmbedding,
         appSlug: args.appSlug,
@@ -77,7 +77,7 @@ export const searchAction = internalAction({
     );
 
     // Use tunable threshold from app config instead of hard-coded value
-    const threshold = await ctx.runQuery(internal.knowledgeDb.getAppThreshold, {
+    const threshold = await ctx.runQuery(internal.knowledge.getAppKnowledgeThresholdRecord, {
       appSlug: args.appSlug,
     });
 
@@ -85,7 +85,7 @@ export const searchAction = internalAction({
     const gapDetected = results.length === 0 || topScore < threshold;
 
     // Log search metrics
-    await ctx.runMutation(internal.knowledgeDb.logSearch, {
+    await ctx.runMutation(internal.knowledge.logKnowledgeSearchRecord, {
       appSlug: args.appSlug,
       sessionId: args.sessionId ?? "search-api",
       query: args.query,
@@ -97,7 +97,7 @@ export const searchAction = internalAction({
 
     // Log as knowledge gap if below threshold
     if (gapDetected) {
-      await ctx.runMutation(internal.knowledgeDb.logKnowledgeGap, {
+      await ctx.runMutation(internal.knowledge.logKnowledgeGapRecord, {
         appSlug: args.appSlug,
         sessionId: args.sessionId ?? "search-api",
         query: args.query,

@@ -840,7 +840,7 @@ const ALL_SCENARIOS: ScenarioData[] = [DENTIST, EARNINGS, ECOMMERCE];
 // Seed Action
 // ────────────────────────────────────────────────────────────────
 
-export const seedAll = internalAction({
+export const seedAllAction = internalAction({
   args: {
     secret: v.string(),
   },
@@ -849,7 +849,7 @@ export const seedAll = internalAction({
 
     for (const scenario of ALL_SCENARIOS) {
       // Seed app, tools, and guardrails via mutation
-      await ctx.runMutation(internal.seedScenariosDb.seedScenarioApp, {
+      await ctx.runMutation(internal.seedScenariosRecords.seedScenarioAppRecord, {
         slug: scenario.slug,
         name: scenario.name,
         secret: args.secret,
@@ -867,7 +867,7 @@ export const seedAll = internalAction({
 
       // Seed knowledge documents with embeddings (one at a time — each is an action)
       for (const doc of scenario.knowledgeDocs) {
-        await ctx.runAction(internal.knowledgeInternal.upsertWithEmbedding, {
+        await ctx.runAction(internal.knowledgeInternal.upsertWithEmbeddingAction, {
           appSlug: scenario.slug,
           title: doc.title,
           content: doc.content,
@@ -882,7 +882,7 @@ export const seedAll = internalAction({
       // Seed scenario state (if applicable)
       const initialState = getInitialState(scenario.slug);
       if (initialState) {
-        await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+        await ctx.runMutation(internal.scenarioState.upsertStateRecord, {
           appSlug: scenario.slug,
           state: JSON.stringify(initialState),
         });

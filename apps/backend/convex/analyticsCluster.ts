@@ -99,7 +99,7 @@ async function labelCluster(ai: GoogleGenAI, summaries: string[]): Promise<strin
 }
 
 /** Cluster conversations and store as insight topics */
-export const clusterConversations = internalAction({
+export const clusterConversationsAction = internalAction({
   args: {
     appSlug: v.string(),
     maxConversations: v.optional(v.float64()),
@@ -112,7 +112,7 @@ export const clusterConversations = internalAction({
 
     // 1. Fetch recent conversations with transcripts
     const conversations = await ctx.runQuery(
-      internal.analyticsClusterDb.getRecentConversationsWithTranscripts,
+      internal.analyticsClusterRecords.getRecentConversationTranscriptRecords,
       { appSlug: args.appSlug, maxConversations },
     );
 
@@ -167,7 +167,7 @@ export const clusterConversations = internalAction({
     // 5. Store as topTopics in today's insight
     const today = new Date().toISOString().split("T")[0];
     const topTopics = topClusters.map((c) => ({ topic: c.label, count: c.count }));
-    await ctx.runMutation(internal.analyticsClusterDb.updateTopTopics, {
+    await ctx.runMutation(internal.analyticsClusterRecords.updateTopTopicsRecord, {
       appSlug: args.appSlug,
       period: today,
       topTopics: JSON.stringify(topTopics),

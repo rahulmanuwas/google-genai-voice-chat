@@ -3,15 +3,12 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@genai-voice/core": ["packages/core/src"],
-      "@genai-voice/react": ["packages/react/src"],
-      "@genai-voice/telephony": ["packages/telephony/src"]
+      "@genai-voice/livekit": ["packages/livekit/src/index.ts"],
+      "@genai-voice/livekit/*": ["packages/livekit/src/*"]
     }
   },
   "references": [
-    { "path": "packages/core" },
-    { "path": "packages/react" },
-    { "path": "packages/telephony" }
+    { "path": "packages/livekit" }
   ],
   "include": [],
   "exclude": ["node_modules"]

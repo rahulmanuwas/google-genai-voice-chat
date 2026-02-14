@@ -21,7 +21,7 @@ export const submitCSAT = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  await ctx.runMutation(internal.analyticsInternal.insertCSAT, {
+  await ctx.runMutation(internal.analyticsInternal.insertCsatRecord, {
     appSlug: auth.app.slug,
     sessionId,
     rating,
@@ -43,7 +43,7 @@ export const getInsights = corsHttpAction(async (ctx, request) => {
 
   if (period) {
     const insight = await ctx.runQuery(
-      internal.analyticsInternal.getInsightByPeriod,
+      internal.analyticsInternal.getInsightRecordByPeriod,
       { appSlug: auth.app.slug, period }
     );
     return jsonResponse({ insight });
@@ -51,7 +51,7 @@ export const getInsights = corsHttpAction(async (ctx, request) => {
 
   // Return last 30 periods
   const insights = await ctx.runQuery(
-    internal.analyticsInternal.getRecentInsights,
+    internal.analyticsInternal.listRecentInsightRecords,
     { appSlug: filterApp ?? (all ? undefined : auth.app.slug) }
   );
   return jsonResponse({ insights });
@@ -68,7 +68,7 @@ export const clusterTopics = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const result = await ctx.runAction(internal.analyticsCluster.clusterConversations, {
+  const result = await ctx.runAction(internal.analyticsCluster.clusterConversationsAction, {
     appSlug: auth.app.slug,
     maxConversations,
     similarityThreshold,
@@ -88,7 +88,7 @@ export const getOverview = corsHttpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const overview = await ctx.runQuery(
-    internal.analyticsInternal.computeOverview,
+    internal.analyticsInternal.computeOverviewRecord,
     { appSlug: filterApp ?? (all ? undefined : auth.app.slug), since: since ? Number(since) : undefined }
   );
 

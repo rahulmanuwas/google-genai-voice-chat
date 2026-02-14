@@ -1,4 +1,7 @@
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** GET /api/personas — List all active personas */
@@ -6,7 +9,7 @@ export const listPersonas = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const personas = await ctx.runQuery(internal.personasDb.listPersonas, {});
+  const personas = await ctx.runQuery(internal.personas.listPersonaRecords, {});
   return jsonResponse({ personas });
 });
 
@@ -31,7 +34,7 @@ export const createPersona = corsHttpAction(async (ctx, request) => {
     return jsonResponse({ error: "name and systemPrompt are required" }, 400);
   }
 
-  const id = await ctx.runMutation(internal.personasDb.createPersona, {
+  const id = await ctx.runMutation(internal.personas.createPersonaRecord, {
     name,
     systemPrompt,
     voice: fields.voice,
@@ -66,9 +69,10 @@ export const updatePersona = corsHttpAction(async (ctx, request) => {
   if (!personaId) {
     return jsonResponse({ error: "personaId is required" }, 400);
   }
+  const personaRecordId = personaId as Id<"personas">;
 
-  await ctx.runMutation(internal.personasDb.updatePersonaById, {
-    id: personaId as any,
+  await ctx.runMutation(internal.personas.updatePersonaRecordById, {
+    id: personaRecordId,
     name: fields.name,
     systemPrompt: fields.systemPrompt,
     voice: fields.voice,
@@ -95,9 +99,10 @@ export const deletePersona = corsHttpAction(async (ctx, request) => {
   if (!personaId) {
     return jsonResponse({ error: "personaId is required" }, 400);
   }
+  const personaRecordId = personaId as Id<"personas">;
 
-  await ctx.runMutation(internal.personasDb.deletePersona, {
-    id: personaId as any,
+  await ctx.runMutation(internal.personas.deletePersonaRecordById, {
+    id: personaRecordId,
   });
 
   return jsonResponse({ ok: true });
@@ -119,21 +124,97 @@ export const assignPersona = corsHttpAction(async (ctx, request) => {
   }
 
   // Look up the target app
-  const targetApp = await ctx.runQuery(internal.personaDb.getAppBySlug, { slug: targetAppSlug });
+  const targetApp = await ctx.runQuery(internal.persona.getAppBySlugRecord, { slug: targetAppSlug });
   if (!targetApp) {
     return jsonResponse({ error: `App not found: ${targetAppSlug}` }, 404);
   }
 
   if (personaId) {
-    await ctx.runMutation(internal.personaDb.assignPersonaToApp, {
+    const personaRecordId = personaId as Id<"personas">;
+    await ctx.runMutation(internal.persona.assignPersonaToAppRecord, {
       appId: targetApp._id,
-      personaId: personaId as any,
+      personaId: personaRecordId,
     });
   } else {
-    await ctx.runMutation(internal.personaDb.clearAppPersona, {
+    await ctx.runMutation(internal.persona.clearAppPersonaRecord, {
       appId: targetApp._id,
     });
   }
 
   return jsonResponse({ ok: true });
+});
+
+/** List all active personas */
+export const listPersonaRecords = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("personas")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+  },
+});
+
+/** Get a single persona by ID */
+export const getPersonaRecordById = internalQuery({
+  args: { id: v.id("personas") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+/** Create a new persona */
+export const createPersonaRecord = internalMutation({
+  args: {
+    name: v.string(),
+    systemPrompt: v.string(),
+    voice: v.optional(v.string()),
+    personaName: v.optional(v.string()),
+    personaGreeting: v.optional(v.string()),
+    personaTone: v.optional(v.string()),
+    preferredTerms: v.optional(v.string()),
+    blockedTerms: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    return await ctx.db.insert("personas", {
+      ...args,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/** Update fields on an existing persona */
+export const updatePersonaRecordById = internalMutation({
+  args: {
+    id: v.id("personas"),
+    name: v.optional(v.string()),
+    systemPrompt: v.optional(v.string()),
+    voice: v.optional(v.string()),
+    personaName: v.optional(v.string()),
+    personaGreeting: v.optional(v.string()),
+    personaTone: v.optional(v.string()),
+    preferredTerms: v.optional(v.string()),
+    blockedTerms: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...fields } = args;
+    const updates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) updates[key] = value;
+    }
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(id, { ...updates, updatedAt: Date.now() });
+    }
+  },
+});
+
+/** Soft-delete a persona (set isActive: false) */
+export const deletePersonaRecordById = internalMutation({
+  args: { id: v.id("personas") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { isActive: false, updatedAt: Date.now() });
+  },
 });

@@ -1,4 +1,7 @@
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/handoffs — Create a new handoff request */
@@ -33,7 +36,7 @@ export const createHandoff = corsHttpAction(async (ctx, request) => {
   const { app } = auth;
 
   const handoffId = await ctx.runMutation(
-    internal.handoffsDb.createHandoff,
+    internal.handoffs.createHandoffRecord,
     {
       appSlug: app.slug,
       sessionId,
@@ -48,7 +51,7 @@ export const createHandoff = corsHttpAction(async (ctx, request) => {
   );
 
   // Update conversation status to "handed_off"
-  await ctx.runMutation(internal.conversationsInternal.updateConversationStatus, {
+  await ctx.runMutation(internal.conversationsInternal.updateConversationStatusRecord, {
     appSlug: app.slug,
     sessionId,
     status: "handed_off",
@@ -56,7 +59,7 @@ export const createHandoff = corsHttpAction(async (ctx, request) => {
 
   // If a webhook is configured, notify external system
   if (app.handoffWebhookUrl) {
-    await ctx.runAction(internal.handoffsInternal.notifyWebhook, {
+    await ctx.runAction(internal.handoffsInternal.notifyWebhookAction, {
       webhookUrl: app.handoffWebhookUrl as string,
       handoffId,
       appSlug: app.slug,
@@ -90,10 +93,10 @@ export const updateHandoff = corsHttpAction(async (ctx, request) => {
 
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  const handoffRecordId = handoffId as Id<"handoffs">;
 
-  await ctx.runMutation(internal.handoffsDb.updateHandoffStatus, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handoffId: handoffId as any,
+  await ctx.runMutation(internal.handoffs.updateHandoffStatusRecord, {
+    handoffId: handoffRecordId,
     status,
     assignedAgent,
     necessityScore,
@@ -115,9 +118,91 @@ export const listHandoffs = corsHttpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const handoffs = await ctx.runQuery(
-    internal.handoffsDb.listHandoffs,
+    internal.handoffs.listHandoffRecords,
     { appSlug: filterApp ?? (all ? undefined : auth.app.slug), status: status ?? undefined }
   );
 
   return jsonResponse({ handoffs });
+});
+
+/** Create a new handoff record */
+export const createHandoffRecord = internalMutation({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    channel: v.string(),
+    reason: v.string(),
+    reasonDetail: v.optional(v.string()),
+    priority: v.string(),
+    transcript: v.string(),
+    aiSummary: v.optional(v.string()),
+    customerData: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("handoffs", {
+      ...args,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/** Update handoff status (claim or resolve) with optional quality feedback */
+export const updateHandoffStatusRecord = internalMutation({
+  args: {
+    handoffId: v.id("handoffs"),
+    status: v.string(),
+    assignedAgent: v.optional(v.string()),
+    necessityScore: v.optional(v.float64()),
+    resolutionQuality: v.optional(v.string()),
+    agentFeedback: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const handoff = await ctx.db.get(args.handoffId);
+    if (!handoff) throw new Error("Handoff not found");
+
+    const updates: Record<string, unknown> = { status: args.status };
+
+    if (args.status === "claimed") {
+      updates.claimedAt = Date.now();
+      if (args.assignedAgent) updates.assignedAgent = args.assignedAgent;
+    } else if (args.status === "resolved") {
+      updates.resolvedAt = Date.now();
+    }
+
+    if (args.necessityScore !== undefined) updates.necessityScore = args.necessityScore;
+    if (args.resolutionQuality) updates.resolutionQuality = args.resolutionQuality;
+    if (args.agentFeedback) updates.agentFeedback = args.agentFeedback;
+
+    await ctx.db.patch(handoff._id, updates);
+  },
+});
+
+/** List handoffs with optional app and status filter */
+export const listHandoffRecords = internalQuery({
+  args: {
+    appSlug: v.optional(v.string()),
+    status: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (args.appSlug && args.status) {
+      return await ctx.db
+        .query("handoffs")
+        .withIndex("by_app_status", (q) =>
+          q.eq("appSlug", args.appSlug!).eq("status", args.status!)
+        )
+        .order("desc")
+        .take(50);
+    }
+    if (args.appSlug) {
+      return await ctx.db
+        .query("handoffs")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(50);
+    }
+    const all = await ctx.db.query("handoffs").order("desc").take(50);
+    if (args.status) return all.filter((handoff) => handoff.status === args.status);
+    return all;
+  },
 });

@@ -2,6 +2,7 @@
 
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 interface LlmJudgeCriterion {
@@ -20,7 +21,7 @@ interface LlmJudgeResult {
  * Evaluate a response using an LLM judge (Gemini 2.0 Flash).
  * Returns binary pass/fail per criterion (per Hamel: avoid Likert scales).
  */
-export const evaluateWithLLM = internalAction({
+export const evaluateWithLlmAction = internalAction({
   args: {
     responseText: v.string(),
     criteria: v.string(), // JSON LlmJudgeCriterion[]
@@ -115,10 +116,10 @@ Return ONLY the JSON array, no other text.`;
  * Run a QA scenario with LLM-as-Judge evaluation.
  * Combines string_match checks with LLM judge if evaluatorType is 'llm_judge' or 'hybrid'.
  */
-export const runWithLlmJudge = internalAction({
+export const runWithLlmJudgeAction = internalAction({
   args: {
     appSlug: v.string(),
-    scenarioId: v.string(),
+    scenarioId: v.id("qaScenarios"),
     sessionId: v.optional(v.string()),
     responseText: v.string(),
     calledTools: v.string(), // JSON string[]
@@ -127,8 +128,8 @@ export const runWithLlmJudge = internalAction({
   },
   handler: async (ctx, args) => {
     // Fetch the scenario
-    const scenario = await ctx.runQuery(internal.qaDb.getScenario, {
-      scenarioId: args.scenarioId as any,
+    const scenario = await ctx.runQuery(internal.qa.getQaScenarioRecordById, {
+      scenarioId: args.scenarioId,
     });
     if (!scenario) throw new Error("Scenario not found");
 
@@ -206,7 +207,7 @@ export const runWithLlmJudge = internalAction({
           .join("\n");
 
         const llmResultsJson = await ctx.runAction(
-          internal.qaInternal.evaluateWithLLM,
+          internal.qaInternal.evaluateWithLlmAction,
           {
             responseText: args.responseText,
             criteria,
@@ -240,9 +241,9 @@ export const runWithLlmJudge = internalAction({
       handoffTriggered: args.handoffTriggered,
     };
 
-    const runId = await ctx.runMutation(internal.qaDb.createRun, {
+    const runId = await ctx.runMutation(internal.qa.createQaRunRecord, {
       appSlug: args.appSlug,
-      scenarioId: args.scenarioId as any,
+      scenarioId: args.scenarioId as Id<"qaScenarios">,
       scenarioName: scenario.name,
       sessionId: args.sessionId,
       status,

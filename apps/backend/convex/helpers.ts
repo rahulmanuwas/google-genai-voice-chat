@@ -105,7 +105,7 @@ export async function authenticateRequest(
   creds: AuthCredentials,
 ): Promise<AuthResult | null> {
   const trySessionToken = async (token: string): Promise<AuthResult | null> => {
-    const session = await ctx.runQuery(internal.sessionsDb.getSessionByToken, { token });
+    const session = await ctx.runQuery(internal.sessions.getSessionByTokenRecord, { token });
     if (!session) return null;
 
     const app = await ctx.runQuery(internal.apps.getAppBySlug, { slug: session.appSlug });

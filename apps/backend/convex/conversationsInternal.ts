@@ -1,7 +1,7 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
-export const upsertConversation = internalMutation({
+export const upsertConversationRecord = internalMutation({
   args: {
     appSlug: v.string(),
     sessionId: v.string(),
@@ -52,7 +52,7 @@ export const upsertConversation = internalMutation({
 });
 
 /** Update just the status of a conversation (for lifecycle transitions) */
-export const updateConversationStatus = internalMutation({
+export const updateConversationStatusRecord = internalMutation({
   args: {
     appSlug: v.string(),
     sessionId: v.string(),
@@ -82,7 +82,7 @@ export const updateConversationStatus = internalMutation({
 });
 
 /** Backfill transcripts from the messages table for conversations with empty transcripts */
-export const backfillTranscripts = internalMutation({
+export const backfillConversationTranscriptRecords = internalMutation({
   args: {},
   handler: async (ctx) => {
     const conversations = await ctx.db.query("conversations").collect();
@@ -124,7 +124,7 @@ export const backfillTranscripts = internalMutation({
 });
 
 /** List conversations (optionally filtered by app and/or status) */
-export const listConversations = internalQuery({
+export const listConversationRecords = internalQuery({
   args: {
     appSlug: v.optional(v.string()),
     status: v.optional(v.string()),

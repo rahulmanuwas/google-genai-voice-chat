@@ -4,7 +4,7 @@ import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { GoogleGenAI } from "@google/genai";
 
-export const generateToken = internalAction({
+export const generateTokenAction = internalAction({
   args: {
     modelId: v.string(),
     replyAsAudio: v.boolean(),

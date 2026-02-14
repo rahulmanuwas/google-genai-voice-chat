@@ -5,7 +5,7 @@ import { v } from "convex/values";
 import { createLiveKitToken, handleLiveKitWebhook, createRoom, deleteRoom } from "@genai-voice/livekit/server";
 
 /** Generate a LiveKit access token for a participant */
-export const generateToken = internalAction({
+export const generateTokenAction = internalAction({
   args: {
     roomName: v.string(),
     identity: v.string(),
@@ -23,7 +23,7 @@ export const generateToken = internalAction({
 });
 
 /** Validate a LiveKit webhook signature */
-export const validateWebhook = internalAction({
+export const validateWebhookAction = internalAction({
   args: {
     body: v.string(),
     authHeader: v.string(),
@@ -35,7 +35,7 @@ export const validateWebhook = internalAction({
 });
 
 /** Create a room on the LiveKit server via RoomService API */
-export const createLiveKitServerRoom = internalAction({
+export const createLiveKitServerRoomAction = internalAction({
   args: {
     roomName: v.string(),
     emptyTimeout: v.float64(),
@@ -53,7 +53,7 @@ export const createLiveKitServerRoom = internalAction({
 });
 
 /** Delete a room on the LiveKit server via RoomService API */
-export const deleteLiveKitServerRoom = internalAction({
+export const deleteLiveKitServerRoomAction = internalAction({
   args: { roomName: v.string() },
   handler: async (_ctx, args) => {
     try {

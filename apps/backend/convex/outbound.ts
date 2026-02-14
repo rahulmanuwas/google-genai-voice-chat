@@ -1,4 +1,6 @@
 import { internal } from "./_generated/api";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 const SUPPORTED_CHANNELS = new Set(["sms", "email", "push", "voice"]);
@@ -111,7 +113,7 @@ export const upsertOutboundTrigger = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const triggerId = await ctx.runMutation(internal.outboundDb.upsertTrigger, {
+  const triggerId = await ctx.runMutation(internal.outbound.upsertOutboundTriggerRecord, {
     appSlug: auth.app.slug,
     name: name.trim(),
     description: description?.trim() || undefined,
@@ -139,7 +141,7 @@ export const listOutboundTriggers = corsHttpAction(async (ctx, request) => {
 
   const activeOnly = active === "true" ? true : active === "false" ? false : undefined;
 
-  const triggers = await ctx.runQuery(internal.outboundDb.listTriggers, {
+  const triggers = await ctx.runQuery(internal.outbound.listOutboundTriggerRecords, {
     appSlug: all ? undefined : auth.app.slug,
     activeOnly,
     eventType,
@@ -183,7 +185,7 @@ export const dispatchOutbound = corsHttpAction(async (ctx, request) => {
   }
 
   const payload = eventData ?? {};
-  const triggers = await ctx.runQuery(internal.outboundDb.listActiveTriggersForEvent, {
+  const triggers = await ctx.runQuery(internal.outbound.listActiveOutboundTriggerRecordsForEvent, {
     appSlug: auth.app.slug,
     eventType,
   });
@@ -198,7 +200,7 @@ export const dispatchOutbound = corsHttpAction(async (ctx, request) => {
     trigger: (typeof triggers)[number],
     reason: string,
   ) {
-    const dispatchId = await ctx.runMutation(internal.outboundDb.createDispatch, {
+    const dispatchId = await ctx.runMutation(internal.outbound.createOutboundDispatchRecord, {
       appSlug: auth.app.slug,
       triggerId: trigger._id,
       triggerName: trigger.name,
@@ -231,7 +233,7 @@ export const dispatchOutbound = corsHttpAction(async (ctx, request) => {
     }
 
     const since = Date.now() - trigger.throttleWindowMs;
-    const recentCount = await ctx.runQuery(internal.outboundDb.countRecentDispatches, {
+    const recentCount = await ctx.runQuery(internal.outbound.countRecentOutboundDispatchRecords, {
       triggerId: trigger._id,
       recipient,
       since,
@@ -242,7 +244,7 @@ export const dispatchOutbound = corsHttpAction(async (ctx, request) => {
     }
 
     const message = renderTemplate(trigger.template, payload);
-    const dispatchId = await ctx.runMutation(internal.outboundDb.createDispatch, {
+    const dispatchId = await ctx.runMutation(internal.outbound.createOutboundDispatchRecord, {
       appSlug: auth.app.slug,
       triggerId: trigger._id,
       triggerName: trigger.name,
@@ -266,7 +268,7 @@ export const dispatchOutbound = corsHttpAction(async (ctx, request) => {
   // Batch touch all fired triggers
   await Promise.all(
     triggersToTouch.map((triggerId) =>
-      ctx.runMutation(internal.outboundDb.touchTrigger, { triggerId })
+      ctx.runMutation(internal.outbound.touchOutboundTriggerRecord, { triggerId })
     ),
   );
 
@@ -289,7 +291,7 @@ export const listOutboundDispatches = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const dispatches = await ctx.runQuery(internal.outboundDb.listDispatches, {
+  const dispatches = await ctx.runQuery(internal.outbound.listOutboundDispatchRecords, {
     appSlug: all ? undefined : auth.app.slug,
     eventType,
     limit: limit ? Number(limit) : undefined,
@@ -301,4 +303,214 @@ export const listOutboundDispatches = corsHttpAction(async (ctx, request) => {
       payload: parseJson<Record<string, unknown>>(dispatch.payload, {}),
     })),
   });
+});
+
+/** Create or update an outbound trigger by app + name */
+export const upsertOutboundTriggerRecord = internalMutation({
+  args: {
+    appSlug: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    eventType: v.string(),
+    channel: v.string(),
+    conditionJson: v.optional(v.string()),
+    template: v.string(),
+    throttleMaxPerWindow: v.float64(),
+    throttleWindowMs: v.float64(),
+    isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("outboundTriggers")
+      .withIndex("by_app_name", (q) =>
+        q.eq("appSlug", args.appSlug).eq("name", args.name)
+      )
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        description: args.description,
+        eventType: args.eventType,
+        channel: args.channel,
+        conditionJson: args.conditionJson,
+        template: args.template,
+        throttleMaxPerWindow: args.throttleMaxPerWindow,
+        throttleWindowMs: args.throttleWindowMs,
+        isActive: args.isActive,
+        updatedAt: now,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("outboundTriggers", {
+      ...args,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/** List outbound triggers */
+export const listOutboundTriggerRecords = internalQuery({
+  args: {
+    appSlug: v.optional(v.string()),
+    activeOnly: v.optional(v.boolean()),
+    eventType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (args.appSlug && args.eventType) {
+      const byEvent = await ctx.db
+        .query("outboundTriggers")
+        .withIndex("by_app_eventType", (q) =>
+          q.eq("appSlug", args.appSlug!).eq("eventType", args.eventType!)
+        )
+        .order("desc")
+        .take(100);
+      if (args.activeOnly === undefined) return byEvent;
+      return byEvent.filter((trigger) => trigger.isActive === args.activeOnly);
+    }
+
+    if (args.appSlug && args.activeOnly !== undefined) {
+      return await ctx.db
+        .query("outboundTriggers")
+        .withIndex("by_app_active", (q) =>
+          q.eq("appSlug", args.appSlug!).eq("isActive", args.activeOnly!)
+        )
+        .order("desc")
+        .take(100);
+    }
+
+    if (args.appSlug) {
+      const byApp = await ctx.db
+        .query("outboundTriggers")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(100);
+      if (args.eventType) {
+        return byApp.filter((trigger) => trigger.eventType === args.eventType);
+      }
+      return byApp;
+    }
+
+    const all = await ctx.db.query("outboundTriggers").order("desc").take(200);
+    return all.filter((trigger) => {
+      if (args.activeOnly !== undefined && trigger.isActive !== args.activeOnly) return false;
+      if (args.eventType && trigger.eventType !== args.eventType) return false;
+      return true;
+    });
+  },
+});
+
+/** Get active triggers for a specific app/event */
+export const listActiveOutboundTriggerRecordsForEvent = internalQuery({
+  args: {
+    appSlug: v.string(),
+    eventType: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const triggers = await ctx.db
+      .query("outboundTriggers")
+      .withIndex("by_app_eventType", (q) =>
+        q.eq("appSlug", args.appSlug).eq("eventType", args.eventType)
+      )
+      .collect();
+
+    return triggers.filter((trigger) => trigger.isActive);
+  },
+});
+
+/** Count recent successful dispatches for trigger+recipient within a time window */
+export const countRecentOutboundDispatchRecords = internalQuery({
+  args: {
+    triggerId: v.id("outboundTriggers"),
+    recipient: v.string(),
+    since: v.float64(),
+  },
+  handler: async (ctx, args) => {
+    const items = await ctx.db
+      .query("outboundDispatches")
+      .withIndex("by_trigger_recipient_createdAt", (q) =>
+        q
+          .eq("triggerId", args.triggerId)
+          .eq("recipient", args.recipient)
+          .gte("createdAt", args.since)
+      )
+      .collect();
+
+    return items.filter((dispatch) => dispatch.status === "sent").length;
+  },
+});
+
+/** Insert outbound dispatch audit row */
+export const createOutboundDispatchRecord = internalMutation({
+  args: {
+    appSlug: v.string(),
+    triggerId: v.id("outboundTriggers"),
+    triggerName: v.string(),
+    eventType: v.string(),
+    channel: v.string(),
+    recipient: v.string(),
+    payload: v.string(),
+    status: v.string(),
+    reason: v.optional(v.string()),
+    sentAt: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("outboundDispatches", {
+      appSlug: args.appSlug,
+      triggerId: args.triggerId,
+      triggerName: args.triggerName,
+      eventType: args.eventType,
+      channel: args.channel,
+      recipient: args.recipient,
+      payload: args.payload,
+      status: args.status,
+      reason: args.reason,
+      createdAt: Date.now(),
+      sentAt: args.sentAt,
+    });
+  },
+});
+
+/** Mark trigger's last-fired timestamp */
+export const touchOutboundTriggerRecord = internalMutation({
+  args: { triggerId: v.id("outboundTriggers") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.triggerId, {
+      lastTriggeredAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/** List outbound dispatch logs */
+export const listOutboundDispatchRecords = internalQuery({
+  args: {
+    appSlug: v.optional(v.string()),
+    eventType: v.optional(v.string()),
+    limit: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 100;
+
+    if (args.appSlug) {
+      const byApp = await ctx.db
+        .query("outboundDispatches")
+        .withIndex("by_app_createdAt", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .take(limit);
+
+      if (args.eventType) {
+        return byApp.filter((dispatch) => dispatch.eventType === args.eventType);
+      }
+      return byApp;
+    }
+
+    const all = await ctx.db.query("outboundDispatches").order("desc").take(limit);
+    if (args.eventType) {
+      return all.filter((dispatch) => dispatch.eventType === args.eventType);
+    }
+    return all;
+  },
 });

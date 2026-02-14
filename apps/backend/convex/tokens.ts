@@ -9,7 +9,7 @@ export const createToken = corsHttpAction(async (ctx, request) => {
   const { app } = auth;
 
   try {
-    const result = await ctx.runAction(internal.tokensInternal.generateToken, {
+    const result = await ctx.runAction(internal.tokensInternal.generateTokenAction, {
       modelId: app.modelId as string,
       replyAsAudio: app.replyAsAudio as boolean,
       systemPrompt: app.systemPrompt as string,

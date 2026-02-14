@@ -1,4 +1,6 @@
 import { internal } from "./_generated/api";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 import { getInitialState } from "./toolHandlers";
 
@@ -9,7 +11,7 @@ export const getScenarioState = corsHttpAction(async (ctx, request) => {
 
   const slug = auth.app.slug;
 
-  const stateRow = await ctx.runQuery(internal.scenarioStateDb.getState, {
+  const stateRow = await ctx.runQuery(internal.scenarioState.getStateRecord, {
     appSlug: slug,
   });
 
@@ -48,10 +50,48 @@ export const resetScenarioState = corsHttpAction(async (ctx, request) => {
     return jsonResponse({ ok: true, message: "No mutable state for this scenario" });
   }
 
-  await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+  await ctx.runMutation(internal.scenarioState.upsertStateRecord, {
     appSlug: slug,
     state: JSON.stringify(initial),
   });
 
   return jsonResponse({ ok: true, state: initial });
+});
+
+/** Get the current scenario state for an app */
+export const getStateRecord = internalQuery({
+  args: { appSlug: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("scenarioState")
+      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
+      .first();
+  },
+});
+
+/** Upsert scenario state — creates if missing, updates if exists */
+export const upsertStateRecord = internalMutation({
+  args: {
+    appSlug: v.string(),
+    state: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("scenarioState")
+      .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        state: args.state,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("scenarioState", {
+        appSlug: args.appSlug,
+        state: args.state,
+        updatedAt: Date.now(),
+      });
+    }
+  },
 });

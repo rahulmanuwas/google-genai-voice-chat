@@ -5,7 +5,7 @@ import {
   useVoiceChat,
   type ChatMessageType as ChatMessage,
   type VoiceChatEvent,
-} from '@genai-voice/react';
+} from '@genai-voice/livekit/chatbot';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -26,7 +26,7 @@ export const saveConversation = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  await ctx.runMutation(internal.conversationsInternal.upsertConversation, {
+  await ctx.runMutation(internal.conversationsInternal.upsertConversationRecord, {
     appSlug: auth.app.slug,
     sessionId,
     startedAt: startedAt || Date.now(),
@@ -51,7 +51,7 @@ export const listConversations = corsHttpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const conversations = await ctx.runQuery(
-    internal.conversationsInternal.listConversations,
+    internal.conversationsInternal.listConversationRecords,
     { appSlug: filterApp ?? (all ? undefined : auth.app.slug), status }
   );
 

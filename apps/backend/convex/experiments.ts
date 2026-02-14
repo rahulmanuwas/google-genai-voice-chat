@@ -1,4 +1,7 @@
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 /** POST /api/experiments — Create a new experiment */
@@ -16,7 +19,7 @@ export const createExperiment = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const experimentId = await ctx.runMutation(internal.experimentsDb.createExperiment, {
+  const experimentId = await ctx.runMutation(internal.experiments.createExperimentRecord, {
     appSlug: auth.app.slug,
     name,
     variants: JSON.stringify(variants),
@@ -33,7 +36,7 @@ export const listExperiments = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const experiments = await ctx.runQuery(internal.experimentsDb.listExperiments, {
+  const experiments = await ctx.runQuery(internal.experiments.listExperimentRecords, {
     appSlug: all ? undefined : auth.app.slug,
   });
 
@@ -59,11 +62,11 @@ export const assignVariant = corsHttpAction(async (ctx, request) => {
 
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  const experimentRecordId = experimentId as Id<"experiments">;
 
   // Check for existing exposure (sticky assignment)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const existing = await ctx.runQuery(internal.experimentsDb.getExposure, {
-    experimentId: experimentId as any,
+  const existing = await ctx.runQuery(internal.experiments.getExposureRecord, {
+    experimentId: experimentRecordId,
     sessionId,
   });
 
@@ -72,9 +75,8 @@ export const assignVariant = corsHttpAction(async (ctx, request) => {
   }
 
   // Get experiment
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const experiment = await ctx.runQuery(internal.experimentsDb.getExperiment, {
-    experimentId: experimentId as any,
+  const experiment = await ctx.runQuery(internal.experiments.getExperimentRecord, {
+    experimentId: experimentRecordId,
   });
 
   if (!experiment || !experiment.isActive) {
@@ -96,13 +98,84 @@ export const assignVariant = corsHttpAction(async (ctx, request) => {
   }
 
   // Log exposure
-  await ctx.runMutation(internal.experimentsDb.logExposure, {
+  await ctx.runMutation(internal.experiments.logExposureRecord, {
     appSlug: auth.app.slug,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    experimentId: experimentId as any,
+    experimentId: experimentRecordId,
     sessionId,
     variantId: selectedVariant,
   });
 
   return jsonResponse({ variantId: selectedVariant, alreadyAssigned: false });
+});
+
+/** Create a new experiment */
+export const createExperimentRecord = internalMutation({
+  args: {
+    appSlug: v.string(),
+    name: v.string(),
+    variants: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("experiments", {
+      appSlug: args.appSlug,
+      name: args.name,
+      variants: args.variants,
+      isActive: true,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/** List experiments (optionally filtered by app) */
+export const listExperimentRecords = internalQuery({
+  args: { appSlug: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (args.appSlug) {
+      return await ctx.db
+        .query("experiments")
+        .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug!))
+        .order("desc")
+        .collect();
+    }
+    return await ctx.db.query("experiments").order("desc").collect();
+  },
+});
+
+/** Get a specific experiment by ID */
+export const getExperimentRecord = internalQuery({
+  args: { experimentId: v.id("experiments") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.experimentId);
+  },
+});
+
+/** Check if session already has an exposure for this experiment */
+export const getExposureRecord = internalQuery({
+  args: {
+    experimentId: v.id("experiments"),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const exposures = await ctx.db
+      .query("experimentExposures")
+      .withIndex("by_experiment", (q) => q.eq("experimentId", args.experimentId))
+      .collect();
+    return exposures.find((exposure) => exposure.sessionId === args.sessionId) ?? null;
+  },
+});
+
+/** Log an experiment exposure */
+export const logExposureRecord = internalMutation({
+  args: {
+    appSlug: v.string(),
+    experimentId: v.id("experiments"),
+    sessionId: v.string(),
+    variantId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("experimentExposures", {
+      ...args,
+      createdAt: Date.now(),
+    });
+  },
 });

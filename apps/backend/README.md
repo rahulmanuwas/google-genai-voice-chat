@@ -199,7 +199,7 @@ Three pre-built enterprise scenarios are available for the dashboard demo pages.
 
 ```bash
 # All 3 scenarios share the same secret as your demo app
-CONVEX_DEPLOY_KEY=... npx convex run seedScenarios:seedAll '{"secret":"your-app-secret"}'
+CONVEX_DEPLOY_KEY=... npx convex run seedScenarios:seedAllAction '{"secret":"your-app-secret"}'
 ```
 
 The seed script is idempotent — re-running it updates existing records and skips duplicate guardrail rules.

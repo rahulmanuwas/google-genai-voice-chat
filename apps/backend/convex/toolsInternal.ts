@@ -87,14 +87,14 @@ export const executeToolAction = internalAction({
     const startedAt = Date.now();
 
     // Look up the tool (single query instead of filtering all tools)
-    const fullTool = await ctx.runQuery(internal.toolsDb.getToolByName, {
+    const fullTool = await ctx.runQuery(internal.tools.getToolDefinitionRecordByName, {
       appSlug: args.appSlug,
       name: args.toolName,
     });
 
     if (!fullTool || !fullTool.isActive) {
       const result = { success: false, error: `Tool "${args.toolName}" not found` };
-      await ctx.runMutation(internal.toolsDb.logExecution, {
+      await ctx.runMutation(internal.tools.logToolExecutionRecord, {
         appSlug: args.appSlug,
         sessionId: args.sessionId,
         toolName: args.toolName,
@@ -118,7 +118,7 @@ export const executeToolAction = internalAction({
     const validationError = validateParameters(parsedParams, fullTool.parametersSchema);
     if (validationError) {
       const result = { success: false, error: `Parameter validation failed: ${validationError}` };
-      await ctx.runMutation(internal.toolsDb.logExecution, {
+      await ctx.runMutation(internal.tools.logToolExecutionRecord, {
         appSlug: args.appSlug,
         sessionId: args.sessionId,
         toolName: args.toolName,
@@ -137,7 +137,7 @@ export const executeToolAction = internalAction({
       // Try internal mock handler for demo tools
 
       // Read current scenario state
-      const stateRow = await ctx.runQuery(internal.scenarioStateDb.getState, {
+      const stateRow = await ctx.runQuery(internal.scenarioState.getStateRecord, {
         appSlug: args.appSlug,
       });
       let currentState: Record<string, unknown> | undefined;
@@ -150,7 +150,7 @@ export const executeToolAction = internalAction({
         const initial = getInitialState(args.appSlug);
         if (initial) {
           currentState = initial;
-          await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+          await ctx.runMutation(internal.scenarioState.upsertStateRecord, {
             appSlug: args.appSlug,
             state: JSON.stringify(initial),
           });
@@ -161,13 +161,13 @@ export const executeToolAction = internalAction({
       if (handlerResult) {
         // Persist state update if the handler produced one
         if (handlerResult.stateUpdate) {
-          await ctx.runMutation(internal.scenarioStateDb.upsertState, {
+          await ctx.runMutation(internal.scenarioState.upsertStateRecord, {
             appSlug: args.appSlug,
             state: JSON.stringify(handlerResult.stateUpdate),
           });
         }
 
-        await ctx.runMutation(internal.toolsDb.logExecution, {
+        await ctx.runMutation(internal.tools.logToolExecutionRecord, {
           appSlug: args.appSlug,
           sessionId: args.sessionId,
           toolName: args.toolName,
@@ -184,7 +184,7 @@ export const executeToolAction = internalAction({
 
       // No mock handler — return error as before
       const result = { success: false, error: `Tool "${args.toolName}" has no endpoint configured` };
-      await ctx.runMutation(internal.toolsDb.logExecution, {
+      await ctx.runMutation(internal.tools.logToolExecutionRecord, {
         appSlug: args.appSlug,
         sessionId: args.sessionId,
         toolName: args.toolName,
@@ -224,7 +224,7 @@ export const executeToolAction = internalAction({
       const data = await response.json();
       const result = { success: response.ok, data };
 
-      await ctx.runMutation(internal.toolsDb.logExecution, {
+      await ctx.runMutation(internal.tools.logToolExecutionRecord, {
         appSlug: args.appSlug,
         sessionId: args.sessionId,
         toolName: args.toolName,
@@ -244,7 +244,7 @@ export const executeToolAction = internalAction({
         error: err instanceof Error ? err.message : String(err),
       };
 
-      await ctx.runMutation(internal.toolsDb.logExecution, {
+      await ctx.runMutation(internal.tools.logToolExecutionRecord, {
         appSlug: args.appSlug,
         sessionId: args.sessionId,
         toolName: args.toolName,

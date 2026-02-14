@@ -1,4 +1,6 @@
 import { internal } from "./_generated/api";
+import { internalQuery } from "./_generated/server";
+import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, corsHttpAction } from "./helpers";
 
 interface TimelineEvent {
@@ -20,7 +22,7 @@ export const getTraceTimeline = corsHttpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required parameter: traceId" }, 400);
   }
 
-  const raw = await ctx.runQuery(internal.tracesDb.getTimeline, {
+  const raw = await ctx.runQuery(internal.traces.getTraceTimelineRecords, {
     traceId,
     sessionId,
     appSlug: auth.app.slug,
@@ -131,3 +133,66 @@ function safeParseJson(value: string | undefined | null): unknown {
     return value;
   }
 }
+
+/**
+ * Aggregate trace data across multiple tables using by_trace indexes.
+ * Tables with by_trace: events, toolExecutions, messages, knowledgeSearches.
+ * Tables without by_trace (queried by session): guardrailViolations, handoffs.
+ */
+export const getTraceTimelineRecords = internalQuery({
+  args: {
+    traceId: v.string(),
+    sessionId: v.optional(v.string()),
+    appSlug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { traceId, sessionId, appSlug } = args;
+
+    const [events, toolExecutions, messages, knowledgeSearches] = await Promise.all([
+      ctx.db
+        .query("events")
+        .withIndex("by_trace", (q) => q.eq("traceId", traceId))
+        .collect(),
+      ctx.db
+        .query("toolExecutions")
+        .withIndex("by_trace", (q) => q.eq("traceId", traceId))
+        .collect(),
+      ctx.db
+        .query("messages")
+        .withIndex("by_trace", (q) => q.eq("traceId", traceId))
+        .collect(),
+      ctx.db
+        .query("knowledgeSearches")
+        .withIndex("by_trace", (q) => q.eq("traceId", traceId))
+        .collect(),
+    ]);
+
+    let guardrailViolations: Array<{ appSlug?: string }> = [];
+    let handoffs: Array<{ appSlug?: string }> = [];
+
+    if (sessionId) {
+      [guardrailViolations, handoffs] = await Promise.all([
+        ctx.db
+          .query("guardrailViolations")
+          .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+          .collect(),
+        ctx.db
+          .query("handoffs")
+          .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+          .collect(),
+      ]);
+    }
+
+    const filterByApp = <T extends { appSlug?: string }>(items: T[]) =>
+      appSlug ? items.filter((item) => item.appSlug === appSlug) : items;
+
+    return {
+      events: filterByApp(events),
+      toolExecutions: filterByApp(toolExecutions),
+      messages: messages.filter((message) => message.isFinal),
+      knowledgeSearches: filterByApp(knowledgeSearches),
+      guardrailViolations: filterByApp(guardrailViolations),
+      handoffs: filterByApp(handoffs),
+    };
+  },
+});

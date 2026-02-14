@@ -2,7 +2,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 /** Insert a CSAT rating */
-export const insertCSAT = internalMutation({
+export const insertCsatRecord = internalMutation({
   args: {
     appSlug: v.string(),
     sessionId: v.string(),
@@ -18,7 +18,7 @@ export const insertCSAT = internalMutation({
 });
 
 /** Get insight for a specific period */
-export const getInsightByPeriod = internalQuery({
+export const getInsightRecordByPeriod = internalQuery({
   args: { appSlug: v.string(), period: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -31,7 +31,7 @@ export const getInsightByPeriod = internalQuery({
 });
 
 /** Get recent insights (last 30) */
-export const getRecentInsights = internalQuery({
+export const listRecentInsightRecords = internalQuery({
   args: { appSlug: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (args.appSlug) {
@@ -46,7 +46,7 @@ export const getRecentInsights = internalQuery({
 });
 
 /** Compute live overview stats (optionally filtered by app and/or time window) */
-export const computeOverview = internalQuery({
+export const computeOverviewRecord = internalQuery({
   args: {
     appSlug: v.optional(v.string()),
     since: v.optional(v.float64()),
@@ -184,7 +184,7 @@ export const computeOverview = internalQuery({
 });
 
 /** Compute and store daily insights (called by cron) */
-export const computeDailyInsights = internalMutation({
+export const computeDailyInsightRecord = internalMutation({
   args: { appSlug: v.string(), period: v.string() },
   handler: async (ctx, args) => {
     // Fetch all data for the period

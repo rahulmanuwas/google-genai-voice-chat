@@ -23,7 +23,7 @@ export const checkGuardrails = corsHttpAction(async (ctx, request) => {
   }
 
   const result = await ctx.runMutation(
-    internal.guardrailsInternal.evaluateContent,
+    internal.guardrailsInternal.evaluateGuardrailContentRecord,
     { appSlug: app.slug, sessionId, content, direction }
   );
 
@@ -48,7 +48,7 @@ export const upsertRule = corsHttpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const ruleId = await ctx.runMutation(
-    internal.guardrailsInternal.createRule,
+    internal.guardrailsInternal.createGuardrailRuleRecord,
     { appSlug: auth.app.slug, type, pattern, action, userMessage }
   );
 
@@ -64,7 +64,7 @@ export const listViolations = corsHttpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const violations = await ctx.runQuery(
-    internal.guardrailsInternal.listViolations,
+    internal.guardrailsInternal.listGuardrailViolationRecords,
     { appSlug: all ? undefined : auth.app.slug }
   );
 
@@ -91,7 +91,7 @@ export const annotateViolation = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  await ctx.runMutation(internal.guardrailsInternal.annotateViolation, {
+  await ctx.runMutation(internal.guardrailsInternal.annotateGuardrailViolationRecord, {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     violationId: violationId as any,
     annotatedCorrectness,
@@ -110,7 +110,7 @@ export const listRules = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const rules = await ctx.runQuery(internal.guardrailsInternal.getRules, {
+  const rules = await ctx.runQuery(internal.guardrailsInternal.listGuardrailRuleRecords, {
     appSlug: all ? undefined : auth.app.slug,
   });
 
