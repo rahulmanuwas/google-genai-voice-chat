@@ -19,7 +19,7 @@ export function LiveDemo() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
-  const [agentMode, setAgentMode] = useState<AgentMode>('realtime');
+  const [agentMode, setAgentMode] = useState<AgentMode>('pipeline');
   const scenario = getScenarioById(scenarioId);
 
   const getSessionToken = useCallback(async () => {

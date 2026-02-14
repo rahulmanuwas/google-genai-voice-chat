@@ -16,8 +16,8 @@ interface AgentModePickerProps {
 }
 
 const MODES = [
+  { id: 'pipeline' as const, label: 'Pipeline', description: 'Deepgram STT + Gemini LLM & TTS' },
   { id: 'realtime' as const, label: 'Full Duplex', description: 'Gemini native audio' },
-  { id: 'pipeline' as const, label: 'Pipeline', description: 'Deepgram STT/TTS + Gemini LLM' },
 ];
 
 export function AgentModePicker({ value, onChange }: AgentModePickerProps) {
@@ -27,7 +27,7 @@ export function AgentModePicker({ value, onChange }: AgentModePickerProps) {
         Mode
       </label>
       <Select value={value} onValueChange={(v) => onChange(v as AgentMode)}>
-        <SelectTrigger className="w-full sm:w-[240px]">
+        <SelectTrigger className="w-full sm:w-[280px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
