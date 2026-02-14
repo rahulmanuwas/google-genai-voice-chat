@@ -2,7 +2,7 @@
 
 AI voice agent platform powered by Google Gemini. From a drop-in React chat widget to a full enterprise agent backend with tools, handoff, guardrails, knowledge base, and multi-channel telephony.
 
-[![npm version](https://badge.fury.io/js/%40genai-voice%2Flivekit.svg)](https://www.npmjs.com/package/@genai-voice/sdk)
+[![npm version](https://badge.fury.io/js/%40genai-voice%2Fsdk.svg)](https://www.npmjs.com/package/@genai-voice/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Packages
@@ -20,7 +20,7 @@ apps/
 └── backend/            Convex backend platform (25 tables, 50+ HTTP endpoints)
 
 packages/
-└── livekit/            Unified SDK (chatbot, server, agent, react, telephony, core subpaths) — backend-agnostic
+└── sdk/                Unified SDK (chatbot, server, agent, react, telephony, core subpaths) — backend-agnostic
 ```
 
 ## Quick Start

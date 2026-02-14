@@ -346,6 +346,7 @@ When a session ends, the agent maps the close reason to a meaningful resolution:
 | Close Reason | Resolution |
 |---|---|
 | Normal close / user left | `completed` or `participant_disconnected` |
+| No speech activity for 30s | `idle_timeout` |
 | Gemini error (max reconnects exceeded) | `error` |
 | Process shutdown (SIGTERM) | `shutdown` |
 

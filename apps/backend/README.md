@@ -206,7 +206,7 @@ The seed script is idempotent — re-running it updates existing records and ski
 
 **Files:**
 - `convex/seedScenarios.ts` — `"use node"` action with full scenario data + embedding generation
-- `convex/seedScenariosDb.ts` — mutation that upserts apps, tools, and guardrail rules
+- `convex/seedScenariosRecords.ts` — mutation that upserts apps, tools, and guardrail rules
 - `convex/toolHandlers.ts` — built-in mock handlers for all 9 demo tools (no endpoint required)
 
 ## Usage Examples
@@ -507,7 +507,7 @@ The `messages` table stores real-time transcription data from voice conversation
 - `isFinal` flag (only final transcriptions are stored by default)
 - `createdAt` timestamp
 
-The LiveKit agent automatically streams transcriptions to `POST /api/messages` every 2 seconds during a conversation. On session close, remaining messages and lifecycle events are flushed, and the conversation is resolved with a meaningful `resolution` code (e.g. `completed`, `error`, `shutdown`, `participant_disconnected`).
+The LiveKit agent automatically streams transcriptions to `POST /api/messages` every 2 seconds during a conversation. On session close, remaining messages and lifecycle events are flushed, and the conversation is resolved with a meaningful `resolution` code (e.g. `completed`, `error`, `shutdown`, `participant_disconnected`, `idle_timeout`).
 
 ## Agent Tool Loading
 
