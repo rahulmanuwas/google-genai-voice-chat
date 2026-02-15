@@ -5,6 +5,7 @@ import {
   Shield,
   BarChart3,
   FlaskConical,
+  Layers,
 } from 'lucide-react';
 import { FadeIn } from '@/components/ui/fade-in';
 
@@ -45,6 +46,12 @@ const FEATURES = [
     description:
       'Weighted experiments with sticky sessions. Compare prompts and flows with production data.',
   },
+  {
+    icon: Layers,
+    title: '22+ Providers',
+    description:
+      'Google, Anthropic, OpenAI, DeepSeek, Mistral, xAI, Groq, and more — all through Pi. Switch models mid-session. Your guardrails and analytics work across all of them.',
+  },
 ];
 
 export function Features() {
@@ -70,7 +77,7 @@ export function Features() {
           </p>
         </FadeIn>
 
-        {/* Show 3 on mobile (collapsed), all 6 on sm+ */}
+        {/* Show 3 on mobile (collapsed), all 7 on sm+ */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, description }, i) => (
             <FadeIn key={title} delay={i * 0.08} className={i >= 3 ? 'hidden sm:block' : ''}>
@@ -93,7 +100,7 @@ export function Features() {
         {/* "See all" link on mobile when features are hidden */}
         <div className="sm:hidden mt-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Plus analytics, guardrails, and A/B testing.{' '}
+            Plus analytics, guardrails, 22+ providers, and more.{' '}
             <a href="#code" className="text-brand hover:underline">See more below</a>
           </p>
         </div>

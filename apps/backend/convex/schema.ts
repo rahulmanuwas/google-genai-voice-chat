@@ -434,6 +434,25 @@ export default defineSchema({
     .index("by_quality", ["qualityRating"])
     .index("by_app_createdAt", ["appSlug", "createdAt"]),
 
+  // ─── Agent Sessions (Multi-Runtime) ──────────────────────────
+
+  agentSessions: defineTable({
+    appSlug: v.string(),
+    sessionId: v.string(),
+    runtime: v.string(),           // 'pi' | 'claude' | 'codex'
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+    status: v.string(),            // 'active' | 'ended'
+    branchId: v.optional(v.string()),
+    threadId: v.optional(v.string()), // codex thread ID
+    cwd: v.optional(v.string()),
+    createdAt: v.float64(),
+    endedAt: v.optional(v.float64()),
+  })
+    .index("by_sessionId", ["sessionId"])
+    .index("by_appSlug", ["appSlug"])
+    .index("by_runtime", ["runtime"]),
+
   // ─── Scenario State (Live Demo Data) ──────────────────────────
 
   scenarioState: defineTable({

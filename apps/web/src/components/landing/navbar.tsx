@@ -19,11 +19,12 @@ const NAV_LINKS = [
   { label: 'Demos', href: '#try' },
   { label: 'Use Cases', href: '#use-cases' },
   { label: 'Features', href: '#features' },
+  { label: 'Developers', href: '#developer' },
   { label: 'Pricing', href: '#pricing' },
   { label: 'Docs', href: '/docs' },
 ] as const;
 
-const SECTION_IDS = ['try', 'use-cases', 'features', 'pricing'];
+const SECTION_IDS = ['try', 'use-cases', 'features', 'developer', 'pricing'];
 
 function useActiveSection(ids: string[]): string | null {
   const [active, setActive] = useState<string | null>(null);

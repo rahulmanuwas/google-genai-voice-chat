@@ -28,10 +28,11 @@ const FOOTER_LINKS = {
     { label: 'Code Examples', href: '#code' },
     { label: 'LiveKit Agent', href: '/demos/livekit' },
     { label: 'PSTN Calls', href: '/demos/twilio-call' },
+    { label: 'Agent SDK', href: '#developer' },
   ],
 } as const;
 
-const TECH_NAMES = ['Gemini', 'LiveKit', 'Convex', 'Next.js'];
+const TECH_NAMES = ['Gemini', 'LiveKit', 'Convex', 'Pi', 'Next.js'];
 
 export function CTAFooter() {
   return (

@@ -12,6 +12,7 @@ export default defineConfig({
     'telephony/index': 'src/telephony/index.ts',
     'telephony/adapters/telnyx': 'src/telephony/adapters/telnyx.ts',
     'telephony/adapters/twilio': 'src/telephony/adapters/twilio.ts',
+    'agents/index': 'src/agents/index.ts',
   },
   format: ['cjs', 'esm'],
   dts: true,
@@ -28,5 +29,8 @@ export default defineConfig({
     'livekit-server-sdk',
     'react',
     'react-dom',
+    '@mariozechner/pi-coding-agent',
+    '@mariozechner/pi-ai',
+    '@mariozechner/pi-agent-core',
   ],
 });

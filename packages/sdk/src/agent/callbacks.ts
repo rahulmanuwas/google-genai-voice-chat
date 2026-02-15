@@ -67,6 +67,12 @@ export interface AgentCallbacks {
     sessionId: string,
     traceId?: string,
   ) => Promise<GuardrailResult>;
+
+  /** Forward a transcript to a Pi agent session for processing */
+  forwardToAgent?: (
+    transcript: string,
+    sessionId: string,
+  ) => Promise<{ response: string; agentSessionId: string }>;
 }
 
 /** Result of a guardrail check */

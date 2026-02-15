@@ -45,6 +45,12 @@ import {
 import { getScenarioState, resetScenarioState } from "./scenarioState";
 import { upsertAnnotation, listAnnotations } from "./annotations";
 import { getTraceTimeline } from "./traces";
+import {
+  createAgentSessionHandler,
+  getAgentSessionHandler,
+  promptAgentHandler,
+  listRuntimesHandler,
+} from "./agentSessions";
 
 const http = httpRouter();
 
@@ -173,5 +179,11 @@ get("/api/traces", getTraceTimeline);
 // ─── Scenario State (Live Demo Data) ───────────────────────────
 get("/api/scenario-state", getScenarioState);
 post("/api/scenario-state/reset", resetScenarioState);
+
+// ─── Agent Sessions (Multi-Runtime) ────────────────────────────
+post("/api/agents/session", createAgentSessionHandler);
+get("/api/agents/session", getAgentSessionHandler);
+post("/api/agents/prompt", promptAgentHandler);
+get("/api/agents/runtimes", listRuntimesHandler);
 
 export default http;

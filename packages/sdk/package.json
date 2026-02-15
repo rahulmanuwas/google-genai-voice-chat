@@ -55,6 +55,11 @@
       "types": "./dist/telephony/adapters/twilio.d.ts",
       "import": "./dist/telephony/adapters/twilio.mjs",
       "require": "./dist/telephony/adapters/twilio.js"
+    },
+    "./agents": {
+      "types": "./dist/agents/index.d.ts",
+      "import": "./dist/agents/index.mjs",
+      "require": "./dist/agents/index.js"
     }
   },
   "files": [
@@ -93,6 +98,7 @@
     "@livekit/agents-plugin-deepgram": ">=1.0.0",
     "@livekit/agents-plugin-google": ">=1.0.0",
     "@livekit/components-react": ">=2.0.0",
+    "@mariozechner/pi-coding-agent": ">=0.52.0",
     "livekit-client": ">=2.17.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
@@ -121,10 +127,16 @@
     },
     "react-dom": {
       "optional": true
+    },
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@google/genai": "^1.40.0",
+    "@mariozechner/pi-agent-core": "^0.52.12",
+    "@mariozechner/pi-ai": "^0.52.12",
+    "@mariozechner/pi-coding-agent": "^0.52.12",
     "@types/node": "^22.19.9",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

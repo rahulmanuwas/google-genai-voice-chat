@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Code2 } from 'lucide-react';
 import { DemoShowcase } from './demo-showcase';
 import { ShaderBackground } from './shader-bg';
 
@@ -8,6 +8,9 @@ const LOGOS = [
   { src: '/logos/gemini.svg', alt: 'Gemini', className: 'w-20 sm:w-24 opacity-40', width: 96, height: 32 },
   { src: '/logos/livekit.svg', alt: 'LiveKit', className: 'w-16 sm:w-20 opacity-40', width: 80, height: 24 },
   { src: '/logos/convex.svg', alt: 'Convex', className: 'w-20 sm:w-24 opacity-40', width: 96, height: 24 },
+  { src: '/logos/pi.svg', alt: 'Pi', className: 'h-6 w-auto opacity-40', width: 24, height: 24 },
+  { src: '/logos/anthropic.svg', alt: 'Anthropic', className: 'w-16 sm:w-20 opacity-40', width: 80, height: 24 },
+  { src: '/logos/openai.svg', alt: 'OpenAI', className: 'h-5 w-auto opacity-40 brightness-0 invert', width: 20, height: 20 },
   { src: '/logos/nextjs.svg', alt: 'Next.js', className: 'w-16 sm:w-20 opacity-40', width: 80, height: 24 },
   { src: '/logos/typescript.svg', alt: 'TypeScript', className: 'h-5 w-auto rounded-[3px] opacity-40', width: 80, height: 20 },
   { src: '/logos/twilio.png', alt: 'Twilio', className: 'w-14 sm:w-18 brightness-0 invert opacity-40', width: 72, height: 28 },
@@ -41,8 +44,7 @@ export function Hero() {
             className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-lg"
             style={{ animation: 'fade-in-up 0.6s ease-out 0.25s both' }}
           >
-            Guardrails, tools, handoffs, and multi-channel deployment. Ship production agents, not
-            infrastructure.
+            Voice agents that handle calls, resolve tickets, and close deals. Any model. 22+ providers. Voice-first.
           </p>
 
           <div
@@ -62,6 +64,13 @@ export function Hero() {
             >
               Open Dashboard
             </Link>
+            <a
+              href="#developer"
+              className="group inline-flex items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-7 py-3 text-sm font-semibold text-foreground backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:bg-white/[0.08] hover:border-white/20"
+            >
+              <Code2 className="mr-2 h-4 w-4 text-brand" />
+              For Developers
+            </a>
           </div>
         </div>
 

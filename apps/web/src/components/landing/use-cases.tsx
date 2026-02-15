@@ -2,15 +2,16 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   Headset,
-  Bot,
-  Plug,
+  CalendarCheck,
   Boxes,
+  Mic,
+  Layers,
   ArrowRight,
 } from 'lucide-react';
 import { FadeIn } from '@/components/ui/fade-in';
 import { DotGrid } from './dot-grid';
 
-const USE_CASES = [
+const USER_CASES = [
   {
     icon: Headset,
     title: 'Customer Support',
@@ -22,24 +23,14 @@ const USE_CASES = [
     image: '/images/customer-support-2.jpg',
   },
   {
-    icon: Bot,
-    title: 'Manufacturing & Logistics',
+    icon: CalendarCheck,
+    title: 'Sales & Appointments',
     description:
-      'Direct robots with natural language on the warehouse floor. Integrate Physical Intelligence for pick-and-place.',
-    href: null,
-    cta: 'Coming soon',
+      'Qualify leads, book meetings, and close deals over voice. Real-time CRM sync and follow-up scheduling.',
+    href: '/demos/livekit',
+    cta: 'Try live demo',
     featured: true,
     image: '/images/logistics.jpg',
-  },
-  {
-    icon: Plug,
-    title: 'Custom Workflows',
-    description:
-      'Wire any internal API or MCP server as a tool. No rip-and-replace.',
-    href: '/tools',
-    cta: 'View tools',
-    featured: false,
-    image: null,
   },
   {
     icon: Boxes,
@@ -53,6 +44,39 @@ const USE_CASES = [
   },
 ];
 
+const DEV_CASES = [
+  {
+    icon: Mic,
+    title: 'Voice-Driven Development',
+    description:
+      'Talk to build agents. Add tools, guardrails, and knowledge by voice. Powered by Pi with 22+ providers.',
+    href: '#developer',
+    cta: 'Learn more',
+    featured: false,
+    image: null,
+  },
+  {
+    icon: Layers,
+    title: 'Any Model, Any Provider',
+    description:
+      'Switch between 22+ providers mid-session. Same guardrails, same analytics.',
+    href: '#developer',
+    cta: 'Learn more',
+    featured: false,
+    image: null,
+  },
+];
+
+type CaseData = {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  href: string | null;
+  cta: string;
+  featured: boolean;
+  image: string | null;
+};
+
 function CaseCard({
   icon: Icon,
   title,
@@ -61,7 +85,7 @@ function CaseCard({
   cta,
   featured,
   image,
-}: (typeof USE_CASES)[number]) {
+}: CaseData) {
   const inner = (
     <div
       className={`group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card/50 backdrop-blur-sm transition-all duration-200 hover:border-brand/20 hover:shadow-[0_0_40px_hsl(38_92%_50%/0.06)] ${
@@ -136,18 +160,29 @@ export function UseCases() {
           </p>
         </FadeIn>
 
-        {/* Bento grid: 2 featured on top, 2 below */}
-        <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {USE_CASES.map((uc, i) => (
+        {/* What your agents do — user-facing */}
+        <FadeIn delay={0.08}>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/60 mb-4">What your agents do</p>
+        </FadeIn>
+        <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-12 sm:mb-16">
+          {USER_CASES.map((uc, i) => (
             <FadeIn
               key={uc.title}
-              delay={i * 0.08}
-              className={
-                i < 2
-                  ? 'lg:col-span-2'
-                  : 'lg:col-span-2'
-              }
+              delay={i * 0.08 + 0.1}
+              className={uc.featured ? 'lg:col-span-1' : 'lg:col-span-1'}
             >
+              <CaseCard {...uc} />
+            </FadeIn>
+          ))}
+        </div>
+
+        {/* What you can build — developer-facing */}
+        <FadeIn delay={0.3}>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/60 mb-4">What you can build</p>
+        </FadeIn>
+        <div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
+          {DEV_CASES.map((uc, i) => (
+            <FadeIn key={uc.title} delay={i * 0.08 + 0.35}>
               <CaseCard {...uc} />
             </FadeIn>
           ))}

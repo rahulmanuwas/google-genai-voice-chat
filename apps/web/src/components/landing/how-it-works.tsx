@@ -8,7 +8,7 @@ const STEPS = [
     icon: Settings,
     title: 'Configure',
     description:
-      'Set persona, knowledge base, guardrails, and tools in the dashboard.',
+      'Set persona, knowledge base, guardrails, and tools in the dashboard — or scaffold from the terminal with Pi CLI.',
   },
   {
     number: '02',

@@ -64,6 +64,19 @@ const LIVEKIT_TOKENS: Token[][] = [
   [op('/>')],
 ];
 
+const RUNTIME_TOKENS: Token[][] = [
+  [kw('import'), txt(' '), op('{'), txt(' '), fn('createAgent'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/sdk/agents'"), op(';')],
+  [],
+  [kw('const'), txt(' '), txt('agent'), txt(' '), op('='), txt(' '), kw('await'), txt(' '), fn('createAgent'), op('({')],
+  [txt('  '), prop('provider'), op(':'), txt(' '), str("'google'"), op(',')],
+  [txt('  '), prop('model'), op(':'), txt(' '), str("'gemini-3-flash-preview'"), op(',')],
+  [txt('  '), prop('tools'), op(':'), txt(' '), str("'riyaan'"), op(',')],
+  [txt('  '), prop('voice'), op(':'), txt(' '), kw('true'), op(',')],
+  [op('});')],
+  [],
+  [kw('await'), txt(' '), txt('agent'), op('.'), fn('prompt'), op('('), str('"Add a returns policy guardrail"'), op(');')],
+];
+
 const TABS = [
   {
     id: 'widget',
@@ -85,6 +98,13 @@ const TABS = [
     description: 'Backend-powered with guardrails, tools, handoffs, and persona management.',
     tokens: LIVEKIT_TOKENS,
     package: '@genai-voice/sdk',
+  },
+  {
+    id: 'runtime',
+    label: 'Agent SDK',
+    description: 'Unified API across 22+ providers. Same code, any model.',
+    tokens: RUNTIME_TOKENS,
+    package: '@genai-voice/sdk/agents',
   },
 ] as const;
 
@@ -131,7 +151,7 @@ export function CodeShowcase() {
       <div className="relative max-w-4xl mx-auto px-6">
         <FadeIn className="text-center mb-12 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Three lines to your first agent
+            From drop-in widget to custom runtime
           </h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
             Widget, hook, or full production. Same SDK, your choice of depth.
