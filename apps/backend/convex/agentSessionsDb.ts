@@ -22,6 +22,7 @@ export const createAgentSession = mutation({
     return ctx.db.insert("agentSessions", {
       ...args,
       status: "active",
+      runCount: 0,
       createdAt: Date.now(),
     });
   },
@@ -29,11 +30,14 @@ export const createAgentSession = mutation({
 
 /** Get an agent session by sessionId */
 export const getAgentSession = query({
-  args: { sessionId: v.string() },
-  handler: async (ctx, { sessionId }) => {
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, { appSlug, sessionId }) => {
     return ctx.db
       .query("agentSessions")
-      .withIndex("by_sessionId", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_appSlug_sessionId", (q) => q.eq("appSlug", appSlug).eq("sessionId", sessionId))
       .first();
   },
 });
@@ -64,11 +68,14 @@ export const listAgentSessions = query({
 
 /** End an agent session */
 export const endAgentSession = mutation({
-  args: { sessionId: v.string() },
-  handler: async (ctx, { sessionId }) => {
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, { appSlug, sessionId }) => {
     const session = await ctx.db
       .query("agentSessions")
-      .withIndex("by_sessionId", (q) => q.eq("sessionId", sessionId))
+      .withIndex("by_appSlug_sessionId", (q) => q.eq("appSlug", appSlug).eq("sessionId", sessionId))
       .first();
 
     if (!session) throw new Error(`Agent session not found: ${sessionId}`);
@@ -79,6 +86,71 @@ export const endAgentSession = mutation({
     });
 
     return session._id;
+  },
+});
+
+/** Record metadata for a single agent run (one prompt execution). */
+export const recordAgentSessionRun = mutation({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    runId: v.string(),
+    runtime: v.string(),
+    provider: v.string(),
+    model: v.string(),
+    status: v.string(),
+    startedAt: v.float64(),
+    endedAt: v.float64(),
+    durationMs: v.float64(),
+    attemptCount: v.float64(),
+    fallbackCount: v.float64(),
+    contextRecoveryCount: v.float64(),
+    toolOutputTruncatedChars: v.float64(),
+    promptChars: v.float64(),
+    responseChars: v.float64(),
+    authProfileId: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    metadata: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("agentSessions")
+      .withIndex("by_appSlug_sessionId", (q) => q.eq("appSlug", args.appSlug).eq("sessionId", args.sessionId))
+      .first();
+
+    if (!session) {
+      throw new Error(`Agent session not found: ${args.sessionId}`);
+    }
+
+    await ctx.db.insert("agentSessionRuns", args);
+
+    await ctx.db.patch(session._id, {
+      provider: args.provider,
+      model: args.model,
+      lastRunAt: args.endedAt,
+      lastFailureReason: args.failureReason,
+      runCount: (session.runCount ?? 0) + 1,
+    });
+  },
+});
+
+/** List recent run metadata for a session. */
+export const listAgentSessionRuns = query({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    limit: v.optional(v.float64()),
+  },
+  handler: async (ctx, { appSlug, sessionId, limit }) => {
+    const runs = await ctx.db
+      .query("agentSessionRuns")
+      .withIndex("by_app_session", (q) => q.eq("appSlug", appSlug).eq("sessionId", sessionId))
+      .collect();
+
+    return runs
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .slice(0, limit ?? 50);
   },
 });
 

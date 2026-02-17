@@ -23,14 +23,15 @@ export function corsHeaders(requestOrigin?: string): Record<string, string> {
   if (!envOrigins) return CORS_HEADERS;
 
   const allowed = new Set(envOrigins.split(",").map((s) => s.trim()));
-  const origin = requestOrigin && allowed.has(requestOrigin) ? requestOrigin : "";
+  const origin = requestOrigin && allowed.has(requestOrigin) ? requestOrigin : null;
 
   return {
-    "Access-Control-Allow-Origin": origin,
+    // Omit Access-Control-Allow-Origin entirely when origin is not allowed —
+    // an empty string is invalid per the CORS spec and confuses browsers.
+    ...(origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {}),
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-App-Slug, X-Trace-Id",
     "Access-Control-Max-Age": "86400",
-    ...(origin ? { Vary: "Origin" } : {}),
   };
 }
 
@@ -51,7 +52,8 @@ export function corsHttpAction(handler: (ctx: any, request: Request) => Promise<
         response.headers.set("Access-Control-Allow-Origin", origin);
         response.headers.set("Vary", "Origin");
       } else {
-        response.headers.set("Access-Control-Allow-Origin", "");
+        // Remove the wildcard set by jsonResponse — disallowed origins get no CORS header
+        response.headers.delete("Access-Control-Allow-Origin");
       }
     }
     return response;

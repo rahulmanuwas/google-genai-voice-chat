@@ -3,6 +3,83 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
+const BM25_K1 = 1.5;
+const BM25_B = 0.75;
+const MAX_BM25_DOCS = 500;
+
+interface RankedSearchRecord {
+  _id: string;
+  title: string;
+  content: string;
+  category: string;
+  sourceType: string;
+  sourceSessionId?: string;
+  score: number;
+  updatedAt: number;
+}
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 2);
+}
+
+function rankByBm25<T extends { _id: string; title: string; content: string; updatedAt: number }>(
+  records: T[],
+  query: string,
+  limit: number,
+): Array<T & { score: number }> {
+  const queryTerms = tokenize(query);
+  if (queryTerms.length === 0 || records.length === 0) return [];
+
+  const termSet = Array.from(new Set(queryTerms));
+  const docs = records.map((record) => {
+    const text = `${record.title}\n${record.content}`;
+    const tokens = tokenize(text);
+    const termFreq = new Map<string, number>();
+    for (const token of tokens) {
+      termFreq.set(token, (termFreq.get(token) ?? 0) + 1);
+    }
+    return { record, tokens, termFreq, length: tokens.length };
+  });
+
+  const avgDocLength = docs.reduce((sum, doc) => sum + doc.length, 0) / docs.length;
+  const docFreq = new Map<string, number>();
+  for (const term of termSet) {
+    let count = 0;
+    for (const doc of docs) {
+      if ((doc.termFreq.get(term) ?? 0) > 0) count += 1;
+    }
+    docFreq.set(term, count);
+  }
+
+  const totalDocs = docs.length;
+  const ranked = docs.map((doc) => {
+    let score = 0;
+    for (const term of termSet) {
+      const tf = doc.termFreq.get(term) ?? 0;
+      if (tf === 0) continue;
+      const df = docFreq.get(term) ?? 0;
+      const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
+      const denom = tf + BM25_K1 * (1 - BM25_B + BM25_B * (doc.length / (avgDocLength || 1)));
+      score += idf * ((tf * (BM25_K1 + 1)) / denom);
+    }
+
+    const rawText = `${doc.record.title}\n${doc.record.content}`.toLowerCase();
+    const normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.length > 2 && rawText.includes(normalizedQuery)) {
+      score += 0.25;
+    }
+
+    return { ...doc.record, score };
+  });
+
+  ranked.sort((a, b) => b.score - a.score || b.updatedAt - a.updatedAt);
+  return ranked.filter((doc) => doc.score > 0).slice(0, limit);
+}
+
 /** POST /api/knowledge — Add or update a knowledge document */
 export const upsertDocument = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
@@ -34,15 +111,19 @@ export const upsertDocument = corsHttpAction(async (ctx, request) => {
   return jsonResponse({ id: docId });
 });
 
-/** POST /api/knowledge/search — Search knowledge base via vector similarity */
+/** POST /api/knowledge/search — Hybrid search (vector + BM25 + transcript memory) */
 export const searchKnowledge = corsHttpAction(async (ctx, request) => {
   const traceId = getTraceId(request);
   const body = await request.json();
-  const { query, category, topK, sessionId } = body as {
+  const { query, category, topK, sessionId, includeTranscriptMemory, alphaVector, alphaKeyword, alphaMemory } = body as {
     query: string;
     category?: string;
     topK?: number;
     sessionId?: string;
+    includeTranscriptMemory?: boolean;
+    alphaVector?: number;
+    alphaKeyword?: number;
+    alphaMemory?: number;
   };
 
   if (!query) {
@@ -59,6 +140,10 @@ export const searchKnowledge = corsHttpAction(async (ctx, request) => {
     topK: topK ?? 5,
     sessionId,
     traceId,
+    includeTranscriptMemory,
+    alphaVector,
+    alphaKeyword,
+    alphaMemory,
   });
 
   return jsonResponse({ results });
@@ -183,11 +268,59 @@ export const searchKnowledgeVectorRecords = internalQuery({
 
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, args.limit).map((document) => ({
-      id: document._id,
+      _id: String(document._id),
       title: document.title,
       content: document.content,
       category: document.category,
+      sourceType: document.sourceType,
       score: document.score,
+      updatedAt: document.lastUpdated,
+    }));
+  },
+});
+
+/** Keyword search query using BM25 scoring over knowledge documents. */
+export const searchKnowledgeKeywordRecords = internalQuery({
+  args: {
+    query: v.string(),
+    appSlug: v.string(),
+    category: v.optional(v.string()),
+    limit: v.float64(),
+  },
+  handler: async (ctx, args) => {
+    const docs = args.category
+      ? await ctx.db
+          .query("knowledgeDocuments")
+          .withIndex("by_app_category", (q) =>
+            q.eq("appSlug", args.appSlug).eq("category", args.category!)
+          )
+          .take(MAX_BM25_DOCS)
+      : await ctx.db
+          .query("knowledgeDocuments")
+          .withIndex("by_app", (q) => q.eq("appSlug", args.appSlug))
+          .take(MAX_BM25_DOCS);
+
+    const ranked = rankByBm25(
+      docs.map((doc) => ({
+        _id: String(doc._id),
+        title: doc.title,
+        content: doc.content,
+        updatedAt: doc.lastUpdated,
+        category: doc.category,
+        sourceType: doc.sourceType,
+      })),
+      args.query,
+      args.limit,
+    );
+
+    return ranked.map((doc) => ({
+      _id: doc._id,
+      title: doc.title,
+      content: doc.content,
+      category: doc.category,
+      sourceType: doc.sourceType,
+      score: doc.score,
+      updatedAt: doc.updatedAt,
     }));
   },
 });
@@ -205,6 +338,142 @@ function calculateCosineSimilarity(a: number[], b: number[]): number {
   const denom = Math.sqrt(normA) * Math.sqrt(normB);
   return denom === 0 ? 0 : dotProduct / denom;
 }
+
+/** Upsert transcript memory chunks (embedding-backed conversation memory). */
+export const upsertTranscriptMemoryChunkRecords = internalMutation({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    chunks: v.array(
+      v.object({
+        chunkId: v.string(),
+        title: v.string(),
+        content: v.string(),
+        roleSummary: v.optional(v.string()),
+        channel: v.optional(v.string()),
+        sourceTs: v.float64(),
+        embedding: v.array(v.float64()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("transcriptMemories")
+      .withIndex("by_app_session", (q) =>
+        q.eq("appSlug", args.appSlug).eq("sessionId", args.sessionId)
+      )
+      .collect();
+
+    const existingByChunk = new Map(existing.map((record) => [record.chunkId, record]));
+    const keepChunkIds = new Set<string>();
+    const now = Date.now();
+
+    for (const chunk of args.chunks) {
+      keepChunkIds.add(chunk.chunkId);
+      const current = existingByChunk.get(chunk.chunkId);
+      if (current) {
+        await ctx.db.patch(current._id, {
+          title: chunk.title,
+          content: chunk.content,
+          roleSummary: chunk.roleSummary,
+          channel: chunk.channel,
+          sourceTs: chunk.sourceTs,
+          embedding: chunk.embedding,
+          updatedAt: now,
+        });
+      } else {
+        await ctx.db.insert("transcriptMemories", {
+          appSlug: args.appSlug,
+          sessionId: args.sessionId,
+          chunkId: chunk.chunkId,
+          title: chunk.title,
+          content: chunk.content,
+          roleSummary: chunk.roleSummary,
+          channel: chunk.channel,
+          sourceTs: chunk.sourceTs,
+          embedding: chunk.embedding,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+
+    for (const stale of existing) {
+      if (!keepChunkIds.has(stale.chunkId)) {
+        await ctx.db.delete(stale._id);
+      }
+    }
+  },
+});
+
+/** Vector retrieval over transcript memory chunks. */
+export const searchTranscriptMemoryVectorRecords = internalQuery({
+  args: {
+    embedding: v.array(v.float64()),
+    appSlug: v.string(),
+    limit: v.float64(),
+  },
+  handler: async (ctx, args) => {
+    const memories = await ctx.db
+      .query("transcriptMemories")
+      .withIndex("by_app_sourceTs", (q) => q.eq("appSlug", args.appSlug))
+      .order("desc")
+      .take(MAX_BM25_DOCS);
+
+    const scored = memories.map((memory) => ({
+      _id: String(memory._id),
+      title: memory.title,
+      content: memory.content,
+      category: "memory",
+      sourceType: "transcript",
+      sourceSessionId: memory.sessionId,
+      score: calculateCosineSimilarity(args.embedding, memory.embedding),
+      updatedAt: memory.updatedAt,
+    }));
+
+    scored.sort((a, b) => b.score - a.score || b.updatedAt - a.updatedAt);
+    return scored.slice(0, args.limit);
+  },
+});
+
+/** Keyword retrieval over transcript memory chunks using BM25. */
+export const searchTranscriptMemoryKeywordRecords = internalQuery({
+  args: {
+    query: v.string(),
+    appSlug: v.string(),
+    limit: v.float64(),
+  },
+  handler: async (ctx, args) => {
+    const memories = await ctx.db
+      .query("transcriptMemories")
+      .withIndex("by_app_sourceTs", (q) => q.eq("appSlug", args.appSlug))
+      .order("desc")
+      .take(MAX_BM25_DOCS);
+    const sessionById = new Map(memories.map((row) => [String(row._id), row.sessionId]));
+
+    const ranked = rankByBm25(
+      memories.map((memory) => ({
+        _id: String(memory._id),
+        title: memory.title,
+        content: memory.content,
+        updatedAt: memory.updatedAt,
+      })),
+      args.query,
+      args.limit,
+    );
+
+    return ranked.map((memory) => ({
+      _id: memory._id,
+      title: memory.title,
+      content: memory.content,
+      category: "memory",
+      sourceType: "transcript",
+      score: memory.score,
+      sourceSessionId: sessionById.get(memory._id),
+      updatedAt: memory.updatedAt,
+    }));
+  },
+});
 
 /** Log a knowledge search with quality metrics */
 export const logKnowledgeSearchRecord = internalMutation({

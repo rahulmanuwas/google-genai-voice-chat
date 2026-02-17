@@ -14,6 +14,8 @@ import { createConvexAgentCallbacks } from './callbacks';
 import { createToolsFromConvex } from './tools.js';
 
 const GUARDRAIL_TIMEOUT_MS = 3000;
+const TTS_DIRECTIVE_PATTERN = /\[\[tts:([^\]]+)\]\]/gi;
+const SAFE_TTS_VOICE_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
 
 /**
  * Voice agent preamble — prepended to every system prompt.
@@ -132,6 +134,38 @@ function mapCloseReasonToResolution(reason: string): { status: string; resolutio
     default:
       return { status: 'resolved', resolution: reason === 'unknown' ? 'completed' : reason };
   }
+}
+
+interface ParsedTtsDirectives {
+  cleanText: string;
+  voice?: string;
+  directives: Record<string, string>;
+}
+
+function parseTtsDirectives(text: string): ParsedTtsDirectives {
+  const directives: Record<string, string> = {};
+  let voice: string | undefined;
+
+  const cleanText = text.replace(TTS_DIRECTIVE_PATTERN, (_match, payload: string) => {
+    const parts = payload
+      .split(/[;,]/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    for (const part of parts) {
+      const eq = part.indexOf("=");
+      if (eq <= 0) continue;
+      const key = part.slice(0, eq).trim().toLowerCase();
+      const value = part.slice(eq + 1).trim();
+      if (!key || !value) continue;
+      directives[key] = value;
+      if (key === "voice" && SAFE_TTS_VOICE_PATTERN.test(value)) {
+        voice = value;
+      }
+    }
+    return "";
+  }).replace(/\s+/g, " ").trim();
+
+  return { cleanText, voice, directives };
 }
 
 /**
@@ -330,6 +364,9 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         const checkGuardrails = callbacks?.checkGuardrails;
         let lastCloseReason = 'unknown';
         let conversationResolved = false;
+        let pipelineVoice = personaVoice || config.voice;
+        let restartSessionForVoiceDirective = false;
+        let suppressReconnectReply = false;
 
         const pushEvent = (eventType: string, data?: Record<string, unknown>) => {
           eventBuffer.push({
@@ -474,7 +511,9 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               console.log(`[agent] Injected ${allMessages.length} messages as history for reconnect`);
             }
 
-            const sessionVoice = personaVoice || config.voice;
+            const sessionVoice = currentMode === 'pipeline'
+              ? (pipelineVoice || personaVoice || config.voice)
+              : (personaVoice || config.voice);
 
             // Create session based on current mode (may switch from realtime → pipeline on tool call failure)
             const session = currentMode === 'pipeline'
@@ -510,9 +549,14 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                   .catch((err) => console.warn('[agent] Failed to create initial conversation:', err));
               }
             } else {
-              // Reconnect: generate a brief "I'm back" reply so user knows the agent is alive
-              session.generateReply({ instructions: 'Briefly apologize for the interruption and ask how you can continue helping. Keep it to one short sentence.' });
-              console.log('[agent] Reconnect reply generated');
+              if (suppressReconnectReply) {
+                suppressReconnectReply = false;
+                console.log('[agent] Reconnected with updated pipeline TTS voice');
+              } else {
+                // Reconnect: generate a brief "I'm back" reply so user knows the agent is alive
+                session.generateReply({ instructions: 'Briefly apologize for the interruption and ask how you can continue helping. Keep it to one short sentence.' });
+                console.log('[agent] Reconnect reply generated');
+              }
             }
 
             // Wire transcription listeners for this session
@@ -570,24 +614,41 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               // Strip control characters (e.g. <ctrl46>) that Gemini occasionally emits
               const text = (item.textContent ?? '').replace(/<ctrl\d+>/gi, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
               if (!text) return;
+              const parsed = parseTtsDirectives(text);
+              const cleanText = parsed.cleanText;
+              if (parsed.voice && currentMode === 'pipeline' && parsed.voice !== sessionVoice) {
+                pipelineVoice = parsed.voice;
+                restartSessionForVoiceDirective = true;
+                suppressReconnectReply = true;
+                pushEvent('tts_voice_directive_detected', {
+                  voice: parsed.voice,
+                  directives: parsed.directives,
+                });
+                // Voice is configured at session creation for pipeline mode, so restart quickly.
+                setTimeout(() => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (session as any).close?.({ reason: 'tts_voice_change' });
+                }, 0);
+              }
+              if (!cleanText) return;
               resetIdleTimer();
-              console.log(`[agent] Agent said: "${text.slice(0, 80)}..."`);
+              console.log(`[agent] Agent said: "${cleanText.slice(0, 80)}..."`);
               const ts = item.createdAt ?? Date.now();
               messageBuffer.push({
                 sessionId, roomName,
                 participantIdentity: 'agent', role: 'agent',
-                content: text, isFinal: true, createdAt: ts,
+                content: cleanText, isFinal: true, createdAt: ts,
               });
-              allMessages.push({ role: 'agent', content: text, ts });
+              allMessages.push({ role: 'agent', content: cleanText, ts });
 
               // Async output guardrail check (warn/log only — cannot un-speak audio)
               if (checkGuardrails) {
-                checkGuardrails(text, 'output', sessionId, traceId).then((result) => {
+                checkGuardrails(cleanText, 'output', sessionId, traceId).then((result) => {
                   if (result.violations.length > 0) {
                     pushEvent('guardrail_violation', {
                       direction: 'output',
                       violations: result.violations,
-                      content: text.slice(0, 200),
+                      content: cleanText.slice(0, 200),
                     });
                     console.warn(`[agent] Output guardrail triggered: ${result.violations.length} violation(s)`);
                   }
@@ -655,6 +716,16 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
             lastCloseReason = closeInfo.reason;
             console.log(`[agent] Session closed (reason: ${closeInfo.reason})`);
+
+            if (restartSessionForVoiceDirective) {
+              restartSessionForVoiceDirective = false;
+              if (!hasRemoteParticipants(ctx)) {
+                break;
+              }
+              console.log(`[agent] Restarting pipeline session with voice: ${pipelineVoice}`);
+              await new Promise((r) => setTimeout(r, 200));
+              continue;
+            }
 
             // If participant disconnected or idle timeout, close the session gracefully
             if (closeInfo.reason === 'participant_disconnected' || closeInfo.reason === 'idle_timeout') {

@@ -49,6 +49,8 @@ import {
   createAgentSessionHandler,
   getAgentSessionHandler,
   promptAgentHandler,
+  recordAgentSessionRunHandler,
+  listAgentSessionRunsHandler,
   listRuntimesHandler,
 } from "./agentSessions";
 
@@ -184,6 +186,8 @@ post("/api/scenario-state/reset", resetScenarioState);
 post("/api/agents/session", createAgentSessionHandler);
 get("/api/agents/session", getAgentSessionHandler);
 post("/api/agents/prompt", promptAgentHandler);
+post("/api/agents/session/run", recordAgentSessionRunHandler);
+get("/api/agents/session/runs", listAgentSessionRunsHandler);
 get("/api/agents/runtimes", listRuntimesHandler);
 
 export default http;

@@ -29,6 +29,28 @@ export interface AgentEvent {
   data?: string;
 }
 
+/** Per-prompt run metadata from the Pi runtime adapter. */
+export interface AgentRunRecord {
+  runId: string;
+  runtime: 'pi';
+  provider: string;
+  model: string;
+  status: 'success' | 'error';
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  attemptCount: number;
+  fallbackCount: number;
+  contextRecoveryCount: number;
+  toolOutputTruncatedChars: number;
+  promptChars: number;
+  responseChars: number;
+  authProfileId?: string;
+  failureReason?: string;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+}
+
 /** A single transcription message to persist */
 export interface BufferedMessage {
   sessionId: string;
@@ -67,6 +89,9 @@ export interface AgentCallbacks {
     sessionId: string,
     traceId?: string,
   ) => Promise<GuardrailResult>;
+
+  /** Persist per-run metadata (provider/model/fallback/failure diagnostics). */
+  persistAgentRun?: (sessionId: string, run: AgentRunRecord) => Promise<void>;
 
   /** Forward a transcript to a Pi agent session for processing */
   forwardToAgent?: (
@@ -192,6 +217,23 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
       } catch {
         // Fail-open: if guardrails endpoint is unreachable, allow the message
         return { allowed: true, violations: [] };
+      }
+    },
+
+    async persistAgentRun(sessionId: string, run: AgentRunRecord): Promise<void> {
+      const res = await fetch(`${convexUrl}/api/agents/session/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...traceHeaders },
+        body: JSON.stringify({
+          appSlug,
+          appSecret,
+          sessionId,
+          run,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`persistAgentRun failed (${res.status}): ${text}`);
       }
     },
   };

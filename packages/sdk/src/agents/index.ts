@@ -34,6 +34,17 @@ export type {
   ProviderInfo,
   ModelInfo,
   PiOptions,
+  ToolPolicyConfig,
+  ToolPolicyLayer,
+  ToolPolicyRule,
+  ToolPolicyDecision,
+  ToolPolicyBlockedTool,
+  ModelFallbackCandidate,
+  AuthProfileConfig,
+  AgentRunMetadata,
+  AgentPluginContext,
+  AgentPluginService,
+  AgentPluginServiceCleanup,
 } from './types';
 
 // Providers
@@ -41,9 +52,22 @@ export { getProviders, getDefaultModel } from './providers';
 
 // Tools bridge
 export { convertTool, convertTools } from './tools-bridge';
+export { evaluateToolPolicy } from './tool-policy';
 
 // Callbacks bridge
 export { createCallbacksBridge } from './callbacks';
 
 // Runtime adapter (for advanced usage like dynamic provider discovery)
 export { PiRuntimeAdapter } from './pi-runtime';
+
+// Plugin registry
+export {
+  registerTool,
+  unregisterTool,
+  listRegisteredTools,
+  clearRegisteredTools,
+  registerService,
+  unregisterService,
+  listRegisteredServices,
+  clearRegisteredServices,
+} from './plugins';

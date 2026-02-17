@@ -9,6 +9,8 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as agentSessions from "../agentSessions.js";
+import type * as agentSessionsDb from "../agentSessionsDb.js";
 import type * as analytics from "../analytics.js";
 import type * as analyticsCluster from "../analyticsCluster.js";
 import type * as analyticsClusterRecords from "../analyticsClusterRecords.js";
@@ -55,6 +57,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  agentSessions: typeof agentSessions;
+  agentSessionsDb: typeof agentSessionsDb;
   analytics: typeof analytics;
   analyticsCluster: typeof analyticsCluster;
   analyticsClusterRecords: typeof analyticsClusterRecords;

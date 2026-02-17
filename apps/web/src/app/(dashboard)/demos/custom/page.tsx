@@ -338,7 +338,7 @@ function VoiceChatUI({ apiKey, scenario }: { apiKey: string; scenario: Scenario 
             </div>
 
             <div className="rounded-lg border bg-muted/10 p-3 text-xs text-muted-foreground">
-              Demo script: say &quot;Hi, I&apos;m Rahul. I prefer afternoon appointments.&quot; then click &quot;Update Memory&quot; and &quot;Start New Chat&quot;. Ask &quot;Do you remember me?&quot;
+              Demo script: say &quot;Hi, I&apos;m Alex. I prefer afternoon appointments.&quot; then click &quot;Update Memory&quot; and &quot;Start New Chat&quot;. Ask &quot;Do you remember me?&quot;
             </div>
           </CardContent>
         </Card>

@@ -23,7 +23,7 @@ const FOOTER_LINKS = {
     { label: 'Experiments', href: '/experiments' },
   ],
   Developers: [
-    { label: 'Documentation', href: '/docs' },
+    { label: 'GitHub', href: 'https://github.com/rahulmanuwas/google-genai-voice-chat' },
     { label: 'How It Works', href: '#how-it-works' },
     { label: 'Code Examples', href: '#code' },
     { label: 'LiveKit Agent', href: '/demos/livekit' },

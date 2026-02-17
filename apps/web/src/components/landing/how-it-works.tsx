@@ -8,21 +8,21 @@ const STEPS = [
     icon: Settings,
     title: 'Configure',
     description:
-      'Set persona, knowledge base, guardrails, and tools in the dashboard — or scaffold from the terminal with Pi CLI.',
+      'Define persona, tools, guardrails, and knowledge in the dashboard, or scaffold the same setup with Pi CLI.',
   },
   {
     number: '02',
     icon: Plug,
     title: 'Connect',
     description:
-      'Drop in the React SDK for web. Point a SIP trunk for phone.',
+      'Ship web voice with the React SDK, map phone via SIP, and launch chat or SMS without rebuilding the agent.',
   },
   {
     number: '03',
     icon: Activity,
     title: 'Monitor',
     description:
-      'Watch conversations live, track resolution rates, iterate in minutes.',
+      'Track live transcripts, tool calls, and resolution metrics, then ship prompt and workflow updates in minutes.',
   },
 ];
 
@@ -32,8 +32,11 @@ export function HowItWorks() {
       <div className="max-w-6xl mx-auto px-6">
         <FadeIn className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Days to production. Not quarters.
+            Go live in days. Improve every day.
           </h2>
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            Configure once, connect every channel, and iterate from real conversation data.
+          </p>
         </FadeIn>
 
         <div className="relative grid gap-4 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-start">

@@ -37,6 +37,31 @@ export const saveConversation = corsHttpAction(async (ctx, request) => {
     resolution,
   });
 
+  const shouldIndexTranscript =
+    status === "resolved"
+    || status === "abandoned"
+    || resolution !== undefined;
+
+  if (shouldIndexTranscript && Array.isArray(messages) && messages.length > 0) {
+    try {
+      await ctx.runAction(internal.knowledgeInternal.indexSessionTranscriptAction, {
+        appSlug: auth.app.slug,
+        sessionId,
+        channel,
+        messages: messages
+          .filter((message) => typeof message.content === "string" && message.content.trim().length > 0)
+          .slice(-120)
+          .map((message) => ({
+            role: message.role,
+            content: message.content,
+            ts: message.ts ?? Date.now(),
+          })),
+      });
+    } catch (err) {
+      console.warn("[conversations] Failed to index transcript memory:", err);
+    }
+  }
+
   return jsonResponse({ ok: true });
 });
 

@@ -5,7 +5,12 @@
  * persistence, and tracing work uniformly.
  */
 
-import type { AgentCallbacks, AgentEvent, GuardrailResult } from '../agent/callbacks';
+import type {
+  AgentCallbacks,
+  AgentEvent,
+  GuardrailResult,
+  AgentRunRecord,
+} from '../agent/callbacks';
 
 /**
  * Wrap platform callbacks to automatically include session metadata.
@@ -67,6 +72,12 @@ export function createCallbacksBridge(
       if (!callbacks.resolveConversation) return;
 
       await callbacks.resolveConversation(sessionId, channel, startedAt, messages);
+    },
+
+    /** Persist run metadata when available */
+    async persistAgentRun(run: AgentRunRecord): Promise<void> {
+      if (!callbacks.persistAgentRun) return;
+      await callbacks.persistAgentRun(sessionId, run);
     },
   };
 }

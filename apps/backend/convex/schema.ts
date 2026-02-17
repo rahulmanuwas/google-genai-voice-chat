@@ -209,6 +209,29 @@ export default defineSchema({
     .index("by_app_createdAt", ["appSlug", "createdAt"])
     .index("by_trace", ["traceId"]),
 
+  transcriptMemories: defineTable({
+    appSlug: v.string(),
+    sessionId: v.string(),
+    chunkId: v.string(),
+    title: v.string(),
+    content: v.string(),
+    roleSummary: v.optional(v.string()),
+    channel: v.optional(v.string()),
+    sourceTs: v.float64(),
+    embedding: v.array(v.float64()),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+  })
+    .index("by_app", ["appSlug"])
+    .index("by_app_session", ["appSlug", "sessionId"])
+    .index("by_app_session_chunkId", ["appSlug", "sessionId", "chunkId"])
+    .index("by_app_sourceTs", ["appSlug", "sourceTs"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 768,
+      filterFields: ["appSlug"],
+    }),
+
   // ─── Analytics & Insights ──────────────────────────────────────
 
   insights: defineTable({
@@ -446,12 +469,42 @@ export default defineSchema({
     branchId: v.optional(v.string()),
     threadId: v.optional(v.string()), // codex thread ID
     cwd: v.optional(v.string()),
+    runCount: v.optional(v.float64()),
+    lastRunAt: v.optional(v.float64()),
+    lastFailureReason: v.optional(v.string()),
     createdAt: v.float64(),
     endedAt: v.optional(v.float64()),
   })
     .index("by_sessionId", ["sessionId"])
     .index("by_appSlug", ["appSlug"])
+    .index("by_appSlug_sessionId", ["appSlug", "sessionId"])
     .index("by_runtime", ["runtime"]),
+
+  agentSessionRuns: defineTable({
+    appSlug: v.string(),
+    sessionId: v.string(),
+    runId: v.string(),
+    runtime: v.string(),
+    provider: v.string(),
+    model: v.string(),
+    status: v.string(),
+    startedAt: v.float64(),
+    endedAt: v.float64(),
+    durationMs: v.float64(),
+    attemptCount: v.float64(),
+    fallbackCount: v.float64(),
+    contextRecoveryCount: v.float64(),
+    toolOutputTruncatedChars: v.float64(),
+    promptChars: v.float64(),
+    responseChars: v.float64(),
+    authProfileId: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    metadata: v.optional(v.string()),
+  })
+    .index("by_app_session", ["appSlug", "sessionId"])
+    .index("by_session_startedAt", ["sessionId", "startedAt"])
+    .index("by_app_startedAt", ["appSlug", "startedAt"]),
 
   // ─── Scenario State (Live Demo Data) ──────────────────────────
 

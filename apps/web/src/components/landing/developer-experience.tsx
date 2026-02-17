@@ -10,16 +10,22 @@ const PROVIDERS = [
     logo: '/logos/gemini.svg',
     name: 'Google',
     description: 'Gemini 3, Flash, embedding models',
+    logoWidth: 74,
+    logoHeight: 24,
   },
   {
     logo: '/logos/anthropic.svg',
     name: 'Anthropic',
     description: 'Claude Opus, Sonnet, Haiku',
+    logoWidth: 94,
+    logoHeight: 24,
   },
   {
     logo: '/logos/openai.svg',
     name: 'OpenAI',
     description: 'GPT-4o, o-series reasoning models',
+    logoWidth: 80,
+    logoHeight: 24,
   },
 ] as const;
 
@@ -38,7 +44,7 @@ export function DeveloperExperience() {
       <div
         className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[800px] rounded-full"
         style={{
-          background: 'radial-gradient(ellipse, hsl(280 60% 50% / 0.04) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse, hsl(38 92% 50% / 0.05) 0%, transparent 70%)',
           filter: 'blur(80px)',
         }}
       />
@@ -77,13 +83,15 @@ export function DeveloperExperience() {
                     }`}>
                       {i === selectedProvider && <div className="h-2 w-2 rounded-full bg-brand" />}
                     </div>
-                    <Image
-                      src={provider.logo}
-                      alt={provider.name}
-                      width={24}
-                      height={24}
-                      className="h-6 w-6 shrink-0"
-                    />
+                    <div className="flex h-6 w-[98px] shrink-0 items-center">
+                      <Image
+                        src={provider.logo}
+                        alt={provider.name}
+                        width={provider.logoWidth}
+                        height={provider.logoHeight}
+                        className="h-5 w-auto object-contain opacity-90"
+                      />
+                    </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{provider.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{provider.description}</p>

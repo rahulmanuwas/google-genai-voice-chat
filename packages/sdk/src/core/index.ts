@@ -10,6 +10,23 @@ export type {
   PlatformEvent,
 } from './types';
 
+// Channel adapter interfaces
+export type {
+  ChannelCapabilities,
+  ChannelContext,
+  ChannelAttachment,
+  BaseChannelAdapter,
+  ChannelMessagingAdapter,
+  ChannelStreamingAdapter,
+  ChannelGroupAdapter,
+  ChannelPresenceAdapter,
+  ChannelAttachmentAdapter,
+  ChannelInboundAdapter,
+  ChannelAdapter,
+  ChannelAdapterRegistry,
+} from './channel';
+export { createChannelAdapterRegistry } from './channel';
+
 // Tool/action framework
 export type {
   JSONSchemaProperty,
