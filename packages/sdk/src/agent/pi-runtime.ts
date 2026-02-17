@@ -17,12 +17,12 @@ import type {
   ModelFallbackCandidate,
   AgentRunMetadata,
   AgentPluginServiceCleanup,
-} from './types';
+} from './pi-types';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { convertTools } from './tools-bridge';
-import { createCallbacksBridge } from './callbacks';
+import { createCallbacksBridge } from './pi-callbacks';
 import { getDefaultModel } from './providers';
 import { evaluateToolPolicy } from './tool-policy';
 import { listRegisteredTools, listRegisteredServices } from './plugins';

@@ -12,7 +12,6 @@ export default defineConfig({
     'telephony/index': 'src/telephony/index.ts',
     'telephony/adapters/telnyx': 'src/telephony/adapters/telnyx.ts',
     'telephony/adapters/twilio': 'src/telephony/adapters/twilio.ts',
-    'agents/index': 'src/agents/index.ts',
   },
   format: ['cjs', 'esm'],
   dts: true,
@@ -23,6 +22,8 @@ export default defineConfig({
   external: [
     '@livekit/agents',
     '@livekit/agents-plugin-google',
+    '@livekit/agents-plugin-deepgram',
+    '@livekit/agents-plugin-silero',
     '@livekit/components-react',
     '@google/genai',
     'livekit-client',

@@ -2,7 +2,7 @@
  * Converts Riyaan tool definitions to Pi's native tool format.
  */
 
-import type { ToolDefinition } from './types';
+import type { ToolDefinition } from './pi-types';
 
 interface PiToolResult {
   content: Array<{ type: 'text'; text: string }>;

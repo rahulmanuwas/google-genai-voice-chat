@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { AgentModePicker, type AgentMode } from '@/components/demos/AgentModePicker';
 import { ScenarioStatePanel } from '@/components/demos/ScenarioStatePanel';
@@ -23,6 +24,8 @@ export default function LiveKitDemo() {
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
   const [agentMode, setAgentMode] = useState<AgentMode>('pipeline');
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeRoomName, setActiveRoomName] = useState<string | null>(null);
   const scenario = getScenarioById(scenarioId);
   const { changes: stateChanges } = useScenarioStateChanges(scenario);
   const {
@@ -57,14 +60,34 @@ export default function LiveKitDemo() {
     [convexUrl, scenario.appSlug, getSessionToken],
   );
 
+  const resetSessionProbe = useCallback(() => {
+    setActiveSessionId(null);
+    setActiveRoomName(null);
+  }, []);
+
+  const handleRoomCreated = useCallback(({ sessionId, roomName }: { sessionId: string; roomName: string }) => {
+    setActiveSessionId(sessionId);
+    setActiveRoomName(roomName);
+  }, []);
+
+  const handleScenarioChange = useCallback((nextScenarioId: string) => {
+    setScenarioId(nextScenarioId);
+    resetSessionProbe();
+  }, [resetSessionProbe]);
+
+  const handleAgentModeChange = useCallback((nextAgentMode: AgentMode) => {
+    setAgentMode(nextAgentMode);
+    resetSessionProbe();
+  }, [resetSessionProbe]);
+
   const hasStatePanel = scenario.id === 'dentist' || scenario.id === 'ecommerce';
 
   return (
     <div className="space-y-6">
       <PageHeader title="LiveKit Agent" description="Click Start Voice Chat to connect to a server-side AI agent.">
         <div className="flex flex-wrap items-center gap-4">
-          <ScenarioPicker value={scenarioId} onChange={setScenarioId} />
-          <AgentModePicker value={agentMode} onChange={setAgentMode} />
+          <ScenarioPicker value={scenarioId} onChange={handleScenarioChange} />
+          <AgentModePicker value={agentMode} onChange={handleAgentModeChange} />
         </div>
       </PageHeader>
 
@@ -77,11 +100,24 @@ export default function LiveKitDemo() {
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_420px]">
           <Card>
             <CardContent className="pt-6">
+              {(activeSessionId || activeRoomName) && (
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  {activeSessionId && <Badge variant="secondary">session {activeSessionId}</Badge>}
+                  {activeRoomName && <Badge variant="outline">room {activeRoomName}</Badge>}
+                  <Badge variant="outline">{scenario.appSlug}</Badge>
+                </div>
+              )}
               <LiveKitVoiceChat
                 key={`${scenario.id}-${agentMode}`}
                 callbacks={callbacks!}
                 serverUrl={livekitUrl}
                 agentMode={agentMode}
+                roomMetadata={{
+                  surface: 'livekit-demo',
+                  scenarioId: scenario.id,
+                  appSlug: scenario.appSlug,
+                }}
+                onRoomCreated={handleRoomCreated}
                 thinkingAudioSrc="/chieuk-thinking-289286.mp3"
                 onAgentStateChange={handleAgentStateChange}
                 onTranscript={handleTranscript}

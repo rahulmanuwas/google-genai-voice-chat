@@ -17,6 +17,46 @@ export type {
 } from './callbacks.js';
 export type { LiveKitAgentConfig } from '../types';
 
+// ─── Pi agent API (multi-provider text agent) ───────────────────
+export { createAgent, isAvailable, getAdapter } from './pi-agent';
+export type {
+  AgentConfig,
+  AgentHandle,
+  AgentState as PiAgentState,
+  AgentEventType,
+  ToolDefinition,
+  ToolParameter,
+  ProviderInfo,
+  ModelInfo,
+  PiOptions,
+  ToolPolicyConfig,
+  ToolPolicyLayer,
+  ToolPolicyRule,
+  ToolPolicyDecision,
+  ToolPolicyBlockedTool,
+  ModelFallbackCandidate,
+  AuthProfileConfig,
+  AgentRunMetadata,
+  AgentPluginContext,
+  AgentPluginService,
+  AgentPluginServiceCleanup,
+} from './pi-types';
+export { getProviders, getDefaultModel } from './providers';
+export { convertTool, convertTools } from './tools-bridge';
+export { evaluateToolPolicy } from './tool-policy';
+export { createCallbacksBridge } from './pi-callbacks';
+export { PiRuntimeAdapter } from './pi-runtime';
+export {
+  registerTool,
+  unregisterTool,
+  listRegisteredTools,
+  clearRegisteredTools,
+  registerService,
+  unregisterService,
+  listRegisteredServices,
+  clearRegisteredServices,
+} from './plugins';
+
 // Default export required by @livekit/agents framework
 const defaultAgent = createAgentDefinition();
 export default defaultAgent;

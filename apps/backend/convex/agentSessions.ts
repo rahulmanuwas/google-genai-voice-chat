@@ -2,12 +2,11 @@
  * HTTP action handlers for agent sessions.
  */
 
-import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
-import { authenticateRequest, getFullAuthCredentials, jsonResponse } from "./helpers";
+import { authenticateRequest, getFullAuthCredentials, jsonResponse, corsHttpAction } from "./helpers";
 
 /** POST /api/agents/session — Create a new agent session */
-export const createAgentSessionHandler = httpAction(async (ctx, request) => {
+export const createAgentSessionHandler = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const creds = getFullAuthCredentials(request, body);
   const auth = await authenticateRequest(ctx, creds);
@@ -35,7 +34,7 @@ export const createAgentSessionHandler = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/agents/session — Get an agent session by sessionId */
-export const getAgentSessionHandler = httpAction(async (ctx, request) => {
+export const getAgentSessionHandler = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("sessionId");
   const creds = getFullAuthCredentials(request);
@@ -58,7 +57,7 @@ export const getAgentSessionHandler = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/agents/prompt — Forward a prompt to an active agent session */
-export const promptAgentHandler = httpAction(async (ctx, request) => {
+export const promptAgentHandler = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const creds = getFullAuthCredentials(request, body);
   const auth = await authenticateRequest(ctx, creds);
@@ -90,7 +89,7 @@ export const promptAgentHandler = httpAction(async (ctx, request) => {
 });
 
 /** POST /api/agents/session/run — Persist metadata for one prompt run */
-export const recordAgentSessionRunHandler = httpAction(async (ctx, request) => {
+export const recordAgentSessionRunHandler = corsHttpAction(async (ctx, request) => {
   const body = await request.json();
   const creds = getFullAuthCredentials(request, body);
   const auth = await authenticateRequest(ctx, creds);
@@ -151,10 +150,12 @@ export const recordAgentSessionRunHandler = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/agents/session/runs — List recent runs for an agent session */
-export const listAgentSessionRunsHandler = httpAction(async (ctx, request) => {
+export const listAgentSessionRunsHandler = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("sessionId");
   const limitRaw = url.searchParams.get("limit");
+  const all = url.searchParams.get("all") === "true";
+  const filterApp = url.searchParams.get("appSlug") ?? undefined;
   const creds = getFullAuthCredentials(request);
   const auth = await authenticateRequest(ctx, creds);
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
@@ -165,7 +166,7 @@ export const listAgentSessionRunsHandler = httpAction(async (ctx, request) => {
 
   const limit = limitRaw ? Number(limitRaw) : undefined;
   const runs = await ctx.runQuery(api.agentSessionsDb.listAgentSessionRuns, {
-    appSlug: auth.app.slug,
+    appSlug: all ? filterApp : auth.app.slug,
     sessionId,
     limit: Number.isFinite(limit) ? limit : undefined,
   });
@@ -174,7 +175,7 @@ export const listAgentSessionRunsHandler = httpAction(async (ctx, request) => {
 });
 
 /** GET /api/agents/runtimes — List available runtimes and models */
-export const listRuntimesHandler = httpAction(async (ctx, request) => {
+export const listRuntimesHandler = corsHttpAction(async (ctx, request) => {
   const creds = getFullAuthCredentials(request);
   const auth = await authenticateRequest(ctx, creds);
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);

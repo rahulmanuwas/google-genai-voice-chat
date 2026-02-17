@@ -98,7 +98,15 @@ export interface KnowledgeSearchResult {
   title: string;
   content: string;
   category: string;
-  _score: number;
+  score: number;
+  sourceType?: string;
+  sourceSessionId?: string;
+}
+
+export interface KnowledgeSearchMetrics {
+  totalSearches: number;
+  avgTopScore: number;
+  gapRate: number;
 }
 
 // ─── Persona ───────────────────────────────────────────────────
@@ -319,6 +327,49 @@ export interface GuardrailViolation {
   annotatedBy?: string;
   annotatedAt?: number;
   createdAt: number;
+}
+
+// ─── Agent Sessions ──────────────────────────────────────────────
+export interface AgentSession {
+  _id: string;
+  appSlug: string;
+  sessionId: string;
+  runtime: string;
+  provider?: string;
+  model?: string;
+  status: string;
+  branchId?: string;
+  threadId?: string;
+  cwd?: string;
+  runCount?: number;
+  lastRunAt?: number;
+  lastFailureReason?: string;
+  createdAt: number;
+  endedAt?: number;
+}
+
+export interface AgentSessionRun {
+  _id: string;
+  appSlug: string;
+  sessionId: string;
+  runId: string;
+  runtime: string;
+  provider: string;
+  model: string;
+  status: string;
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  attemptCount: number;
+  fallbackCount: number;
+  contextRecoveryCount: number;
+  toolOutputTruncatedChars: number;
+  promptChars: number;
+  responseChars: number;
+  authProfileId?: string;
+  failureReason?: string;
+  errorMessage?: string;
+  metadata?: string;
 }
 
 // ─── Knowledge Documents ───────────────────────────────────────

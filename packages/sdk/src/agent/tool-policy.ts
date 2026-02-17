@@ -3,7 +3,7 @@ import type {
   ToolPolicyDecision,
   ToolPolicyLayer,
   ToolPolicyRule,
-} from './types';
+} from './pi-types';
 
 const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   filesystem: [

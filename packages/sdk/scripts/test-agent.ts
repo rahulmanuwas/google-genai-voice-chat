@@ -6,7 +6,7 @@
  * Requires GOOGLE_API_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY) in environment.
  *   export $(grep -v '^#' apps/web/.env.local | grep -v '^$' | xargs) && npx tsx packages/sdk/scripts/test-agent.ts
  */
-import { createAgent, isAvailable, getProviders, getAdapter } from '../src/agents/index.ts';
+import { createAgent, isAvailable, getProviders, getAdapter } from '../src/agent/index';
 
 // Pi SDK uses GEMINI_API_KEY for Google provider, map from GOOGLE_API_KEY
 if (process.env.GOOGLE_API_KEY && !process.env.GEMINI_API_KEY) {

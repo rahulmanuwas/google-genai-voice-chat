@@ -50,19 +50,20 @@ export const listAgentSessions = query({
     limit: v.optional(v.float64()),
   },
   handler: async (ctx, { appSlug, runtime, limit }) => {
-    let q = ctx.db
+    const cappedLimit = Math.max(1, Math.min(200, Math.floor(limit ?? 50)));
+    const baseQuery = ctx.db
       .query("agentSessions")
-      .withIndex("by_appSlug", (q) => q.eq("appSlug", appSlug));
+      .withIndex("by_appSlug", (q) => q.eq("appSlug", appSlug))
+      .order("desc");
 
-    const sessions = await q.collect();
-
-    let filtered = sessions;
     if (runtime) {
-      filtered = sessions.filter((s) => s.runtime === runtime);
+      const sessions = await baseQuery
+        .filter((q) => q.eq(q.field("runtime"), runtime))
+        .take(cappedLimit);
+      return sessions;
     }
 
-    const sorted = filtered.sort((a, b) => b.createdAt - a.createdAt);
-    return sorted.slice(0, limit ?? 50);
+    return await baseQuery.take(cappedLimit);
   },
 });
 
@@ -138,15 +139,20 @@ export const recordAgentSessionRun = mutation({
 /** List recent run metadata for a session. */
 export const listAgentSessionRuns = query({
   args: {
-    appSlug: v.string(),
+    appSlug: v.optional(v.string()),
     sessionId: v.string(),
     limit: v.optional(v.float64()),
   },
   handler: async (ctx, { appSlug, sessionId, limit }) => {
-    const runs = await ctx.db
-      .query("agentSessionRuns")
-      .withIndex("by_app_session", (q) => q.eq("appSlug", appSlug).eq("sessionId", sessionId))
-      .collect();
+    const runs = appSlug
+      ? await ctx.db
+          .query("agentSessionRuns")
+          .withIndex("by_app_session", (q) => q.eq("appSlug", appSlug).eq("sessionId", sessionId))
+          .collect()
+      : await ctx.db
+          .query("agentSessionRuns")
+          .withIndex("by_session_startedAt", (q) => q.eq("sessionId", sessionId))
+          .collect();
 
     return runs
       .sort((a, b) => b.startedAt - a.startedAt)

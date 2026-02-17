@@ -113,13 +113,18 @@ export const listHandoffs = corsHttpAction(async (ctx, request) => {
   const status = url.searchParams.get("status");
   const all = url.searchParams.get("all") === "true";
   const filterApp = url.searchParams.get("appSlug") ?? undefined;
+  const sessionId = url.searchParams.get("sessionId") ?? undefined;
 
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const handoffs = await ctx.runQuery(
     internal.handoffs.listHandoffRecords,
-    { appSlug: filterApp ?? (all ? undefined : auth.app.slug), status: status ?? undefined }
+    {
+      appSlug: filterApp ?? (all ? undefined : auth.app.slug),
+      status: status ?? undefined,
+      sessionId,
+    }
   );
 
   return jsonResponse({ handoffs });
@@ -183,8 +188,24 @@ export const listHandoffRecords = internalQuery({
   args: {
     appSlug: v.optional(v.string()),
     status: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.sessionId) {
+      const bySession = await ctx.db
+        .query("handoffs")
+        .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId!))
+        .collect();
+
+      const filtered = bySession.filter((handoff) => {
+        if (args.appSlug && handoff.appSlug !== args.appSlug) return false;
+        if (args.status && handoff.status !== args.status) return false;
+        return true;
+      });
+
+      return filtered.sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+    }
+
     if (args.appSlug && args.status) {
       return await ctx.db
         .query("handoffs")

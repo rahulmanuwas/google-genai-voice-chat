@@ -23,6 +23,8 @@ import type {
   Conversation,
   ConversationAnnotation,
   TraceTimelineEvent,
+  KnowledgeSearchMetrics,
+  AgentSessionRun,
 } from '@/types/api';
 
 function useAuthFetcher() {
@@ -69,11 +71,22 @@ export function useConversations(status?: string, appSlug?: string | null) {
 
 // ─── Handoffs ──────────────────────────────────────────────────
 
-export function useHandoffs(status?: string, appSlug?: string | null) {
+export function useHandoffs(status?: string, appSlug?: string | null, sessionId?: string | null) {
   const params = new URLSearchParams({ all: 'true' });
   if (status) params.set('status', status);
   if (appSlug) params.set('appSlug', appSlug);
+  if (sessionId) params.set('sessionId', sessionId);
   return useApiSWR<{ handoffs: Handoff[] }>(`/api/handoffs?${params}`);
+}
+
+export function useSessionHandoffs(sessionId: string | null, appSlug?: string | null, status?: string) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (sessionId) params.set('sessionId', sessionId);
+  if (appSlug) params.set('appSlug', appSlug);
+  if (status) params.set('status', status);
+  return useApiSWR<{ handoffs: Handoff[] }>(
+    sessionId ? `/api/handoffs?${params.toString()}` : null,
+  );
 }
 
 // ─── Tools ─────────────────────────────────────────────────────
@@ -92,8 +105,18 @@ export function useGuardrailRules() {
   return useApiSWR<{ rules: GuardrailRule[] }>('/api/guardrails/rules?all=true');
 }
 
-export function useGuardrailViolations() {
-  return useApiSWR<{ violations: GuardrailViolation[] }>('/api/guardrails/violations?all=true');
+export function useGuardrailViolations(sessionId?: string | null) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (sessionId) params.set('sessionId', sessionId);
+  return useApiSWR<{ violations: GuardrailViolation[] }>(`/api/guardrails/violations?${params.toString()}`);
+}
+
+export function useSessionGuardrailViolations(sessionId: string | null) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (sessionId) params.set('sessionId', sessionId);
+  return useApiSWR<{ violations: GuardrailViolation[] }>(
+    sessionId ? `/api/guardrails/violations?${params.toString()}` : null,
+  );
 }
 
 // ─── Knowledge ─────────────────────────────────────────────────
@@ -104,6 +127,13 @@ export function useKnowledgeGaps() {
 
 export function useKnowledgeDocuments() {
   return useApiSWR<{ documents: KnowledgeDocument[] }>('/api/knowledge/documents?all=true');
+}
+
+export function useKnowledgeSearchMetrics(since?: number) {
+  const params = new URLSearchParams();
+  if (since) params.set('since', String(since));
+  const query = params.toString();
+  return useApiSWR<KnowledgeSearchMetrics>(`/api/knowledge/metrics${query ? `?${query}` : ''}`);
 }
 
 // ─── Persona ───────────────────────────────────────────────────
@@ -191,5 +221,18 @@ export function useTraceTimeline(traceId: string | null, sessionId?: string) {
   if (sessionId) params.set('sessionId', sessionId);
   return useApiSWR<{ traceId: string; timeline: TraceTimelineEvent[] }>(
     traceId ? `/api/traces?${params}` : null,
+  );
+}
+
+// ─── Agent Runtime ──────────────────────────────────────────────
+
+export function useAgentSessionRuns(sessionId: string | null, limit = 25, appSlug?: string | null) {
+  const params = new URLSearchParams();
+  params.set('all', 'true');
+  if (sessionId) params.set('sessionId', sessionId);
+  if (appSlug) params.set('appSlug', appSlug);
+  params.set('limit', String(limit));
+  return useApiSWR<{ sessionId: string; runs: AgentSessionRun[] }>(
+    sessionId ? `/api/agents/session/runs?${params}` : null,
   );
 }

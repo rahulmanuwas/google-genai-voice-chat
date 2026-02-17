@@ -69,7 +69,7 @@ const LIVEKIT_TOKENS: Token[][] = [
 ];
 
 const RUNTIME_TOKENS: Token[][] = [
-  [kw('import'), txt(' '), op('{'), txt(' '), fn('createAgent'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/sdk/agents'"), op(';')],
+  [kw('import'), txt(' '), op('{'), txt(' '), fn('createAgent'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/sdk/agent'"), op(';')],
   [],
   [kw('const'), txt(' '), txt('agent'), txt(' '), op('='), txt(' '), kw('await'), txt(' '), fn('createAgent'), op('({')],
   [txt('  '), prop('provider'), op(':'), txt(' '), str("'google'"), op(',')],
@@ -108,7 +108,7 @@ const TABS = [
     label: 'Agent SDK',
     description: 'Unified API across 22+ providers. Same code, any model.',
     tokens: RUNTIME_TOKENS,
-    package: '@genai-voice/sdk/agents',
+    package: '@genai-voice/sdk/agent',
   },
 ] as const;
 

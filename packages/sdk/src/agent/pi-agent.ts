@@ -4,7 +4,7 @@
  * `createAgent()` creates a Pi agent session with access to 22+ providers.
  */
 
-import type { AgentConfig, AgentHandle } from './types';
+import type { AgentConfig, AgentHandle } from './pi-types';
 import { PiRuntimeAdapter } from './pi-runtime';
 
 const adapter = new PiRuntimeAdapter();

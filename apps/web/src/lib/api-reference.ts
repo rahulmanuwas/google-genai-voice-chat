@@ -166,6 +166,8 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
     requestFields: [
       { name: 'status', type: 'string', required: false, description: 'Filter by status (pending, assigned, resolved, rejected)' },
       { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app listing' },
+      { name: 'appSlug', type: 'string', required: false, description: 'Optional app override when all=true' },
+      { name: 'sessionId', type: 'string', required: false, description: 'Filter to a single session' },
     ],
     response: '{ handoffs: Handoff[] }',
   },
@@ -248,6 +250,7 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
     auth: 'appSecret OR sessionToken',
     requestFields: [
       { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app listing' },
+      { name: 'sessionId', type: 'string', required: false, description: 'Filter to a single session' },
     ],
     response: '{ violations: Violation[] }',
   },
@@ -282,15 +285,31 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
   {
     method: 'POST',
     path: '/api/knowledge/search',
-    description: 'Semantic search across knowledge base (vector similarity).',
+    description: 'Hybrid search across knowledge base (vector + BM25 + transcript memory fusion).',
     category: 'Knowledge',
     auth: 'appSecret OR sessionToken',
     requestFields: [
       { name: 'query', type: 'string', required: true, description: 'Search query text' },
       { name: 'category', type: 'string', required: false, description: 'Filter by category' },
       { name: 'topK', type: 'number', required: false, description: 'Number of results (default: 5)' },
+      { name: 'sessionId', type: 'string', required: false, description: 'Session used for logging and transcript-memory context' },
+      { name: 'includeTranscriptMemory', type: 'boolean', required: false, description: 'Include indexed transcript memory chunks (default: true)' },
+      { name: 'alphaVector', type: 'number', required: false, description: 'Weight for vector signal (default: 0.62)' },
+      { name: 'alphaKeyword', type: 'number', required: false, description: 'Weight for BM25 keyword signal (default: 0.38)' },
+      { name: 'alphaMemory', type: 'number', required: false, description: 'Extra boost for transcript memory hits (default: 0.20)' },
     ],
     response: '{ results: SearchResult[] }',
+  },
+  {
+    method: 'GET',
+    path: '/api/knowledge/metrics',
+    description: 'Get aggregated search quality metrics (total searches, avg top score, gap rate).',
+    category: 'Knowledge',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'since', type: 'number', required: false, description: 'Timestamp lower bound (ms)' },
+    ],
+    response: '{ totalSearches, avgTopScore, gapRate }',
   },
   {
     method: 'GET',
@@ -572,6 +591,7 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
     requestFields: [
       { name: 'sessionId', type: 'string', required: true, description: 'Client session ID' },
       { name: 'config', type: 'object', required: false, description: '{ maxParticipants?, emptyTimeout?, enableRecording? }' },
+      { name: 'metadata', type: 'object', required: false, description: 'Optional JSON metadata attached to the room' },
     ],
     response: '{ roomId: string, roomName: string, sessionId: string }',
   },
@@ -603,6 +623,70 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
     auth: 'LiveKit webhook signature (Authorization header)',
     requestFields: [],
     response: '{ ok: true }',
+  },
+
+  // ── Agents ────────────────────────────────────────────────────────────
+  {
+    method: 'POST',
+    path: '/api/agents/session',
+    description: 'Create a runtime session (currently supports runtime="pi").',
+    category: 'Agents',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'runtime', type: 'string', required: true, description: 'Runtime id (currently "pi")' },
+      { name: 'provider', type: 'string', required: false, description: 'Initial provider hint' },
+      { name: 'model', type: 'string', required: false, description: 'Initial model hint' },
+      { name: 'branchId', type: 'string', required: false, description: 'Optional branch identifier' },
+      { name: 'threadId', type: 'string', required: false, description: 'Optional runtime thread id' },
+      { name: 'cwd', type: 'string', required: false, description: 'Working directory hint' },
+    ],
+    response: '{ sessionId, runtime, status }',
+  },
+  {
+    method: 'GET',
+    path: '/api/agents/session',
+    description: 'Fetch one runtime session by sessionId.',
+    category: 'Agents',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'sessionId', type: 'string', required: true, description: 'Runtime session id' },
+    ],
+    response: '{ ...AgentSession }',
+  },
+  {
+    method: 'POST',
+    path: '/api/agents/session/run',
+    description: 'Record one runtime run metadata envelope (attempts, fallback, context recovery).',
+    category: 'Agents',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'sessionId', type: 'string', required: true, description: 'Runtime session id' },
+      { name: 'run', type: 'object', required: true, description: 'Run payload (runId, provider, model, status, timings, counts)' },
+    ],
+    response: '{ ok: true, sessionId, runId }',
+  },
+  {
+    method: 'GET',
+    path: '/api/agents/session/runs',
+    description: 'List recent runtime runs for a session.',
+    category: 'Agents',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [
+      { name: 'sessionId', type: 'string', required: true, description: 'Runtime session id' },
+      { name: 'limit', type: 'number', required: false, description: 'Max run records (default: 50)' },
+      { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app lookup by sessionId' },
+      { name: 'appSlug', type: 'string', required: false, description: 'Optional app filter when all=true' },
+    ],
+    response: '{ sessionId, runs: AgentSessionRun[] }',
+  },
+  {
+    method: 'GET',
+    path: '/api/agents/runtimes',
+    description: 'List available runtimes/providers metadata.',
+    category: 'Agents',
+    auth: 'appSecret OR sessionToken',
+    requestFields: [],
+    response: '{ runtimes: RuntimeInfo[] }',
   },
 ];
 
@@ -658,6 +742,7 @@ export const CATEGORIES = [
   'QA',
   'Outbound',
   'LiveKit',
+  'Agents',
   'Dashboard',
 ] as const;
 

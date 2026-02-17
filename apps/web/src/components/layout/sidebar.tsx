@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -77,6 +77,7 @@ const NAV_GROUPS: NavEntry[] = [
       { href: '/demos/custom', label: 'Embedded Widget', icon: Palette },
       { href: '/demos/livekit', label: 'Voice Agent', icon: AudioLines },
       { href: '/demos/twilio-call', label: 'Phone Call', icon: Phone },
+      { href: '/demos/capability-lab', label: 'Capability Lab', icon: ScanSearch },
     ],
   },
 ];
@@ -118,16 +119,12 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         states[entry.label] = entry.defaultOpen ?? false;
       }
     }
-    return states;
-  });
-
-  // Auto-open group containing active page on mount
-  useEffect(() => {
     const activeGroup = findActiveGroup(pathname);
     if (activeGroup) {
-      setGroupStates((prev) => ({ ...prev, [activeGroup]: true }));
+      states[activeGroup] = true;
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    return states;
+  });
 
   const toggleGroup = (label: string) => {
     setGroupStates((prev) => ({ ...prev, [label]: !prev[label] }));

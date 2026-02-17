@@ -16,6 +16,68 @@ import { createToolsFromConvex } from './tools.js';
 const GUARDRAIL_TIMEOUT_MS = 3000;
 const TTS_DIRECTIVE_PATTERN = /\[\[tts:([^\]]+)\]\]/gi;
 const SAFE_TTS_VOICE_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
+const SILERO_MODULE_NAME = '@livekit/agents-plugin-silero';
+const SILERO_VAD_USERDATA_KEY = 'sileroVAD';
+
+interface ProcWithUserData {
+  userData?: Record<string, unknown>;
+  userdata?: Record<string, unknown>;
+}
+
+function getOrCreateProcUserData(proc: unknown): Record<string, unknown> {
+  if (!proc || typeof proc !== 'object') return {};
+  const candidate = proc as ProcWithUserData;
+
+  if (candidate.userData && typeof candidate.userData === 'object') {
+    return candidate.userData;
+  }
+  if (candidate.userdata && typeof candidate.userdata === 'object') {
+    return candidate.userdata;
+  }
+
+  const bucket: Record<string, unknown> = {};
+  try {
+    candidate.userData = bucket;
+  } catch {
+    // Ignore write errors; we'll just use an ephemeral in-memory object.
+  }
+  return bucket;
+}
+
+async function loadSileroVad(): Promise<unknown | null> {
+  try {
+    const moduleName: string = SILERO_MODULE_NAME;
+    const silero = await import(moduleName);
+    const vadLoader = (silero as { VAD?: { load?: (options?: Record<string, unknown>) => Promise<unknown> } }).VAD?.load;
+    if (!vadLoader) {
+      console.warn('[agent] Silero plugin loaded but VAD.load() is unavailable');
+      return null;
+    }
+
+    const options: Record<string, unknown> = {};
+    const minSilenceDuration = process.env.SILERO_MIN_SILENCE_DURATION;
+    const activationThreshold = process.env.SILERO_ACTIVATION_THRESHOLD;
+    const prefixPaddingDuration = process.env.SILERO_PREFIX_PADDING_DURATION;
+
+    if (minSilenceDuration !== undefined) {
+      const value = Number(minSilenceDuration);
+      if (Number.isFinite(value)) options.min_silence_duration = value;
+    }
+    if (activationThreshold !== undefined) {
+      const value = Number(activationThreshold);
+      if (Number.isFinite(value)) options.activation_threshold = value;
+    }
+    if (prefixPaddingDuration !== undefined) {
+      const value = Number(prefixPaddingDuration);
+      if (Number.isFinite(value)) options.prefix_padding_duration = value;
+    }
+
+    return await vadLoader(Object.keys(options).length > 0 ? options : undefined);
+  } catch (err) {
+    console.warn('[agent] Silero VAD unavailable, continuing without explicit VAD:', err);
+    return null;
+  }
+}
 
 /**
  * Voice agent preamble — prepended to every system prompt.
@@ -168,6 +230,218 @@ function parseTtsDirectives(text: string): ParsedTtsDirectives {
   return { cleanText, voice, directives };
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function readStateEvent(ev: unknown): { state: string; oldState?: string } | null {
+  if (typeof ev === 'string' && ev.trim().length > 0) {
+    return { state: ev.trim() };
+  }
+
+  const record = asRecord(ev);
+  if (!record) return null;
+
+  const state = readNonEmptyString(record.newState)
+    ?? readNonEmptyString(record.new_state)
+    ?? readNonEmptyString(record.state);
+  if (!state) return null;
+
+  const oldState = readNonEmptyString(record.oldState)
+    ?? readNonEmptyString(record.old_state)
+    ?? undefined;
+
+  return { state, oldState };
+}
+
+function readToolExecutionEvent(ev: unknown): {
+  toolNames: string[];
+  toolCallCount: number;
+  toolErrorCount: number;
+} {
+  const record = asRecord(ev);
+  if (!record) {
+    return { toolNames: [], toolCallCount: 0, toolErrorCount: 0 };
+  }
+
+  const functionCalls = Array.isArray(record.functionCalls)
+    ? record.functionCalls
+    : Array.isArray(record.function_calls)
+      ? record.function_calls
+      : [];
+  const functionCallOutputs = Array.isArray(record.functionCallOutputs)
+    ? record.functionCallOutputs
+    : Array.isArray(record.function_call_outputs)
+      ? record.function_call_outputs
+      : [];
+
+  const legacyToolNames = Array.isArray(record.toolNames)
+    ? record.toolNames.filter((name): name is string => typeof name === 'string' && name.length > 0)
+    : [];
+
+  const namesFromCalls = functionCalls
+    .map((call) => {
+      const item = asRecord(call);
+      if (!item) return null;
+      return readNonEmptyString(item.name);
+    })
+    .filter((name): name is string => typeof name === 'string');
+
+  const toolNames = Array.from(new Set(
+    (legacyToolNames.length > 0 ? legacyToolNames : namesFromCalls)
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0),
+  ));
+
+  const toolErrorCount = functionCallOutputs.reduce((count, output) => {
+    const item = asRecord(output);
+    if (!item) return count;
+    return item.isError === true || item.is_error === true
+      ? count + 1
+      : count;
+  }, 0);
+
+  return {
+    toolNames,
+    toolCallCount: functionCalls.length > 0 ? functionCalls.length : toolNames.length,
+    toolErrorCount,
+  };
+}
+
+function readMetricsEvent(ev: unknown): unknown {
+  const record = asRecord(ev);
+  if (!record) return ev;
+  return Object.prototype.hasOwnProperty.call(record, 'metrics') ? record.metrics : ev;
+}
+
+function readErrorMessage(value: unknown): string {
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  if (value instanceof Error && value.message.trim().length > 0) return value.message.trim();
+
+  const record = asRecord(value);
+  if (!record) return 'unknown error';
+
+  const directMessage = readNonEmptyString(record.message);
+  if (directMessage) return directMessage;
+
+  if (record.error instanceof Error && record.error.message.trim().length > 0) {
+    return record.error.message.trim();
+  }
+  const nestedError = asRecord(record.error);
+  if (nestedError) {
+    const nestedMessage = readNonEmptyString(nestedError.message)
+      ?? readNonEmptyString(nestedError.reason);
+    if (nestedMessage) return nestedMessage;
+  }
+  const nestedErrorText = readNonEmptyString(record.error);
+  if (nestedErrorText) return nestedErrorText;
+
+  const label = readNonEmptyString(record.label);
+  if (label) return label;
+
+  return 'unknown error';
+}
+
+function readErrorRecoverable(value: unknown): boolean {
+  const record = asRecord(value);
+  if (!record) return false;
+  if (typeof record.recoverable === 'boolean') return record.recoverable;
+
+  const nestedError = asRecord(record.error);
+  if (nestedError && typeof nestedError.recoverable === 'boolean') {
+    return nestedError.recoverable;
+  }
+
+  return false;
+}
+
+function readErrorType(value: unknown): string | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  return readNonEmptyString(record.type) ?? undefined;
+}
+
+function readErrorSource(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+
+  const record = asRecord(value);
+  if (record) {
+    const label = readNonEmptyString(record.label);
+    if (label) return label;
+  }
+
+  const ctorName = (value as { constructor?: { name?: unknown } } | undefined)?.constructor?.name;
+  if (typeof ctorName === 'string' && ctorName !== 'Object' && ctorName.trim().length > 0) {
+    return ctorName.trim();
+  }
+
+  return undefined;
+}
+
+function readErrorEvent(ev: unknown): {
+  message: string;
+  recoverable: boolean;
+  errorType?: string;
+  source?: string;
+} {
+  const record = asRecord(ev);
+  const errorPayload = record && Object.prototype.hasOwnProperty.call(record, 'error')
+    ? record.error
+    : ev;
+
+  const errorType = readErrorType(errorPayload);
+  const source = readErrorSource(record?.source);
+
+  return {
+    message: readErrorMessage(errorPayload),
+    recoverable: readErrorRecoverable(errorPayload),
+    ...(errorType ? { errorType } : {}),
+    ...(source ? { source } : {}),
+  };
+}
+
+function readCloseEvent(info: unknown): { reason: string; error?: unknown } {
+  const record = asRecord(info);
+  if (!record) return { reason: 'unknown' };
+
+  const reason = readNonEmptyString(record.reason)
+    ?? readNonEmptyString(record.closeReason)
+    ?? readNonEmptyString(record.close_reason)
+    ?? (Object.prototype.hasOwnProperty.call(record, 'error') ? 'error' : 'unknown');
+
+  return {
+    reason,
+    error: record.error,
+  };
+}
+
+function extractErrorCode(value: unknown): number | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+
+  if (typeof record.code === 'number') return record.code;
+
+  const body = asRecord(record.body);
+  if (body && typeof body.code === 'number') return body.code;
+
+  const nestedError = asRecord(record.error);
+  if (nestedError) {
+    if (typeof nestedError.code === 'number') return nestedError.code;
+    const nestedBody = asRecord(nestedError.body);
+    if (nestedBody && typeof nestedBody.code === 'number') return nestedBody.code;
+  }
+
+  return undefined;
+}
+
 /**
  * Create a LiveKit agent definition using Gemini Live API (speech-to-speech).
  * Uses google.beta.realtime.RealtimeModel for low-latency voice conversations.
@@ -214,6 +488,24 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         }
         const traceId = crypto.randomUUID();
         console.log(`[agent] Connected to room: ${roomName} (traceId: ${traceId})`);
+
+        // Reuse a process-local VAD model across jobs when possible.
+        const procUserData = getOrCreateProcUserData(
+          (ctx as JobContext & { proc?: unknown }).proc,
+        );
+        let sileroVad: unknown | null = procUserData[SILERO_VAD_USERDATA_KEY] ?? null;
+        let sileroVadLoadAttempted = sileroVad !== null;
+        const ensurePipelineVad = async (): Promise<unknown | null> => {
+          if (sileroVadLoadAttempted) return sileroVad;
+          sileroVadLoadAttempted = true;
+
+          sileroVad = await loadSileroVad();
+          if (sileroVad) {
+            procUserData[SILERO_VAD_USERDATA_KEY] = sileroVad;
+            console.log('[agent] Silero VAD loaded for pipeline turn detection');
+          }
+          return sileroVad;
+        };
 
         // Resolve env vars once for callbacks and tool loading
         const convexUrl = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -307,6 +599,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           }
         })();
 
+        // Warm VAD early when we already know pipeline mode is requested.
+        const pipelineVadPromise = agentMode === 'pipeline'
+          ? ensurePipelineVad()
+          : Promise.resolve<unknown | null>(null);
+
         // Wait for a real participant (browser user or SIP callee) to join
         console.log('[agent] Waiting for participant...');
         const participant = await ctx.waitForParticipant();
@@ -332,7 +629,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           console.log('[agent] Audio track published');
         }
 
-        const [personaResult, toolsResult] = await Promise.all([personaPromise, toolsPromise]);
+        const [personaResult, toolsResult] = await Promise.all([
+          personaPromise,
+          toolsPromise,
+          pipelineVadPromise,
+        ]);
         const baseInstructions = personaResult.instructions;
         const personaVoice = personaResult.voice;
         const { tools: loadedTools, confirmationRequired } = toolsResult;
@@ -516,23 +817,35 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               : (personaVoice || config.voice);
 
             // Create session based on current mode (may switch from realtime → pipeline on tool call failure)
-            const session = currentMode === 'pipeline'
-              ? new voice.AgentSession({
-                  stt: new deepgram.STT({ model: 'nova-3', language: 'en' }),
-                  llm: new google.LLM({ model: 'gemini-flash-latest', apiKey: process.env.GOOGLE_API_KEY }),
-                  tts: new google.beta.TTS({
-                    model: 'gemini-2.5-flash-preview-tts',
-                    voiceName: sessionVoice ?? 'Puck',
-                  }),
-                })
-              : new voice.AgentSession({
-                  llm: new google.beta.realtime.RealtimeModel({
-                    model: config.model,
-                    voice: sessionVoice,
-                    temperature: config.temperature,
-                    instructions: sessionInstructions,
-                  }),
-                });
+            let session: voice.AgentSession;
+            if (currentMode === 'pipeline') {
+              const pipelineVad = await ensurePipelineVad();
+              const pipelineSessionConfig: Record<string, unknown> = {
+                stt: new deepgram.STT({ model: 'nova-3', language: 'en' }),
+                llm: new google.LLM({ model: 'gemini-flash-latest', apiKey: process.env.GOOGLE_API_KEY }),
+                tts: new google.beta.TTS({
+                  model: 'gemini-2.5-flash-preview-tts',
+                  voiceName: sessionVoice ?? 'Puck',
+                }),
+              };
+              if (pipelineVad) {
+                pipelineSessionConfig.vad = pipelineVad;
+              }
+              session = new voice.AgentSession(
+                // `vad` is loaded dynamically from an optional plugin.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                pipelineSessionConfig as any,
+              );
+            } else {
+              session = new voice.AgentSession({
+                llm: new google.beta.realtime.RealtimeModel({
+                  model: config.model,
+                  voice: sessionVoice,
+                  temperature: config.temperature,
+                  instructions: sessionInstructions,
+                }),
+              });
+            }
 
             await session.start({ agent, room: ctx.room });
             console.log('[agent] Session started');
@@ -659,36 +972,50 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             });
 
             // Wire lifecycle event listeners
-            emitter.on('agent_state_changed', (state: string) => {
+            emitter.on('agent_state_changed', (ev: unknown) => {
+              const stateEvent = readStateEvent(ev);
+              const state = stateEvent?.state ?? 'unknown';
+
               // Reset idle timer on any active state (thinking, speaking, listening)
               // This prevents timeout during tool calls or model processing
               if (state !== 'idle' && state !== 'disconnected') {
                 resetIdleTimer();
               }
-              pushEvent('agent_state_changed', { state });
+              pushEvent('agent_state_changed', {
+                state,
+                ...(stateEvent?.oldState ? { oldState: stateEvent.oldState } : {}),
+              });
             });
 
-            emitter.on('user_state_changed', (state: string) => {
+            emitter.on('user_state_changed', (ev: unknown) => {
+              const stateEvent = readStateEvent(ev);
+              const state = stateEvent?.state ?? 'unknown';
+
               if (state === 'speaking') {
                 resetIdleTimer();
               }
-              pushEvent('user_state_changed', { state });
-            });
-
-            emitter.on('function_tools_executed', (ev: { toolNames?: string[] }) => {
-              resetIdleTimer();
-              pushEvent('function_tools_executed', { toolNames: ev.toolNames ?? [] });
-            });
-
-            emitter.on('metrics_collected', (metrics: Record<string, unknown>) => {
-              pushEvent('metrics_collected', { metrics });
-            });
-
-            emitter.on('error', (ev: { message?: string; recoverable?: boolean }) => {
-              pushEvent('agent_error', {
-                message: ev.message ?? 'unknown error',
-                recoverable: ev.recoverable ?? false,
+              pushEvent('user_state_changed', {
+                state,
+                ...(stateEvent?.oldState ? { oldState: stateEvent.oldState } : {}),
               });
+            });
+
+            emitter.on('function_tools_executed', (ev: unknown) => {
+              const toolExec = readToolExecutionEvent(ev);
+              resetIdleTimer();
+              pushEvent('function_tools_executed', {
+                toolNames: toolExec.toolNames,
+                toolCallCount: toolExec.toolCallCount,
+                toolErrorCount: toolExec.toolErrorCount,
+              });
+            });
+
+            emitter.on('metrics_collected', (ev: unknown) => {
+              pushEvent('metrics_collected', { metrics: readMetricsEvent(ev) });
+            });
+
+            emitter.on('error', (ev: unknown) => {
+              pushEvent('agent_error', readErrorEvent(ev));
             });
 
             // Start idle timer after session is live
@@ -697,11 +1024,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             // Wait for this session to close, all participants to leave, OR idle timeout
             const closeInfo = await Promise.race([
               new Promise<{ reason: string; error?: unknown }>((resolve) => {
-                emitter.on('close', (info?: { reason?: string; error?: unknown }) => {
-                  resolve({
-                    reason: info?.reason ?? 'unknown',
-                    error: info?.error,
-                  });
+                emitter.on('close', (info?: unknown) => {
+                  resolve(readCloseEvent(info));
                 });
               }),
               participantDisconnectPromise.then(() => ({
@@ -753,9 +1077,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               // Detect error 1008 ("Operation is not implemented, or supported, or enabled")
               // which indicates Gemini native audio rejected a function call.
               // Fall back to pipeline mode (STT + LLM + TTS) where tool calling works reliably.
-              // Close event error shape: { error: { body: { code: 1008, reason: "..." } } }
-              const err = closeInfo.error as { error?: { body?: { code?: number } }; body?: { code?: number } } | undefined;
-              const errorCode = err?.error?.body?.code ?? err?.body?.code;
+              const errorCode = extractErrorCode(closeInfo.error);
               if (currentMode === 'realtime' && errorCode === 1008 && hasTools) {
                 currentMode = 'pipeline';
                 console.log(`[agent] Error 1008 (tool call rejected) — falling back to pipeline mode`);

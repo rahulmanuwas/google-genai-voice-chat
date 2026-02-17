@@ -161,8 +161,22 @@ export const annotateGuardrailViolationRecord = internalMutation({
 
 /** List guardrail violations (optionally filtered by app) */
 export const listGuardrailViolationRecords = internalQuery({
-  args: { appSlug: v.optional(v.string()) },
+  args: {
+    appSlug: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
+    if (args.sessionId) {
+      const bySession = await ctx.db
+        .query("guardrailViolations")
+        .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId!))
+        .collect();
+      const filtered = args.appSlug
+        ? bySession.filter((violation) => violation.appSlug === args.appSlug)
+        : bySession;
+      return filtered.sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
+    }
+
     if (args.appSlug) {
       return await ctx.db
         .query("guardrailViolations")

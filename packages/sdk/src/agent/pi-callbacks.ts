@@ -10,7 +10,7 @@ import type {
   AgentEvent,
   GuardrailResult,
   AgentRunRecord,
-} from '../agent/callbacks';
+} from './callbacks';
 
 /**
  * Wrap platform callbacks to automatically include session metadata.

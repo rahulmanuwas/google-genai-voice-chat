@@ -6,7 +6,7 @@
  *   const providers = await adapter.discoverProviders();
  */
 
-import type { ProviderInfo } from './types';
+import type { ProviderInfo } from './pi-types';
 
 /** Well-known providers with curated model lists */
 const PROVIDERS: ProviderInfo[] = [

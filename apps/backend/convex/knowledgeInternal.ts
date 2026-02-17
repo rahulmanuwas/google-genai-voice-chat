@@ -375,11 +375,10 @@ export const searchKnowledgeAction = internalAction({
       category: item.category,
       sourceType: item.sourceType,
       sourceSessionId: item.sourceSessionId,
-      _score: item.fusedScore,
       score: item.fusedScore,
     }));
 
-    const topScore = results[0]?._score ?? 0;
+    const topScore = results[0]?.score ?? 0;
     const gapDetected = results.length === 0 || topScore < threshold;
 
     await ctx.runMutation(internal.knowledge.logKnowledgeSearchRecord, {

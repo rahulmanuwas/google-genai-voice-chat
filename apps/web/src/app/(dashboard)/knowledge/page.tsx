@@ -127,7 +127,7 @@ export default function KnowledgePage() {
                       <Badge variant="secondary" className="text-xs">{r.category}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{r.content}</p>
-                    <p className="text-xs text-muted-foreground">Score: {r._score.toFixed(3)}</p>
+                    <p className="text-xs text-muted-foreground">Score: {r.score.toFixed(3)}</p>
                   </div>
                 ))
               )}

@@ -1,7 +1,7 @@
 import type {
   ToolDefinition,
   AgentPluginService,
-} from './types';
+} from './pi-types';
 
 const registeredTools = new Map<string, ToolDefinition>();
 const registeredServices = new Map<string, AgentPluginService>();

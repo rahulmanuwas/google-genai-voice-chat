@@ -5,7 +5,7 @@
  * Mistral, xAI, Groq, and more) through a single unified API.
  */
 
-import type { AgentCallbacks } from '../agent/callbacks';
+import type { AgentCallbacks } from './callbacks';
 
 /** Configuration for creating a Pi agent */
 export interface AgentConfig {

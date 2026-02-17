@@ -25,6 +25,14 @@ export interface UseLiveKitVoiceChatOptions {
   autoConnect?: boolean;
   /** Agent mode: 'realtime' (Gemini native audio) or 'pipeline' (Deepgram STT → Gemini LLM → Deepgram TTS) */
   agentMode?: 'realtime' | 'pipeline';
+  /** Additional room metadata merged with agentMode and sent to createRoom() */
+  roomMetadata?: Record<string, unknown>;
+  /** Callback fired after a room is created (before token fetch) */
+  onRoomCreated?: (payload: {
+    sessionId: string;
+    roomName: string;
+    metadata?: Record<string, unknown>;
+  }) => void | Promise<void>;
 }
 
 export interface UseLiveKitVoiceChatReturn {
@@ -122,9 +130,28 @@ export function useLiveKitVoiceChat(
     try {
       const cb = resolveCallbacks();
 
-      // Step 1: Create a room (pass agentMode as metadata so the agent can read it)
-      const metadata = options.agentMode ? { agentMode: options.agentMode } : undefined;
-      const { roomName: newRoomName } = await cb.createRoom(sessionIdRef.current, metadata ? { metadata } : undefined);
+      // Step 1: Create a room (pass merged metadata so server-side agents can read mode/context)
+      const metadata = {
+        ...(options.roomMetadata ?? {}),
+        ...(options.agentMode ? { agentMode: options.agentMode } : {}),
+      };
+      const roomMetadata = Object.keys(metadata).length > 0 ? metadata : undefined;
+      const { roomName: newRoomName } = await cb.createRoom(
+        sessionIdRef.current,
+        roomMetadata ? { metadata: roomMetadata } : undefined,
+      );
+
+      if (options.onRoomCreated) {
+        try {
+          await options.onRoomCreated({
+            sessionId: sessionIdRef.current,
+            roomName: newRoomName,
+            metadata: roomMetadata,
+          });
+        } catch {
+          // Callback should not block connection lifecycle
+        }
+      }
 
       // Step 2: Get a token
       const { token: newToken, serverUrl: returnedServerUrl } =
@@ -146,7 +173,19 @@ export function useLiveKitVoiceChat(
     } finally {
       setIsConnecting(false);
     }
-  }, [isConnecting, options.callbacks, options.convexUrl, options.appSlug, options.appSecret, options.getSessionToken, options.name, options.serverUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    isConnecting,
+    options.callbacks,
+    options.convexUrl,
+    options.appSlug,
+    options.appSecret,
+    options.getSessionToken,
+    options.name,
+    options.serverUrl,
+    options.agentMode,
+    options.roomMetadata,
+    options.onRoomCreated,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const disconnect = useCallback(async () => {
     const currentRoomName = roomNameRef.current;

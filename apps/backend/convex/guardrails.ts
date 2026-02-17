@@ -59,13 +59,17 @@ export const upsertRule = corsHttpAction(async (ctx, request) => {
 export const listViolations = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const all = url.searchParams.get("all") === "true";
+  const sessionId = url.searchParams.get("sessionId") ?? undefined;
 
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const violations = await ctx.runQuery(
     internal.guardrailsInternal.listGuardrailViolationRecords,
-    { appSlug: all ? undefined : auth.app.slug }
+    {
+      appSlug: all ? undefined : auth.app.slug,
+      sessionId,
+    }
   );
 
   return jsonResponse({ violations });

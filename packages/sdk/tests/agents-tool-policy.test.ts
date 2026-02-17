@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { evaluateToolPolicy } from '../src/agents/tool-policy';
-import type { ToolPolicyConfig } from '../src/agents/types';
+import { evaluateToolPolicy } from '../src/agent/tool-policy';
+import type { ToolPolicyConfig } from '../src/agent/pi-types';
 
 describe('agents tool policy', () => {
   test('applies layered allow/deny with provider/model overrides', () => {

@@ -7,7 +7,7 @@ import {
   registerService,
   listRegisteredServices,
   clearRegisteredServices,
-} from '../src/agents';
+} from '../src/agent/plugins';
 
 describe('agents plugin registry', () => {
   test('registerTool and unregister callback manage global tools', () => {
