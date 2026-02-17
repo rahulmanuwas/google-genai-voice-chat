@@ -53,13 +53,17 @@ const HOOK_TOKENS: Token[][] = [
 ];
 
 const LIVEKIT_TOKENS: Token[][] = [
-  [kw('import'), txt(' '), op('{'), txt(' '), tag('LiveKitVoiceChat'), txt(' '), op('}'), txt(' '), kw('from'), txt(' '), str("'@genai-voice/sdk'"), op(';')],
+  [kw('import'), txt(' '), op('{'), txt(' '), tag('LiveKitVoiceChat'), op(','), txt(' '), fn('createConvexRoomCallbacks'), txt(' '), op('}')],
+  [txt('  '), kw('from'), txt(' '), str("'@genai-voice/sdk'"), op(';')],
   [],
-  [cmt('// Session tokens, personas, guardrails — handled automatically')],
+  [kw('const'), txt(' '), txt('callbacks'), txt(' '), op('='), txt(' '), fn('createConvexRoomCallbacks'), op('({')],
+  [txt('  '), prop('convexUrl'), op(':'), txt(' '), str("'https://your-app.convex.cloud'"), op(',')],
+  [txt('  '), prop('appSlug'), op(':'), txt(' '), str("'support'"), op(',')],
+  [txt('  '), prop('getSessionToken'), op(',')],
+  [op('});')],
+  [],
   [op('<'), tag('LiveKitVoiceChat')],
-  [txt('  '), prop('convexUrl'), op('='), str('"https://your-app.convex.cloud"')],
-  [txt('  '), prop('appSlug'), op('='), str('"support"')],
-  [txt('  '), prop('getSessionToken'), op('={'), fn('fetchToken'), op('}')],
+  [txt('  '), prop('callbacks'), op('={'), txt('callbacks'), op('}')],
   [txt('  '), prop('serverUrl'), op('='), str('"wss://your-app.livekit.cloud"')],
   [op('/>')],
 ];
@@ -170,7 +174,7 @@ export function CodeShowcase() {
                     <button
                       key={t.id}
                       onClick={() => setActive(i)}
-                      className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                      className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 ${
                         i === active
                           ? 'bg-brand/12 text-brand ring-1 ring-brand/25'
                           : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]'

@@ -14,12 +14,12 @@ const TIERS = [
       'Pi Agent SDK',
     ],
     cta: 'Start Free',
-    href: '#try',
+    href: '/overview',
     highlight: false,
   },
   {
     name: 'Pro',
-    price: 'Per outcome',
+    price: '$0.50 / resolution',
     description: 'Pay only when your agent resolves a conversation.',
     features: [
       'Unlimited agents & conversations',
@@ -31,7 +31,7 @@ const TIERS = [
       'Multi-channel (web, phone, SMS)',
     ],
     cta: 'Get Started',
-    href: '#try',
+    href: '/overview',
     highlight: true,
   },
   {
@@ -115,7 +115,7 @@ export function Pricing() {
 
                 <a
                   href={tier.href}
-                  className={`inline-flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${
+                  className={`inline-flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold transition-[background-color,border-color,filter,box-shadow] ${
                     tier.highlight
                       ? 'bg-brand text-background hover:brightness-110 shadow-[0_0_16px_hsl(38_92%_50%/0.2)]'
                       : 'border border-white/10 bg-white/[0.04] text-foreground hover:bg-white/[0.08] hover:border-white/15'

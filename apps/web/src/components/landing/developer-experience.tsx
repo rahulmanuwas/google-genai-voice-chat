@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import Image from 'next/image';
 import { Shield, Brain, BarChart3, Terminal } from 'lucide-react';
 import { FadeIn } from '@/components/ui/fade-in';
@@ -27,6 +30,8 @@ const PLATFORM_FEATURES = [
 ];
 
 export function DeveloperExperience() {
+  const [selectedProvider, setSelectedProvider] = useState(0);
+
   return (
     <section id="developer" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
       {/* Ambient glow */}
@@ -57,18 +62,20 @@ export function DeveloperExperience() {
               </p>
               <div className="space-y-3">
                 {PROVIDERS.map((provider, i) => (
-                  <label
+                  <button
                     key={provider.name}
-                    className={`flex items-center gap-4 rounded-lg border p-4 transition-colors cursor-pointer ${
-                      i === 0
+                    type="button"
+                    onClick={() => setSelectedProvider(i)}
+                    className={`flex w-full items-center gap-4 rounded-lg border p-4 transition-colors cursor-pointer text-left ${
+                      i === selectedProvider
                         ? 'border-brand/30 bg-brand/[0.04]'
                         : 'border-white/[0.06] hover:border-white/[0.12]'
                     }`}
                   >
-                    <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                      i === 0 ? 'border-brand' : 'border-white/20'
+                    <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                      i === selectedProvider ? 'border-brand' : 'border-white/20'
                     }`}>
-                      {i === 0 && <div className="h-2 w-2 rounded-full bg-brand" />}
+                      {i === selectedProvider && <div className="h-2 w-2 rounded-full bg-brand" />}
                     </div>
                     <Image
                       src={provider.logo}
@@ -81,7 +88,7 @@ export function DeveloperExperience() {
                       <p className="text-sm font-medium truncate">{provider.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{provider.description}</p>
                     </div>
-                  </label>
+                  </button>
                 ))}
                 <p className="text-[10px] text-muted-foreground/50 text-center pt-1">
                   + DeepSeek, Mistral, xAI, Groq, and 15+ more via Pi
@@ -146,7 +153,7 @@ export function DeveloperExperience() {
           <FadeIn delay={0.24}>
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 h-full">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/60 mb-5">
-                Embedded Terminal
+                Agent Terminal
               </p>
               <div className="rounded-lg border border-white/[0.08] bg-[hsl(0_0%_4%)] overflow-hidden">
                 {/* Terminal title bar */}
@@ -155,21 +162,22 @@ export function DeveloperExperience() {
                   <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
                   <div className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
                   <span className="ml-2 text-[10px] text-muted-foreground/50">
-                    <Terminal className="inline h-3 w-3 mr-1" />
+                    <Terminal className="inline h-3 w-3 mr-1" aria-hidden="true" />
                     agent-terminal
                   </span>
+                  <span className="ml-auto rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[9px] font-medium text-brand/70 uppercase tracking-wider">Preview</span>
                 </div>
                 {/* Terminal content */}
                 <div className="p-4 font-mono text-[11px] leading-relaxed">
-                  <p className="text-muted-foreground/50">$ riyaan agent start --runtime pi</p>
-                  <p className="text-brand/70 mt-1">Agent started with Pi runtime</p>
-                  <p className="text-muted-foreground/50 mt-2">&gt; Add a warranty check tool</p>
-                  <p className="text-foreground/60 mt-1">Created tool &quot;check_warranty&quot; with</p>
-                  <p className="text-foreground/60">parameters: orderId (string)</p>
-                  <p className="text-brand/70 mt-2">Tool registered and active.</p>
-                  <p className="text-muted-foreground/50 mt-2">&gt; Add guardrail: block profanity</p>
-                  <p className="text-foreground/60 mt-1">Guardrail &quot;profanity_filter&quot; added</p>
-                  <p className="text-brand/70">with action: block</p>
+                  <p className="text-muted-foreground/50">$ riyaan agent deploy --provider {PROVIDERS[selectedProvider].name.toLowerCase()}</p>
+                  <p className="text-brand/70 mt-1">Deploying with {PROVIDERS[selectedProvider].name}...</p>
+                  <p className="text-foreground/60 mt-1">  Model: {PROVIDERS[selectedProvider].description.split(',')[0]}</p>
+                  <p className="text-foreground/60">  Guardrails: 3 active rules</p>
+                  <p className="text-foreground/60">  Tools: check_warranty, book_appointment</p>
+                  <p className="text-brand/70 mt-2">Agent live on wss://your-app.livekit.cloud</p>
+                  <p className="text-muted-foreground/50 mt-2">$ riyaan test call --scenario dentist</p>
+                  <p className="text-foreground/60 mt-1">Calling +1 (555) 012-3456...</p>
+                  <p className="text-brand/70 mt-1">Connected. Speak to test your agent.</p>
                   <p className="text-muted-foreground/30 mt-2 animate-pulse">_</p>
                 </div>
               </div>

@@ -88,7 +88,7 @@ function CaseCard({
 }: CaseData) {
   const inner = (
     <div
-      className={`group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card/50 backdrop-blur-sm transition-all duration-200 hover:border-brand/20 hover:shadow-[0_0_40px_hsl(38_92%_50%/0.06)] ${
+      className={`group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card/50 backdrop-blur-sm transition-[border-color,box-shadow] duration-200 hover:border-brand/20 hover:shadow-[0_0_40px_hsl(38_92%_50%/0.06)] ${
         featured ? '' : 'p-6'
       }`}
     >
@@ -169,7 +169,7 @@ export function UseCases() {
             <FadeIn
               key={uc.title}
               delay={i * 0.08 + 0.1}
-              className={uc.featured ? 'lg:col-span-1' : 'lg:col-span-1'}
+              className="lg:col-span-1"
             >
               <CaseCard {...uc} />
             </FadeIn>

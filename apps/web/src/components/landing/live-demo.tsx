@@ -83,7 +83,7 @@ export function LiveDemo() {
           <div className="inline-flex items-center rounded-full bg-white/[0.04] border border-white/[0.06] p-0.5">
             <button
               onClick={() => setDemoTrack('user')}
-              className={`rounded-full px-5 py-2 text-sm font-medium transition-all ${
+              className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
                 demoTrack === 'user'
                   ? 'bg-brand/12 text-brand ring-1 ring-brand/25'
                   : 'text-muted-foreground hover:text-foreground'
@@ -93,7 +93,7 @@ export function LiveDemo() {
             </button>
             <button
               onClick={() => setDemoTrack('developer')}
-              className={`rounded-full px-5 py-2 text-sm font-medium transition-all ${
+              className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
                 demoTrack === 'developer'
                   ? 'bg-brand/12 text-brand ring-1 ring-brand/25'
                   : 'text-muted-foreground hover:text-foreground'
@@ -154,6 +154,7 @@ export function LiveDemo() {
                 <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
                 <div className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
                 <span className="ml-3 text-[10px] text-muted-foreground/50">developer-demo — pi runtime</span>
+                <span className="ml-auto rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[9px] font-medium text-brand/70 uppercase tracking-wider">Preview</span>
               </div>
               {/* Demo walkthrough */}
               <div className="p-6 font-mono text-[12px] sm:text-[13px] leading-relaxed space-y-4">
@@ -181,11 +182,11 @@ export function LiveDemo() {
                   <p className="text-foreground/60">  Provider: anthropic | Voice: gemini-realtime</p>
                   <p className="text-brand/80 mt-1">Call connected. Speak to test your agent.</p>
                 </div>
-                <p className="text-muted-foreground/30 animate-pulse">_</p>
+                <p className="text-muted-foreground/30 animate-pulse motion-reduce:animate-none">_</p>
               </div>
             </div>
             <p className="mt-4 text-center text-xs text-muted-foreground/40">
-              Live terminal coming soon. This preview shows voice-driven agent building.
+              Voice-driven agent building — talk to configure tools, guardrails, and providers.
             </p>
           </FadeIn>
         )}

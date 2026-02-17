@@ -21,7 +21,7 @@ const NAV_LINKS = [
   { label: 'Features', href: '#features' },
   { label: 'Developers', href: '#developer' },
   { label: 'Pricing', href: '#pricing' },
-  { label: 'Docs', href: '/docs' },
+  { label: 'Docs', href: '/overview' },
 ] as const;
 
 const SECTION_IDS = ['try', 'use-cases', 'features', 'developer', 'pricing'];
@@ -73,7 +73,7 @@ export function Navbar() {
   return (
     <nav
       className={cn(
-        'fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 sm:px-10 py-4 transition-all duration-300',
+        'fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 sm:px-10 py-4 transition-[background-color,border-color,box-shadow] duration-300',
         scrolled
           ? 'bg-background/80 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_1px_20px_hsl(0_0%_0%/0.3)]'
           : 'bg-transparent',
