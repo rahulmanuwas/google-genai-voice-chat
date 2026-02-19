@@ -396,6 +396,8 @@ export interface Message {
   audioUrl?: string;
   audioMimeType?: string;
   audioDurationMs?: number;
+  clipStartMs?: number;
+  clipEndMs?: number;
   isFinal: boolean;
   language?: string;
   traceId?: string;

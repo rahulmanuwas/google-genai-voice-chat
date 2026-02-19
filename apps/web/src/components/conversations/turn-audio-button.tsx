@@ -7,14 +7,23 @@ import { cn } from '@/lib/utils';
 
 interface TurnAudioButtonProps {
   audioUrl?: string;
+  clipStartMs?: number;
+  clipEndMs?: number;
   className?: string;
 }
 
-export function TurnAudioButton({ audioUrl, className }: TurnAudioButtonProps) {
+export function TurnAudioButton({
+  audioUrl,
+  clipStartMs,
+  clipEndMs,
+  className,
+}: TurnAudioButtonProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackTokenRef = useRef(0);
 
   const stopPlayback = useCallback(() => {
+    playbackTokenRef.current += 1;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -26,24 +35,68 @@ export function TurnAudioButton({ audioUrl, className }: TurnAudioButtonProps) {
   const playRecorded = useCallback(() => {
     if (!audioUrl) return;
 
+    const segmentStartSec = Math.max(0, (clipStartMs ?? 0) / 1000);
+    const segmentEndSec = clipEndMs !== undefined
+      ? Math.max(segmentStartSec + 0.2, clipEndMs / 1000)
+      : undefined;
+
+    const token = playbackTokenRef.current + 1;
+    playbackTokenRef.current = token;
+
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
-    audio.onended = () => {
+    const clear = () => {
+      if (playbackTokenRef.current !== token) return;
       audioRef.current = null;
       setIsPlaying(false);
     };
-    audio.onerror = () => {
-      audioRef.current = null;
-      setIsPlaying(false);
+    audio.onended = clear;
+    audio.onerror = clear;
+
+    const beginPlayback = async () => {
+      if (playbackTokenRef.current !== token) return;
+      if (segmentStartSec > 0) {
+        const duration = Number.isFinite(audio.duration) ? audio.duration : undefined;
+        const startAt = duration !== undefined
+          ? Math.min(segmentStartSec, Math.max(0, duration - 0.05))
+          : segmentStartSec;
+        try {
+          audio.currentTime = startAt;
+        } catch {
+          // best-effort seek; fallback to beginning if browser blocks seek
+        }
+      }
+
+      if (segmentEndSec !== undefined) {
+        audio.ontimeupdate = () => {
+          if (playbackTokenRef.current !== token) return;
+          if (audio.currentTime >= segmentEndSec) {
+            audio.pause();
+            clear();
+          }
+        };
+      }
+
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        clear();
+      }
     };
 
-    void audio.play().then(() => {
-      setIsPlaying(true);
-    }).catch(() => {
-      audioRef.current = null;
-      setIsPlaying(false);
-    });
-  }, [audioUrl]);
+    if (audio.readyState >= 1) {
+      void beginPlayback();
+      return;
+    }
+
+    const onLoadedMetadata = () => {
+      if (playbackTokenRef.current !== token) return;
+      void beginPlayback();
+    };
+    audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+    audio.load();
+  }, [audioUrl, clipStartMs, clipEndMs]);
 
   const togglePlayback = useCallback(() => {
     if (isPlaying) {

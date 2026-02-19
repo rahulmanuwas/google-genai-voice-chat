@@ -22,6 +22,8 @@ interface TranscriptMessage {
   content: string;
   ts?: number;
   audioUrl?: string;
+  clipStartMs?: number;
+  clipEndMs?: number;
 }
 
 interface AISummary {
@@ -127,6 +129,8 @@ export default function ConversationDetailPage({
           content: m.content,
           ts: m.createdAt,
           audioUrl: m.audioUrl,
+          clipStartMs: m.clipStartMs,
+          clipEndMs: m.clipEndMs,
         }));
     }
 
@@ -452,7 +456,12 @@ export default function ConversationDetailPage({
                   >
                     {m.role}
                   </Badge>
-                  <TurnAudioButton audioUrl={m.audioUrl} className="mt-0.5" />
+                  <TurnAudioButton
+                    audioUrl={m.audioUrl}
+                    clipStartMs={m.clipStartMs}
+                    clipEndMs={m.clipEndMs}
+                    className="mt-0.5"
+                  />
                   <div
                     className={`max-w-[90%] md:max-w-[80%] rounded-lg px-3 py-2 text-sm ${
                       m.role === 'agent'

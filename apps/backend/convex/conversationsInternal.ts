@@ -81,6 +81,21 @@ export const updateConversationStatusRecord = internalMutation({
   },
 });
 
+export const getConversationByAppSessionRecord = internalQuery({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("conversations")
+      .withIndex("by_app_session", (q) =>
+        q.eq("appSlug", args.appSlug).eq("sessionId", args.sessionId)
+      )
+      .first();
+  },
+});
+
 /** Backfill transcripts from the messages table for conversations with empty transcripts */
 export const backfillConversationTranscriptRecords = internalMutation({
   args: {},

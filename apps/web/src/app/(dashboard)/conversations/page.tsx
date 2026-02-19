@@ -166,7 +166,12 @@ export default function ConversationsPage() {
                   .map((m) => (
                     <div key={m._id} className={`flex gap-3 ${m.role === 'agent' ? '' : 'flex-row-reverse'}`}>
                       <Badge variant={m.role === 'agent' ? 'secondary' : 'outline'} className="h-6 shrink-0 text-xs">{m.role}</Badge>
-                      <TurnAudioButton audioUrl={m.audioUrl} className="mt-0.5" />
+                      <TurnAudioButton
+                        audioUrl={m.audioUrl}
+                        clipStartMs={m.clipStartMs}
+                        clipEndMs={m.clipEndMs}
+                        className="mt-0.5"
+                      />
                       <div className={`max-w-[90%] md:max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.role === 'agent' ? 'bg-muted text-foreground' : 'bg-primary text-primary-foreground'}`}>
                         {m.content}
                       </div>

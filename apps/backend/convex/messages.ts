@@ -11,6 +11,8 @@ interface RecordingSnapshot {
   playbackUrl: string;
   mimeType?: string;
   durationMs?: number;
+  startedAt?: number;
+  endedAt?: number;
   updatedAt: number;
 }
 
@@ -120,6 +122,8 @@ function buildRecordingMap(
         playbackUrl,
         mimeType: readString(payload.mimeType),
         durationMs: readNumberish(payload.durationMs),
+        startedAt: readNumberish(payload.startedAt),
+        endedAt: readNumberish(payload.endedAt),
         updatedAt,
         status,
       });
@@ -136,6 +140,8 @@ function buildRecordingMap(
           playbackUrl: recording.playbackUrl,
           mimeType: recording.mimeType,
           durationMs: recording.durationMs,
+          startedAt: recording.startedAt,
+          endedAt: recording.endedAt,
           updatedAt: recording.updatedAt,
         };
       }
@@ -149,12 +155,36 @@ function buildRecordingMap(
         playbackUrl: recording.playbackUrl,
         mimeType: recording.mimeType,
         durationMs: recording.durationMs,
+        startedAt: recording.startedAt,
+        endedAt: recording.endedAt,
         updatedAt: recording.updatedAt,
       });
     }
   }
 
   return { byRole: latestByRole, conversation: latestConversation };
+}
+
+const CLIP_LEAD_MS = 300;
+const CLIP_FOLLOW_MS = 250;
+const CLIP_DEFAULT_MS = 3500;
+const CLIP_MIN_MS = 700;
+
+function resolveRecordingStartAt(recording: RecordingSnapshot): number | undefined {
+  if (recording.startedAt !== undefined) return recording.startedAt;
+  if (recording.endedAt !== undefined && recording.durationMs !== undefined) {
+    return recording.endedAt - recording.durationMs;
+  }
+  return undefined;
+}
+
+function resolveRecordingDurationMs(recording: RecordingSnapshot): number | undefined {
+  if (recording.durationMs !== undefined) return recording.durationMs;
+  const startAt = resolveRecordingStartAt(recording);
+  if (startAt !== undefined && recording.endedAt !== undefined) {
+    return recording.endedAt - startAt;
+  }
+  return undefined;
 }
 
 const messageValidator = {
@@ -227,7 +257,7 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
   const appSlug = all ? filterApp : auth.app.slug;
 
-  const [messages, events] = await Promise.all([
+  const [messages, events, conversation] = await Promise.all([
     appSlug
       ? ctx.runQuery(internal.messages.getAppSessionMessageRecords, {
         appSlug,
@@ -246,21 +276,74 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
         sessionId,
         limit: 500,
       }),
+    appSlug
+      ? ctx.runQuery(internal.conversationsInternal.getConversationByAppSessionRecord, {
+        appSlug,
+        sessionId,
+      })
+      : Promise.resolve(null),
   ]);
 
   const egressEvents = events.filter((event) => event.eventType === "livekit_egress");
   const recordings = buildRecordingMap(egressEvents);
+  const finalMessages = messages
+    .filter((message) => message.isFinal)
+    .sort((a, b) => a.createdAt - b.createdAt);
+  const clipBoundsByMessageId = new Map<string, { clipStartMs: number; clipEndMs: number }>();
+
+  for (let i = 0; i < finalMessages.length; i += 1) {
+    const message = finalMessages[i];
+    const inferredRole =
+      (normalizeRole(message.role) ?? inferRoleFromIdentity(message.participantIdentity)) as RoleKey | undefined;
+    const recording =
+      (inferredRole ? recordings.byRole.get(inferredRole) : undefined) ?? recordings.conversation;
+    if (!recording) continue;
+
+    const recordingStartAt = resolveRecordingStartAt(recording) ?? conversation?.startedAt;
+    if (recordingStartAt === undefined) continue;
+
+    const maxDurationMs =
+      resolveRecordingDurationMs(recording)
+      ?? (conversation?.endedAt !== undefined
+        ? Math.max(0, conversation.endedAt - recordingStartAt)
+        : undefined);
+    const nextMessage = finalMessages[i + 1];
+
+    let clipStartMs = Math.max(0, message.createdAt - recordingStartAt - CLIP_LEAD_MS);
+    let clipEndMs = nextMessage
+      ? (nextMessage.createdAt - recordingStartAt + CLIP_FOLLOW_MS)
+      : (clipStartMs + CLIP_DEFAULT_MS);
+
+    if (maxDurationMs !== undefined) {
+      clipStartMs = Math.min(clipStartMs, Math.max(0, maxDurationMs - CLIP_MIN_MS));
+      clipEndMs = Math.min(clipEndMs, maxDurationMs);
+    }
+
+    clipEndMs = Math.max(clipEndMs, clipStartMs + CLIP_MIN_MS);
+    if (maxDurationMs !== undefined) {
+      clipEndMs = Math.min(clipEndMs, maxDurationMs);
+    }
+
+    if (clipEndMs <= clipStartMs) continue;
+    clipBoundsByMessageId.set(String(message._id), {
+      clipStartMs: Math.floor(clipStartMs),
+      clipEndMs: Math.floor(clipEndMs),
+    });
+  }
 
   const enrichedMessages = messages.map((message) => {
     const inferredRole =
       (normalizeRole(message.role) ?? inferRoleFromIdentity(message.participantIdentity)) as RoleKey | undefined;
     const recording = (inferredRole ? recordings.byRole.get(inferredRole) : undefined) ?? recordings.conversation;
+    const clip = clipBoundsByMessageId.get(String(message._id));
     if (!recording) return message;
     return {
       ...message,
       audioUrl: recording.playbackUrl,
       audioMimeType: recording.mimeType,
       audioDurationMs: recording.durationMs,
+      clipStartMs: clip?.clipStartMs,
+      clipEndMs: clip?.clipEndMs,
     };
   });
 
