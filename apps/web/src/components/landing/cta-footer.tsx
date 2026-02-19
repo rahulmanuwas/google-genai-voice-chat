@@ -10,10 +10,9 @@ import { Badge } from '@/components/ui/badge';
 const FOOTER_LINKS = {
   Product: [
     { label: 'Live Demo', href: '#try' },
-    { label: 'Features', href: '#features' },
-    { label: 'Use Cases', href: '#use-cases' },
+    { label: 'Workflows', href: '#use-cases' },
+    { label: 'Platform', href: '#developer' },
     { label: 'Pricing', href: '#pricing' },
-    { label: 'How It Works', href: '#how-it-works' },
   ],
   Platform: [
     { label: 'Dashboard', href: '/overview' },
@@ -24,11 +23,10 @@ const FOOTER_LINKS = {
   ],
   Developers: [
     { label: 'GitHub', href: 'https://github.com/rahulmanuwas/google-genai-voice-chat' },
-    { label: 'How It Works', href: '#how-it-works' },
-    { label: 'Code Examples', href: '#code' },
+    { label: 'Agent SDK', href: '#developer' },
+    { label: 'Runtime Flow', href: '#developer' },
     { label: 'LiveKit Agent', href: '/demos/livekit' },
     { label: 'PSTN Calls', href: '/demos/twilio-call' },
-    { label: 'Agent SDK', href: '#developer' },
   ],
 } as const;
 

@@ -5,6 +5,8 @@ import { Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+let activeTurnPlaybackStop: (() => void) | null = null;
+
 interface TurnAudioButtonProps {
   audioUrl?: string;
   clipStartMs?: number;
@@ -29,11 +31,25 @@ export function TurnAudioButton({
       audioRef.current.currentTime = 0;
       audioRef.current = null;
     }
+    if (activeTurnPlaybackStop === stopPlayback) {
+      activeTurnPlaybackStop = null;
+    }
     setIsPlaying(false);
   }, []);
 
   const playRecorded = useCallback(() => {
     if (!audioUrl) return;
+
+    if (activeTurnPlaybackStop && activeTurnPlaybackStop !== stopPlayback) {
+      activeTurnPlaybackStop();
+    }
+    // Pause any inline audio controls (top "Voice Recordings") before playing a turn clip.
+    if (typeof document !== 'undefined') {
+      for (const audioElement of document.querySelectorAll('audio')) {
+        audioElement.pause();
+      }
+    }
+    activeTurnPlaybackStop = stopPlayback;
 
     const segmentStartSec = Math.max(0, (clipStartMs ?? 0) / 1000);
     const segmentEndSec = clipEndMs !== undefined
@@ -48,6 +64,9 @@ export function TurnAudioButton({
     const clear = () => {
       if (playbackTokenRef.current !== token) return;
       audioRef.current = null;
+      if (activeTurnPlaybackStop === stopPlayback) {
+        activeTurnPlaybackStop = null;
+      }
       setIsPlaying(false);
     };
     audio.onended = clear;
@@ -96,7 +115,7 @@ export function TurnAudioButton({
     };
     audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
     audio.load();
-  }, [audioUrl, clipStartMs, clipEndMs]);
+  }, [audioUrl, clipStartMs, clipEndMs, stopPlayback]);
 
   const togglePlayback = useCallback(() => {
     if (isPlaying) {

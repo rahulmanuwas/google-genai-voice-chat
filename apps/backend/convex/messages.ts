@@ -16,6 +16,11 @@ interface RecordingSnapshot {
   updatedAt: number;
 }
 
+interface SpeakingWindow {
+  startAt: number;
+  endAt: number;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
@@ -169,6 +174,9 @@ const CLIP_LEAD_MS = 300;
 const CLIP_FOLLOW_MS = 250;
 const CLIP_DEFAULT_MS = 3500;
 const CLIP_MIN_MS = 700;
+const CLIP_MAX_MS = 12000;
+const WINDOW_MATCH_GRACE_MS = 500;
+const WINDOW_LAST_TAIL_MS = 250;
 
 function resolveRecordingStartAt(recording: RecordingSnapshot): number | undefined {
   if (recording.startedAt !== undefined) return recording.startedAt;
@@ -185,6 +193,230 @@ function resolveRecordingDurationMs(recording: RecordingSnapshot): number | unde
     return recording.endedAt - startAt;
   }
   return undefined;
+}
+
+function buildSpeakingWindows(
+  events: Array<{ eventType: string; ts: number; data?: string }>,
+): Record<RoleKey, SpeakingWindow[]> {
+  const windows: Record<RoleKey, SpeakingWindow[]> = { user: [], agent: [] };
+  const openStart: Partial<Record<RoleKey, number>> = {};
+  const sorted = [...events].sort((a, b) => a.ts - b.ts);
+
+  const closeWindow = (role: RoleKey, endAt: number) => {
+    const startAt = openStart[role];
+    if (startAt === undefined) return;
+    if (endAt > startAt) {
+      windows[role].push({ startAt, endAt });
+    }
+    delete openStart[role];
+  };
+
+  for (const event of sorted) {
+    let role: RoleKey | undefined;
+    if (event.eventType === "user_state_changed") role = "user";
+    if (event.eventType === "agent_state_changed") role = "agent";
+    if (!role) continue;
+
+    let payload: Record<string, unknown> | null = null;
+    if (event.data) {
+      try {
+        payload = asRecord(JSON.parse(event.data));
+      } catch {
+        payload = null;
+      }
+    }
+
+    const state = (
+      readString(payload?.state)
+      ?? readString(payload?.newState)
+      ?? readString(payload?.new_state)
+      ?? ""
+    ).toLowerCase();
+
+    if (state === "speaking") {
+      if (openStart[role] === undefined) {
+        openStart[role] = event.ts;
+      }
+      continue;
+    }
+
+    if (openStart[role] !== undefined) {
+      closeWindow(role, event.ts);
+    }
+  }
+
+  const lastTs = sorted.length > 0 ? sorted[sorted.length - 1]!.ts : Date.now();
+  const closeOpenWindow = (role: RoleKey) => {
+    const startAt = openStart[role];
+    if (startAt === undefined) return;
+    // Some sessions end without a terminal "listening" event. Cap tail duration to avoid giant clips.
+    const boundedLastTs = Math.max(lastTs, startAt + CLIP_MIN_MS);
+    closeWindow(role, Math.min(boundedLastTs, startAt + CLIP_MAX_MS));
+  };
+
+  closeOpenWindow("user");
+  closeOpenWindow("agent");
+
+  return windows;
+}
+
+function speakingWindowScore(window: SpeakingWindow, ts: number): number {
+  if (ts < window.startAt) return window.startAt - ts;
+  if (ts > window.endAt) return ts - window.endAt;
+  return 0;
+}
+
+interface MessageForClipping {
+  _id: string;
+  createdAt: number;
+  role: string;
+  participantIdentity: string;
+}
+
+interface ClipTimestampRange {
+  startAt: number;
+  endAt: number;
+}
+
+function inferMessageRole(message: Pick<MessageForClipping, "role" | "participantIdentity">): RoleKey | undefined {
+  return (normalizeRole(message.role) ?? inferRoleFromIdentity(message.participantIdentity)) as RoleKey | undefined;
+}
+
+function assignUserMessagesToWindows(
+  messages: MessageForClipping[],
+  windows: SpeakingWindow[],
+): Map<string, number> {
+  const assignments = new Map<string, number>();
+  if (messages.length === 0 || windows.length === 0) return assignments;
+
+  let windowIndex = 0;
+  for (const message of messages) {
+    while (
+      windowIndex + 1 < windows.length
+      && message.createdAt > windows[windowIndex]!.endAt + WINDOW_MATCH_GRACE_MS
+    ) {
+      windowIndex += 1;
+    }
+
+    let candidateIndex = windowIndex;
+    if (windowIndex + 1 < windows.length) {
+      const currentScore = speakingWindowScore(windows[windowIndex]!, message.createdAt);
+      const nextScore = speakingWindowScore(windows[windowIndex + 1]!, message.createdAt);
+      if (nextScore < currentScore) {
+        candidateIndex = windowIndex + 1;
+      }
+    }
+
+    assignments.set(String(message._id), candidateIndex);
+    if (candidateIndex > windowIndex) {
+      windowIndex = candidateIndex;
+    }
+  }
+
+  return assignments;
+}
+
+function buildClipRangesFromSpeakingWindows(
+  finalMessages: MessageForClipping[],
+  windowsByRole: Record<RoleKey, SpeakingWindow[]>,
+): Map<string, ClipTimestampRange> {
+  const ranges = new Map<string, ClipTimestampRange>();
+  const userMessages = finalMessages.filter((message) => inferMessageRole(message) === "user");
+  const agentMessages = finalMessages.filter((message) => inferMessageRole(message) === "agent");
+
+  if (userMessages.length > 0 && windowsByRole.user.length > 0) {
+    const assignments = assignUserMessagesToWindows(userMessages, windowsByRole.user);
+    const groupedByWindow = new Map<number, MessageForClipping[]>();
+
+    for (const message of userMessages) {
+      const windowIndex = assignments.get(String(message._id));
+      if (windowIndex === undefined) continue;
+      const grouped = groupedByWindow.get(windowIndex) ?? [];
+      grouped.push(message);
+      groupedByWindow.set(windowIndex, grouped);
+    }
+
+    for (const [windowIndex, groupedMessages] of groupedByWindow) {
+      const window = windowsByRole.user[windowIndex];
+      if (!window || groupedMessages.length === 0) continue;
+
+      groupedMessages.sort((a, b) => a.createdAt - b.createdAt);
+      const lastMessage = groupedMessages[groupedMessages.length - 1]!;
+      const windowEndAt = Math.max(window.endAt, lastMessage.createdAt + WINDOW_LAST_TAIL_MS);
+
+      for (let i = 0; i < groupedMessages.length; i += 1) {
+        const message = groupedMessages[i]!;
+        const previousMessage = i > 0 ? groupedMessages[i - 1] : undefined;
+        const segmentStartAt = previousMessage ? previousMessage.createdAt : window.startAt;
+        const segmentEndAt = i < groupedMessages.length - 1 ? message.createdAt : windowEndAt;
+        if (segmentEndAt <= segmentStartAt) continue;
+
+        ranges.set(String(message._id), {
+          startAt: segmentStartAt - CLIP_LEAD_MS,
+          endAt: segmentEndAt + CLIP_FOLLOW_MS,
+        });
+      }
+    }
+  }
+
+  if (agentMessages.length > 0 && windowsByRole.agent.length > 0) {
+    const matchedCount = Math.min(agentMessages.length, windowsByRole.agent.length);
+    for (let i = 0; i < matchedCount; i += 1) {
+      const window = windowsByRole.agent[i]!;
+      if (window.endAt <= window.startAt) continue;
+      ranges.set(String(agentMessages[i]!._id), {
+        startAt: window.startAt - CLIP_LEAD_MS,
+        endAt: window.endAt + CLIP_FOLLOW_MS,
+      });
+    }
+  }
+
+  return ranges;
+}
+
+function buildFallbackClipRange(
+  message: MessageForClipping,
+  nextMessage?: MessageForClipping,
+): ClipTimestampRange {
+  const startAt = message.createdAt - CLIP_LEAD_MS;
+  let endAt = nextMessage
+    ? nextMessage.createdAt + CLIP_FOLLOW_MS
+    : (startAt + CLIP_DEFAULT_MS);
+
+  endAt = Math.max(endAt, startAt + CLIP_MIN_MS);
+  endAt = Math.min(endAt, startAt + CLIP_MAX_MS);
+  return { startAt, endAt };
+}
+
+function clampClipRangeToRecording(
+  range: ClipTimestampRange,
+  recordingStartAt: number,
+  maxDurationMs?: number,
+): { clipStartMs: number; clipEndMs: number } | null {
+  let clipStartMs = Math.max(0, range.startAt - recordingStartAt);
+  let clipEndMs = Math.max(clipStartMs + CLIP_MIN_MS, range.endAt - recordingStartAt);
+  if (clipEndMs - clipStartMs > CLIP_MAX_MS) {
+    clipEndMs = clipStartMs + CLIP_MAX_MS;
+  }
+
+  if (maxDurationMs !== undefined) {
+    const boundedDuration = Math.max(0, maxDurationMs);
+    if (boundedDuration <= 0) return null;
+
+    const minClipDurationMs = Math.min(CLIP_MIN_MS, boundedDuration);
+    clipStartMs = Math.min(clipStartMs, Math.max(0, boundedDuration - minClipDurationMs));
+    clipEndMs = Math.min(clipEndMs, boundedDuration);
+
+    if (clipEndMs - clipStartMs < minClipDurationMs) {
+      clipStartMs = Math.max(0, clipEndMs - minClipDurationMs);
+    }
+  }
+
+  if (clipEndMs <= clipStartMs) return null;
+  return {
+    clipStartMs: Math.floor(clipStartMs),
+    clipEndMs: Math.floor(clipEndMs),
+  };
 }
 
 const messageValidator = {
@@ -289,15 +521,55 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
   const finalMessages = messages
     .filter((message) => message.isFinal)
     .sort((a, b) => a.createdAt - b.createdAt);
-  const clipBoundsByMessageId = new Map<string, { clipStartMs: number; clipEndMs: number }>();
+  const speakingWindows = buildSpeakingWindows(events);
+  const clipRangesByMessageId = buildClipRangesFromSpeakingWindows(
+    finalMessages.map((message) => ({
+      _id: String(message._id),
+      createdAt: message.createdAt,
+      role: message.role,
+      participantIdentity: message.participantIdentity,
+    })),
+    speakingWindows,
+  );
 
   for (let i = 0; i < finalMessages.length; i += 1) {
-    const message = finalMessages[i];
-    const inferredRole =
-      (normalizeRole(message.role) ?? inferRoleFromIdentity(message.participantIdentity)) as RoleKey | undefined;
+    const message = finalMessages[i]!;
+    const messageId = String(message._id);
+    if (clipRangesByMessageId.has(messageId)) continue;
+
+    const nextMessage = finalMessages[i + 1];
+    clipRangesByMessageId.set(messageId, buildFallbackClipRange(
+      {
+        _id: messageId,
+        createdAt: message.createdAt,
+        role: message.role,
+        participantIdentity: message.participantIdentity,
+      },
+      nextMessage
+        ? {
+          _id: String(nextMessage._id),
+          createdAt: nextMessage.createdAt,
+          role: nextMessage.role,
+          participantIdentity: nextMessage.participantIdentity,
+        }
+        : undefined,
+    ));
+  }
+
+  const clipBoundsByMessageId = new Map<string, { clipStartMs: number; clipEndMs: number }>();
+
+  for (const message of finalMessages) {
+    const messageId = String(message._id);
+    const inferredRole = inferMessageRole({
+      role: message.role,
+      participantIdentity: message.participantIdentity,
+    });
     const recording =
       (inferredRole ? recordings.byRole.get(inferredRole) : undefined) ?? recordings.conversation;
     if (!recording) continue;
+
+    const clipRange = clipRangesByMessageId.get(messageId);
+    if (!clipRange) continue;
 
     const recordingStartAt = resolveRecordingStartAt(recording) ?? conversation?.startedAt;
     if (recordingStartAt === undefined) continue;
@@ -307,28 +579,10 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
       ?? (conversation?.endedAt !== undefined
         ? Math.max(0, conversation.endedAt - recordingStartAt)
         : undefined);
-    const nextMessage = finalMessages[i + 1];
+    const clipBounds = clampClipRangeToRecording(clipRange, recordingStartAt, maxDurationMs);
+    if (!clipBounds) continue;
 
-    let clipStartMs = Math.max(0, message.createdAt - recordingStartAt - CLIP_LEAD_MS);
-    let clipEndMs = nextMessage
-      ? (nextMessage.createdAt - recordingStartAt + CLIP_FOLLOW_MS)
-      : (clipStartMs + CLIP_DEFAULT_MS);
-
-    if (maxDurationMs !== undefined) {
-      clipStartMs = Math.min(clipStartMs, Math.max(0, maxDurationMs - CLIP_MIN_MS));
-      clipEndMs = Math.min(clipEndMs, maxDurationMs);
-    }
-
-    clipEndMs = Math.max(clipEndMs, clipStartMs + CLIP_MIN_MS);
-    if (maxDurationMs !== undefined) {
-      clipEndMs = Math.min(clipEndMs, maxDurationMs);
-    }
-
-    if (clipEndMs <= clipStartMs) continue;
-    clipBoundsByMessageId.set(String(message._id), {
-      clipStartMs: Math.floor(clipStartMs),
-      clipEndMs: Math.floor(clipEndMs),
-    });
+    clipBoundsByMessageId.set(messageId, clipBounds);
   }
 
   const enrichedMessages = messages.map((message) => {

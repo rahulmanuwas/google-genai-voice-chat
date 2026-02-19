@@ -84,12 +84,6 @@ export function Hero() {
             </div>
           </div>
 
-          <div className="pointer-events-none absolute -left-4 top-14 hidden rounded-full border border-white/15 bg-background/85 px-4 py-2 text-[11px] uppercase tracking-wide text-foreground/80 shadow-[0_16px_30px_hsl(0_0%_0%/0.45)] backdrop-blur-sm 2xl:block animate-[hero-float_9s_ease-in-out_infinite] motion-reduce:animate-none">
-            Intent routing + policy checks
-          </div>
-          <div className="pointer-events-none absolute -right-4 bottom-12 hidden rounded-full border border-brand/25 bg-brand/[0.12] px-4 py-2 text-[11px] uppercase tracking-wide text-brand shadow-[0_12px_28px_hsl(38_92%_50%/0.25)] backdrop-blur-sm 2xl:block animate-[hero-float_10s_ease-in-out_1.2s_infinite] motion-reduce:animate-none">
-            Voice latency tuned for live calls
-          </div>
         </div>
 
         <div

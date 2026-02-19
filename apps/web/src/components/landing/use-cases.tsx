@@ -7,11 +7,15 @@ import {
   Layers,
   Shield,
   ArrowRight,
+  Settings,
+  Plug,
+  Activity,
+  ChevronRight,
 } from 'lucide-react';
 import { FadeIn } from '@/components/ui/fade-in';
 import { DotGrid } from './dot-grid';
 
-const USE_CASES = [
+const WORKFLOWS = [
   {
     icon: Headset,
     title: 'Customer Support',
@@ -70,6 +74,36 @@ const USE_CASES = [
   },
 ];
 
+const PLATFORM_CAPABILITIES = [
+  'Realtime + omnichannel routing',
+  'Knowledge base + RAG',
+  'Policy guardrails and approvals',
+  'A/B experiments and analytics',
+  '22+ provider portability via Pi',
+  'Tool execution with audit trail',
+] as const;
+
+const DELIVERY_STEPS = [
+  {
+    number: '01',
+    icon: Settings,
+    title: 'Configure',
+    description: 'Set persona, tools, guardrails, and knowledge from dashboard or CLI.',
+  },
+  {
+    number: '02',
+    icon: Plug,
+    title: 'Connect',
+    description: 'Ship web voice, phone, chat, and SMS from the same agent config.',
+  },
+  {
+    number: '03',
+    icon: Activity,
+    title: 'Improve',
+    description: 'Monitor live runs and ship prompt or workflow updates quickly.',
+  },
+] as const;
+
 type CaseData = {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
@@ -123,25 +157,76 @@ function CaseCard({
 export function UseCases() {
   return (
     <section id="use-cases" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
-      {/* Ambient background — reuses the existing DotGrid component */}
+      {/* Ambient background */}
       <DotGrid />
 
       <div className="relative max-w-6xl mx-auto px-6">
         <FadeIn className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Six voice agent workflows you can run today
+            Workflows and platform controls in one section
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            From support calls to developer build loops, each path maps to a live demo with observable runtime behavior.
+            Pick a workflow, then trace the same guardrails, tools, and analytics stack across every channel.
           </p>
         </FadeIn>
+
         <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {USE_CASES.map((useCase, i) => (
+          {WORKFLOWS.map((useCase, i) => (
             <FadeIn key={useCase.title} delay={i * 0.08 + 0.08}>
               <CaseCard {...useCase} />
             </FadeIn>
           ))}
         </div>
+
+        <div id="features" className="scroll-mt-24" />
+        <FadeIn delay={0.25}>
+          <div className="mt-10 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand/65">
+              Platform capabilities in every workflow
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {PLATFORM_CAPABILITIES.map((capability) => (
+                <span
+                  key={capability}
+                  className="rounded-full border border-white/[0.08] bg-background/60 px-3 py-1.5 text-[11px] text-muted-foreground sm:text-xs"
+                >
+                  {capability}
+                </span>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        <div id="how-it-works" className="scroll-mt-24" />
+        <FadeIn delay={0.3}>
+          <div className="mt-10 sm:mt-12">
+            <h3 className="text-lg sm:text-xl font-semibold text-center">
+              Configure. Connect. Improve.
+            </h3>
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-center">
+              {DELIVERY_STEPS.map(({ number, icon: Icon, title, description }, i) => (
+                <div key={number} className="contents">
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-5">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-brand/70">
+                        {number}
+                      </span>
+                      <Icon className="h-4 w-4 text-brand/80" />
+                    </div>
+                    <p className="text-sm font-semibold">{title}</p>
+                    <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed">{description}</p>
+                  </div>
+
+                  {i < DELIVERY_STEPS.length - 1 && (
+                    <div className="hidden md:flex items-center justify-center">
+                      <ChevronRight className="h-4 w-4 text-brand/45" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
       </div>
     </section>
   );

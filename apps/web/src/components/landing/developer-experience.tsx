@@ -2,30 +2,57 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Shield, Brain, BarChart3, Terminal } from 'lucide-react';
+import { Shield, Brain, BarChart3, Terminal, Sparkles, Radio, Database } from 'lucide-react';
 import { FadeIn } from '@/components/ui/fade-in';
 
 const PROVIDERS = [
   {
+    id: 'google',
     logo: '/logos/gemini.svg',
     name: 'Google',
     description: 'Gemini 3, Flash, embedding models',
+    model: 'gemini-3-flash-preview',
     logoWidth: 74,
     logoHeight: 24,
   },
   {
+    id: 'anthropic',
     logo: '/logos/anthropic.svg',
     name: 'Anthropic',
     description: 'Claude Opus, Sonnet, Haiku',
+    model: 'claude-sonnet-4-5',
     logoWidth: 94,
     logoHeight: 24,
   },
   {
+    id: 'openai',
     logo: '/logos/openai.svg',
     name: 'OpenAI',
     description: 'GPT-4o, o-series reasoning models',
+    model: 'gpt-4.1',
     logoWidth: 80,
     logoHeight: 24,
+  },
+] as const;
+
+const STACK = [
+  {
+    icon: Sparkles,
+    name: 'Gemini',
+    role: 'AI Engine',
+    description: 'Native multimodal reasoning for realtime voice and tool use.',
+  },
+  {
+    icon: Radio,
+    name: 'LiveKit',
+    role: 'Transport',
+    description: 'WebRTC + SIP transport for browser, phone, and PSTN calls.',
+  },
+  {
+    icon: Database,
+    name: 'Convex',
+    role: 'Backend',
+    description: 'Realtime state, memory, tracing, and workflow orchestration.',
   },
 ] as const;
 
@@ -33,10 +60,11 @@ const PLATFORM_FEATURES = [
   { icon: Shield, label: 'Guardrails' },
   { icon: Brain, label: 'Knowledge' },
   { icon: BarChart3, label: 'Analytics' },
-];
+] as const;
 
 export function DeveloperExperience() {
   const [selectedProvider, setSelectedProvider] = useState(0);
+  const provider = PROVIDERS[selectedProvider];
 
   return (
     <section id="developer" className="relative py-20 sm:py-28 lg:py-36 border-t border-border overflow-hidden">
@@ -52,24 +80,64 @@ export function DeveloperExperience() {
       <div className="relative max-w-6xl mx-auto px-6">
         <FadeIn className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Built for developers who ship.
+            Developer mode, infrastructure, and quickstart in one place
           </h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            One SDK. 22+ providers. Your choice.
+            One SDK, 22+ providers, and a mobile-friendly path from runtime setup to production telemetry.
           </p>
         </FadeIn>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Column 1: Pick Your Provider */}
+        <FadeIn delay={0.06}>
+          <div className="mb-8 grid gap-3 sm:grid-cols-3">
+            {STACK.map(({ icon: Icon, name, role, description }) => (
+              <div
+                key={name}
+                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-5"
+              >
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-brand/80">
+                  <Icon className="h-3.5 w-3.5" />
+                  {role}
+                </div>
+                <p className="text-sm font-semibold">{name}</p>
+                <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed">{description}</p>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+          {/* Column 1: Provider selection */}
           <FadeIn delay={0.08}>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 h-full">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-6 h-full">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/60 mb-5">
                 Pick Your Provider
               </p>
-              <div className="space-y-3">
+
+              {/* Mobile: compact horizontal selector */}
+              <div className="md:hidden -mx-1 overflow-x-auto pb-1">
+                <div className="flex w-max gap-2 px-1">
+                  {PROVIDERS.map((item, i) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedProvider(i)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        i === selectedProvider
+                          ? 'border-brand/40 bg-brand/12 text-brand'
+                          : 'border-white/[0.08] bg-background/50 text-muted-foreground'
+                      }`}
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Desktop: rich provider cards */}
+              <div className="hidden md:block space-y-3">
                 {PROVIDERS.map((provider, i) => (
                   <button
-                    key={provider.name}
+                    key={provider.id}
                     type="button"
                     onClick={() => setSelectedProvider(i)}
                     className={`flex w-full items-center gap-4 rounded-lg border p-4 transition-colors cursor-pointer text-left ${
@@ -98,26 +166,33 @@ export function DeveloperExperience() {
                     </div>
                   </button>
                 ))}
-                <p className="text-[10px] text-muted-foreground/50 text-center pt-1">
-                  + DeepSeek, Mistral, xAI, Groq, and 15+ more via Pi
-                </p>
               </div>
+
+              <div className="mt-4 rounded-lg border border-white/[0.08] bg-background/55 p-3">
+                <p className="text-xs font-semibold">{provider.name}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{provider.description}</p>
+                <p className="mt-2 font-mono text-[11px] text-brand/80">model: {provider.model}</p>
+              </div>
+
+              <p className="text-[10px] text-muted-foreground/50 text-center pt-3">
+                + DeepSeek, Mistral, xAI, Groq, and 15+ more via Pi
+              </p>
             </div>
           </FadeIn>
 
           {/* Column 2: Platform Layer */}
           <FadeIn delay={0.16}>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 h-full">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-6 h-full">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/60 mb-5">
                 Platform Layer
               </p>
               <div className="flex flex-col items-center gap-4">
                 {/* Provider boxes */}
-                <div className="flex gap-2 w-full">
+                <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
                   {['Google', 'Anthropic', 'OpenAI', '15+'].map((name) => (
                     <div
                       key={name}
-                      className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.02] py-2 text-center text-xs text-muted-foreground"
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.02] py-2 text-center text-xs text-muted-foreground"
                     >
                       {name}
                     </div>
@@ -151,7 +226,7 @@ export function DeveloperExperience() {
 
                 {/* Output */}
                 <div className="w-full rounded-lg border border-white/[0.08] bg-white/[0.02] py-2.5 text-center text-xs text-muted-foreground">
-                  Voice + Web + Phone + SMS
+                  Voice + Web + Phone + SMS with consistent runtime behavior
                 </div>
               </div>
             </div>
@@ -159,7 +234,7 @@ export function DeveloperExperience() {
 
           {/* Column 3: Embedded Terminal */}
           <FadeIn delay={0.24}>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 h-full">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-6 h-full">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/60 mb-5">
                 Agent Terminal
               </p>
@@ -176,10 +251,10 @@ export function DeveloperExperience() {
                   <span className="ml-auto rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[9px] font-medium text-brand/70 uppercase tracking-wider">Preview</span>
                 </div>
                 {/* Terminal content */}
-                <div className="p-4 font-mono text-[11px] leading-relaxed">
-                  <p className="text-muted-foreground/50">$ riyaan agent deploy --provider {PROVIDERS[selectedProvider].name.toLowerCase()}</p>
-                  <p className="text-brand/70 mt-1">Deploying with {PROVIDERS[selectedProvider].name}...</p>
-                  <p className="text-foreground/60 mt-1">  Model: {PROVIDERS[selectedProvider].description.split(',')[0]}</p>
+                <div className="p-4 font-mono text-[10px] sm:text-[11px] leading-relaxed overflow-x-auto">
+                  <p className="text-muted-foreground/50">$ riyaan agent deploy --provider {provider.name.toLowerCase()}</p>
+                  <p className="text-brand/70 mt-1">Deploying with {provider.name}...</p>
+                  <p className="text-foreground/60 mt-1">  Model: {provider.model}</p>
                   <p className="text-foreground/60">  Guardrails: 3 active rules</p>
                   <p className="text-foreground/60">  Tools: check_warranty, book_appointment</p>
                   <p className="text-brand/70 mt-2">Agent live on wss://your-app.livekit.cloud</p>
@@ -192,6 +267,21 @@ export function DeveloperExperience() {
             </div>
           </FadeIn>
         </div>
+
+        <FadeIn delay={0.3}>
+          <div className="mt-8 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/60 mb-4">
+              SDK Quickstart
+            </p>
+            <div className="rounded-lg border border-white/[0.08] bg-[hsl(0_0%_4%)] p-4 font-mono text-[11px] sm:text-[12px] leading-relaxed overflow-x-auto">
+              <p className="text-muted-foreground/50">import {'{'} createAgent {'}'} from &apos;@genai-voice/sdk/agent&apos;;</p>
+              <p className="text-muted-foreground/50">import {'{'} createConvexRoomCallbacks {'}'} from &apos;@genai-voice/sdk&apos;;</p>
+              <p className="mt-2 text-foreground/70">const agent = await createAgent({'{'} provider: &apos;{provider.id}&apos;, model: &apos;{provider.model}&apos; {'}'});</p>
+              <p className="text-foreground/70">const callbacks = createConvexRoomCallbacks({'{'} convexUrl, appSlug, getSessionToken {'}'});</p>
+              <p className="mt-2 text-brand/80">// same guardrails, tools, and analytics across providers</p>
+            </div>
+          </div>
+        </FadeIn>
 
         {/* Credibility footnote */}
         <FadeIn delay={0.35}>
