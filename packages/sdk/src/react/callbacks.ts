@@ -10,6 +10,8 @@
 export interface CreateRoomOptions {
   /** Arbitrary metadata to attach to the LiveKit room (serialized as JSON) */
   metadata?: Record<string, unknown>;
+  /** Enable or disable server-side recording for this room (defaults to backend policy) */
+  recordingEnabled?: boolean;
 }
 
 /** Backend-agnostic callbacks for LiveKit room lifecycle */
@@ -66,13 +68,18 @@ export function createConvexRoomCallbacks(config: ConvexRoomConfig): LiveKitRoom
     async createRoom(sessionId: string, options?: CreateRoomOptions): Promise<{ roomName: string }> {
       const auth = await resolveAuth(config);
       cachedAuth = auth;
+      const payload: Record<string, unknown> = { ...auth, sessionId };
+      if (options?.metadata) payload.metadata = options.metadata;
+      if (options?.recordingEnabled !== undefined) {
+        payload.config = { enableRecording: options.recordingEnabled };
+      }
 
       const res = await fetch(
         new URL('/api/livekit/rooms', config.convexUrl).toString(),
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...auth, sessionId, metadata: options?.metadata }),
+          body: JSON.stringify(payload),
         },
       );
 

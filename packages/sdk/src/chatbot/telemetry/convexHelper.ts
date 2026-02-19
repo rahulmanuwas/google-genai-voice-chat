@@ -21,6 +21,12 @@ export interface MessagePayload {
     ts: number;
 }
 
+export interface ConversationSaveOptions {
+    status?: string;
+    resolution?: string;
+    channel?: string;
+}
+
 export function createConvexHelper(config: ConvexHelperConfig) {
     const { url, appSlug, appSecret, getSessionToken } = config;
 
@@ -86,14 +92,23 @@ export function createConvexHelper(config: ConvexHelperConfig) {
     async function saveConversation(
         sessionId: string,
         messages: MessagePayload[],
-        startedAt: number
+        startedAt: number,
+        options?: ConversationSaveOptions,
     ) {
         try {
             const auth = await resolveAuth();
             await fetch(`${url}/api/conversations`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...auth, sessionId, startedAt, messages }),
+                body: JSON.stringify({
+                    ...auth,
+                    sessionId,
+                    startedAt,
+                    messages,
+                    ...(options?.status !== undefined && { status: options.status }),
+                    ...(options?.resolution !== undefined && { resolution: options.resolution }),
+                    ...(options?.channel !== undefined && { channel: options.channel }),
+                }),
             });
         } catch {
             // Fire-and-forget
@@ -113,12 +128,21 @@ export function createConvexHelper(config: ConvexHelperConfig) {
     function beaconConversation(
         sessionId: string,
         messages: MessagePayload[],
-        startedAt: number
+        startedAt: number,
+        options?: ConversationSaveOptions,
     ) {
         if (typeof navigator === 'undefined' || !navigator.sendBeacon || messages.length === 0) return;
         const auth = resolveAuthSync();
         const blob = new Blob(
-            [JSON.stringify({ ...auth, sessionId, startedAt, messages })],
+            [JSON.stringify({
+                ...auth,
+                sessionId,
+                startedAt,
+                messages,
+                ...(options?.status !== undefined && { status: options.status }),
+                ...(options?.resolution !== undefined && { resolution: options.resolution }),
+                ...(options?.channel !== undefined && { channel: options.channel }),
+            })],
             { type: 'application/json' }
         );
         navigator.sendBeacon(`${url}/api/conversations`, blob);

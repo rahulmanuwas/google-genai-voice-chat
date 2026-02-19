@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VoiceChatEvent, ChatMessage } from '../lib/types';
-import type { createConvexHelper, EventPayload } from './convexHelper';
+import type { createConvexHelper, EventPayload, MessagePayload } from './convexHelper';
 
 const NOISE_EVENTS = new Set([
     'audio_output_queue_overflow',
@@ -32,6 +32,7 @@ export function useTelemetry(options: UseTelemetryOptions) {
     const sessionStartRef = useRef(initialSession.start);
 
     const eventBufferRef = useRef<EventPayload[]>([]);
+    const latestMessagesRef = useRef<MessagePayload[]>([]);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const flushEvents = useCallback(() => {
@@ -65,10 +66,13 @@ export function useTelemetry(options: UseTelemetryOptions) {
     const saveTranscript = useCallback(
         (messages: ChatMessage[]) => {
             if (messages.length === 0) return;
+            const payload = messages.map((m) => ({ role: m.role, content: m.content, ts: m.ts }));
+            latestMessagesRef.current = payload;
             void convex.saveConversation(
                 sessionIdRef.current,
-                messages.map((m) => ({ role: m.role, content: m.content, ts: m.ts })),
-                sessionStartRef.current
+                payload,
+                sessionStartRef.current,
+                { status: 'active' },
             );
         },
         [convex]
@@ -77,6 +81,7 @@ export function useTelemetry(options: UseTelemetryOptions) {
     const resetSession = useCallback(() => {
         sessionIdRef.current = generateSessionId();
         sessionStartRef.current = Date.now();
+        latestMessagesRef.current = [];
     }, []);
 
     // Flush remaining events on page unload via sendBeacon for reliable delivery
@@ -84,9 +89,18 @@ export function useTelemetry(options: UseTelemetryOptions) {
         if (typeof window === 'undefined') return;
 
         const handlePageHide = () => {
-            if (eventBufferRef.current.length === 0) return;
-            const batch = eventBufferRef.current.splice(0);
-            convex.beaconEvents(sessionIdRef.current, batch);
+            if (eventBufferRef.current.length > 0) {
+                const batch = eventBufferRef.current.splice(0);
+                convex.beaconEvents(sessionIdRef.current, batch);
+            }
+            if (latestMessagesRef.current.length > 0) {
+                convex.beaconConversation(
+                    sessionIdRef.current,
+                    latestMessagesRef.current,
+                    sessionStartRef.current,
+                    { status: 'resolved', resolution: 'completed' },
+                );
+            }
         };
 
         window.addEventListener('pagehide', handlePageHide);
@@ -102,8 +116,16 @@ export function useTelemetry(options: UseTelemetryOptions) {
                 clearTimeout(flushTimerRef.current);
                 flushTimerRef.current = null;
             }
+            if (latestMessagesRef.current.length > 0) {
+                void convex.saveConversation(
+                    sessionIdRef.current,
+                    latestMessagesRef.current,
+                    sessionStartRef.current,
+                    { status: 'resolved', resolution: 'completed' },
+                );
+            }
         };
-    }, []);
+    }, [convex]);
 
     return { sessionId: sessionIdRef, onEvent, flushEvents, saveTranscript, resetSession };
 }

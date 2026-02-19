@@ -3,6 +3,137 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
+type RoleKey = "user" | "agent";
+
+interface RecordingSnapshot {
+  role: RoleKey;
+  playbackUrl: string;
+  mimeType?: string;
+  durationMs?: number;
+  updatedAt: number;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readNumberish(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function normalizeRole(role: string | undefined): RoleKey | undefined {
+  if (!role) return undefined;
+  const normalized = role.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === "agent" || normalized === "assistant" || normalized === "model") return "agent";
+  if (normalized === "user" || normalized === "customer") return "user";
+  return undefined;
+}
+
+function inferRoleFromIdentity(identity?: string): RoleKey | undefined {
+  const normalized = identity?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (
+    normalized === "agent"
+    || normalized.startsWith("agent-")
+    || normalized.startsWith("assistant-")
+    || normalized.includes("-agent")
+    || normalized.includes("bot")
+  ) {
+    return "agent";
+  }
+  if (
+    normalized.startsWith("viewer-")
+    || normalized.startsWith("observer-")
+    || normalized.startsWith("monitor-")
+  ) {
+    return undefined;
+  }
+  return "user";
+}
+
+function isUsableRecordingStatus(status: string | undefined): boolean {
+  if (!status) return true;
+  const normalized = status.trim().toLowerCase();
+  if (!normalized) return true;
+  return !["failed", "aborted", "limit_reached"].includes(normalized);
+}
+
+function buildRecordingMap(events: Array<{ data?: string; ts: number }>): Map<RoleKey, RecordingSnapshot> {
+  const latestByEgress = new Map<string, RecordingSnapshot & { status?: string }>();
+
+  for (const event of events) {
+    if (!event.data) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(event.data);
+    } catch {
+      continue;
+    }
+    const payload = asRecord(parsed);
+    if (!payload) continue;
+
+    const explicitPlaybackUrl = readString(payload.playbackUrl);
+    const httpFileLocation = readString(payload.fileLocation);
+    const playbackUrl = explicitPlaybackUrl
+      ?? (httpFileLocation && /^https?:\/\//i.test(httpFileLocation) ? httpFileLocation : undefined);
+    if (!playbackUrl) continue;
+
+    const role =
+      normalizeRole(readString(payload.role))
+      ?? inferRoleFromIdentity(readString(payload.participantIdentity));
+    if (!role) continue;
+
+    const status = readString(payload.status);
+    if (!isUsableRecordingStatus(status)) continue;
+
+    const updatedAt = readNumberish(payload.updatedAt) ?? event.ts;
+    const egressId = readString(payload.egressId) ?? `${role}:${playbackUrl}`;
+
+    const current = latestByEgress.get(egressId);
+    if (!current || updatedAt >= current.updatedAt) {
+      latestByEgress.set(egressId, {
+        role,
+        playbackUrl,
+        mimeType: readString(payload.mimeType),
+        durationMs: readNumberish(payload.durationMs),
+        updatedAt,
+        status,
+      });
+    }
+  }
+
+  const latestByRole = new Map<RoleKey, RecordingSnapshot>();
+  for (const recording of latestByEgress.values()) {
+    const existing = latestByRole.get(recording.role);
+    if (!existing || recording.updatedAt >= existing.updatedAt) {
+      latestByRole.set(recording.role, {
+        role: recording.role,
+        playbackUrl: recording.playbackUrl,
+        mimeType: recording.mimeType,
+        durationMs: recording.durationMs,
+        updatedAt: recording.updatedAt,
+      });
+    }
+  }
+
+  return latestByRole;
+}
+
 const messageValidator = {
   appSlug: v.string(),
   sessionId: v.string(),
@@ -70,12 +201,41 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const messages = await ctx.runQuery(internal.messages.getAppSessionMessageRecords, {
-    appSlug: auth.app.slug,
-    sessionId,
+  const [messages, events] = await Promise.all([
+    ctx.runQuery(internal.messages.getAppSessionMessageRecords, {
+      appSlug: auth.app.slug,
+      sessionId,
+    }),
+    ctx.runQuery(internal.events.getAppSessionEventRecords, {
+      appSlug: auth.app.slug,
+      sessionId,
+      limit: 500,
+    }),
+  ]);
+
+  const egressEvents = events.filter((event) => event.eventType === "livekit_egress");
+  const recordingsByRole = buildRecordingMap(egressEvents);
+
+  const enrichedMessages = messages.map((message) => {
+    const role = normalizeRole(message.role) ?? inferRoleFromIdentity(message.participantIdentity);
+    if (!role) return message;
+    const recording = recordingsByRole.get(role);
+    if (!recording) return message;
+    return {
+      ...message,
+      audioUrl: recording.playbackUrl,
+      audioMimeType: recording.mimeType,
+      audioDurationMs: recording.durationMs,
+    };
   });
 
-  return jsonResponse({ messages });
+  return jsonResponse({
+    messages: enrichedMessages,
+    recordings: {
+      user: recordingsByRole.get("user") ?? null,
+      agent: recordingsByRole.get("agent") ?? null,
+    },
+  });
 });
 
 /** Insert a single message */

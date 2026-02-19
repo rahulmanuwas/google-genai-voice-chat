@@ -129,7 +129,7 @@ Convex backend platform for genai-voice. Extends the base telemetry backend into
 | POST | `/api/livekit/rooms` | Create a new LiveKit room |
 | GET | `/api/livekit/rooms` | List active rooms for an app |
 | DELETE | `/api/livekit/rooms` | End a room (set status to ended) |
-| POST | `/api/livekit/webhook` | Handle LiveKit webhook events (room/participant lifecycle) |
+| POST | `/api/livekit/webhook` | Handle LiveKit webhook events (room/participant/egress lifecycle) |
 
 ## Authentication
 
@@ -179,6 +179,19 @@ GEMINI_API_KEY=your-gemini-api-key
 LIVEKIT_API_KEY=your-livekit-api-key
 LIVEKIT_API_SECRET=your-livekit-api-secret
 LIVEKIT_URL=https://your-app.livekit.cloud
+
+# Optional: manual participant egress start (MP4 output)
+LIVEKIT_EGRESS_MANUAL_START=true
+# Participant egress file output is mp4; mp3/ogg values are ignored by backend.
+LIVEKIT_EGRESS_FILE_TYPE=mp4
+LIVEKIT_EGRESS_FILEPATH_PREFIX=recordings
+LIVEKIT_EGRESS_S3_ACCESS_KEY=...
+LIVEKIT_EGRESS_S3_SECRET=...
+LIVEKIT_EGRESS_S3_BUCKET=...
+LIVEKIT_EGRESS_S3_REGION=auto
+LIVEKIT_EGRESS_S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com
+LIVEKIT_EGRESS_S3_FORCE_PATH_STYLE=true
+LIVEKIT_RECORDINGS_PUBLIC_BASE_URL=https://cdn.yourdomain.com
 ```
 
 ### Seed an App

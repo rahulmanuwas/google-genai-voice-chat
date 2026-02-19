@@ -393,6 +393,9 @@ export interface Message {
   participantIdentity: string;
   role: string;
   content: string;
+  audioUrl?: string;
+  audioMimeType?: string;
+  audioDurationMs?: number;
   isFinal: boolean;
   language?: string;
   traceId?: string;

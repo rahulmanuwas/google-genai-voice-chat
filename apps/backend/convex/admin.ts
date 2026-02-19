@@ -40,13 +40,21 @@ export const stats = internalQuery({
 
 /** Resolve all active conversations (safety net for agent cleanup failures) */
 export const resolveStaleConversations = internalMutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    staleAfterMs: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const staleAfterMs = args.staleAfterMs ?? (15 * 60 * 1000);
     const conversations = await ctx.db.query("conversations").collect();
     const active = conversations.filter((c) => !c.status || c.status === "active");
+    const stale = active.filter((c) => {
+      const referenceTs = c.endedAt ?? c.startedAt;
+      return now - referenceTs >= staleAfterMs;
+    });
     let resolved = 0;
-    for (const c of active) {
-      const endedAt = c.endedAt ?? (c.startedAt + 10 * 60 * 1000);
+    for (const c of stale) {
+      const endedAt = c.endedAt ?? now;
       await ctx.db.patch(c._id, {
         status: "resolved",
         resolution: "completed",
@@ -54,7 +62,13 @@ export const resolveStaleConversations = internalMutation({
       });
       resolved++;
     }
-    return { total: conversations.length, active: active.length, resolved };
+    return {
+      total: conversations.length,
+      active: active.length,
+      stale: stale.length,
+      resolved,
+      staleAfterMs,
+    };
   },
 });
 

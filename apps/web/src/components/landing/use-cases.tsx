@@ -41,21 +41,23 @@ const USE_CASES = [
   },
   {
     icon: Mic,
-    title: 'Voice-Driven Development',
+    title: 'Self-Healing Runtime',
     description:
-      'Build and test agents by voice while configuring tools, guardrails, and knowledge.',
-    href: '#developer',
-    cta: 'Learn more',
+      'Watch Pi recover from context overflow, retry with fallback models, and keep the session moving.',
+    href: '/?track=developer#try',
+    cta: 'Run resilience demo',
     tag: 'Developer',
+    proof: 'Fallback + context recovery telemetry',
   },
   {
     icon: Layers,
-    title: 'Any Model, Any Provider',
+    title: 'Policy-Aware Tooling',
     description:
-      'Switch providers and models without rewriting orchestration, guardrails, or analytics.',
-    href: '#developer',
-    cta: 'Learn more',
+      'Apply layered allow and deny rules, then verify blocked tools and approvals in one session.',
+    href: '/?track=developer#try',
+    cta: 'See policy controls',
     tag: 'Developer',
+    proof: 'Tool policy decisions + run metadata',
   },
   {
     icon: Shield,
@@ -75,6 +77,7 @@ type CaseData = {
   href: string;
   cta: string;
   tag: string;
+  proof?: string;
 };
 
 function CaseCard({
@@ -84,6 +87,7 @@ function CaseCard({
   href,
   cta,
   tag,
+  proof,
 }: CaseData) {
   const inner = (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card/50 p-6 backdrop-blur-sm transition-[border-color,box-shadow] duration-200 hover:border-brand/20 hover:shadow-[0_0_40px_hsl(38_92%_50%/0.06)]">
@@ -103,6 +107,9 @@ function CaseCard({
       <p className="text-sm text-muted-foreground leading-relaxed flex-1">
         {description}
       </p>
+      {proof && (
+        <p className="mt-3 text-[11px] text-brand/80">{proof}</p>
+      )}
       <div className="mt-4 flex items-center text-sm font-medium text-brand">
         {cta}
         <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -122,10 +129,10 @@ export function UseCases() {
       <div className="relative max-w-6xl mx-auto px-6">
         <FadeIn className="text-center mb-12 sm:mb-20">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-4">
-            Six launch-ready voice agent plays
+            Six voice agent workflows you can run today
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            A balanced 2x3 grid of real use cases across operations, revenue, and developer workflows.
+            From support calls to developer build loops, each path maps to a live demo with observable runtime behavior.
           </p>
         </FadeIn>
         <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">

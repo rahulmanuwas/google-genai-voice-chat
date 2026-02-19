@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Navbar } from '@/components/landing/navbar';
 import { Hero } from '@/components/landing/hero';
 import { LiveDemo } from '@/components/landing/live-demo';
@@ -16,7 +17,9 @@ export default function LandingPage() {
       <Navbar />
       <ScrollSpy />
       <Hero />
-      <LiveDemo />
+      <Suspense fallback={null}>
+        <LiveDemo />
+      </Suspense>
       <UseCases />
       <Features />
       <TechStack />

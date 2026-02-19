@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FadeIn } from '@/components/ui/fade-in';
 import { ScenarioPicker } from '@/components/demos/ScenarioPicker';
 import { AgentModePicker, type AgentMode } from '@/components/demos/AgentModePicker';
@@ -16,13 +17,35 @@ const LiveKitVoiceChat = dynamic(
   { ssr: false },
 );
 
+const DEV_SIGNAL_CHIPS = [
+  { label: 'attempts', value: '3' },
+  { label: 'fallbacks', value: '1' },
+  { label: 'recoveries', value: '1' },
+  { label: 'truncated chars', value: '8421' },
+] as const;
+
 export function LiveDemo() {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
+  const trackParam = searchParams.get('track');
   const [scenarioId, setScenarioId] = useState(DEFAULT_SCENARIO.id);
   const [agentMode, setAgentMode] = useState<AgentMode>('pipeline');
-  const [demoTrack, setDemoTrack] = useState<'user' | 'developer'>('user');
+  const demoTrack: 'user' | 'developer' = trackParam === 'developer' ? 'developer' : 'user';
   const scenario = getScenarioById(scenarioId);
+
+  const setDemoTrack = useCallback((track: 'user' | 'developer') => {
+    const nextParams = new URLSearchParams(searchParamsString);
+    if (track === 'developer') nextParams.set('track', 'developer');
+    else nextParams.delete('track');
+
+    const nextQuery = nextParams.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}#try` : `${pathname}#try`;
+    router.replace(nextUrl, { scroll: false });
+  }, [pathname, router, searchParamsString]);
 
   const getSessionToken = useCallback(async () => {
     const res = await fetch('/api/session', {
@@ -147,46 +170,61 @@ export function LiveDemo() {
           )
         ) : (
           <FadeIn delay={0.2}>
-            <div className="mx-auto max-w-3xl rounded-xl border border-white/[0.06] bg-[hsl(0_0%_4%)] overflow-hidden">
-              {/* Terminal header */}
-              <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/[0.06]">
-                <div className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
-                <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
-                <div className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
-                <span className="ml-3 text-[10px] text-muted-foreground/50">developer-demo — pi runtime</span>
-                <span className="ml-auto rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[9px] font-medium text-brand/70 uppercase tracking-wider">Preview</span>
+            <div className="mx-auto max-w-3xl space-y-3">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {DEV_SIGNAL_CHIPS.map((chip) => (
+                  <span
+                    key={chip.label}
+                    className="rounded-full border border-brand/20 bg-brand/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-brand/80"
+                  >
+                    {chip.label}: {chip.value}
+                  </span>
+                ))}
               </div>
-              {/* Demo walkthrough */}
-              <div className="p-6 font-mono text-[12px] sm:text-[13px] leading-relaxed space-y-4">
-                <div>
-                  <p className="text-muted-foreground/50">$ riyaan agent start --runtime pi --voice</p>
-                  <p className="text-brand/80 mt-1">Agent started with Pi runtime (voice enabled)</p>
-                  <p className="text-muted-foreground/40">Listening on wss://localhost:7880...</p>
+
+              <div className="rounded-xl border border-white/[0.06] bg-[hsl(0_0%_4%)] overflow-hidden">
+                {/* Terminal header */}
+                <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/[0.06]">
+                  <div className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
+                  <span className="ml-3 text-[10px] text-muted-foreground/50">developer-demo — pi runtime</span>
+                  <span className="ml-auto rounded-full bg-brand/10 border border-brand/20 px-2 py-0.5 text-[9px] font-medium text-brand/70 uppercase tracking-wider">Preview</span>
                 </div>
-                <div>
-                  <p className="text-muted-foreground/50">[voice] &quot;Add a tool that checks warranty status&quot;</p>
-                  <p className="text-foreground/70 mt-1">Creating tool &quot;check_warranty_status&quot;...</p>
-                  <p className="text-foreground/60">  Parameters: orderId (string, required)</p>
-                  <p className="text-foreground/60">  Endpoint: POST /api/tools/execute</p>
-                  <p className="text-brand/80 mt-1">Tool registered. Guardrails applied automatically.</p>
+                {/* Demo walkthrough */}
+                <div className="p-6 font-mono text-[12px] sm:text-[13px] leading-relaxed space-y-4">
+                  <div>
+                    <p className="text-muted-foreground/50">$ riyaan agent start --runtime pi --voice --provider google</p>
+                    <p className="text-brand/80 mt-1">Pi runtime online. Session: pi-7x4k2m</p>
+                    <p className="text-muted-foreground/40">Tool policy, callbacks, and telemetry bridge attached.</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground/50">[voice] &quot;Add refund lookup and deny filesystem writes&quot;</p>
+                    <p className="text-foreground/70 mt-1">registerTool(refund_lookup) ✓</p>
+                    <p className="text-foreground/60">policy.session.deny = [rm_file, write_file, exec_shell]</p>
+                    <p className="text-brand/80 mt-1">tool_policy_applied: 1 allowed, 3 blocked</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground/50">[voice] &quot;Fallback to Anthropic if Google rate limits&quot;</p>
+                    <p className="text-foreground/70 mt-1">fallback chain set: google/gemini-3-flash-preview → anthropic/claude-sonnet-4-5</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground/50">[run] prompt: &quot;Summarize full return history and exceptions&quot;</p>
+                    <p className="text-foreground/60 mt-1">attempt 1: google/gemini-3-flash-preview → rate_limit</p>
+                    <p className="text-foreground/60">attempt 2: anthropic/claude-sonnet-4-5 → context_overflow</p>
+                    <p className="text-foreground/60">recovery: truncated tool payload by 8421 chars</p>
+                    <p className="text-brand/80 mt-1">attempt 3: anthropic/claude-sonnet-4-5 → success</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground/50">[metrics] attempts=3 fallbackCount=1 contextRecoveryCount=1 duration=2.8s</p>
+                    <p className="text-brand/80 mt-1">Run metadata persisted to /api/agents/session/runs</p>
+                  </div>
+                  <p className="text-muted-foreground/30 animate-pulse motion-reduce:animate-none">_</p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground/50">[voice] &quot;Switch provider to Anthropic&quot;</p>
-                  <p className="text-foreground/70 mt-1">Switching provider: google → anthropic</p>
-                  <p className="text-brand/80">Provider switched. Tools and guardrails preserved.</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground/50">[voice] &quot;Run a test call with the dentist scenario&quot;</p>
-                  <p className="text-foreground/70 mt-1">Starting test call...</p>
-                  <p className="text-foreground/60">  Scenario: dentist-appointment</p>
-                  <p className="text-foreground/60">  Provider: anthropic | Voice: gemini-realtime</p>
-                  <p className="text-brand/80 mt-1">Call connected. Speak to test your agent.</p>
-                </div>
-                <p className="text-muted-foreground/30 animate-pulse motion-reduce:animate-none">_</p>
               </div>
             </div>
             <p className="mt-4 text-center text-xs text-muted-foreground/40">
-              Voice-driven agent building — talk to configure tools, guardrails, and providers.
+              Pi demo narrative: policy-gated tools, fallback orchestration, context recovery, and persisted run telemetry.
             </p>
           </FadeIn>
         )}

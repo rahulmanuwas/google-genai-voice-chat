@@ -27,6 +27,8 @@ export interface UseLiveKitVoiceChatOptions {
   agentMode?: 'realtime' | 'pipeline';
   /** Additional room metadata merged with agentMode and sent to createRoom() */
   roomMetadata?: Record<string, unknown>;
+  /** Enable/disable server-side recording for this room (backend default if omitted) */
+  recordingEnabled?: boolean;
   /** Callback fired after a room is created (before token fetch) */
   onRoomCreated?: (payload: {
     sessionId: string;
@@ -136,9 +138,17 @@ export function useLiveKitVoiceChat(
         ...(options.agentMode ? { agentMode: options.agentMode } : {}),
       };
       const roomMetadata = Object.keys(metadata).length > 0 ? metadata : undefined;
+      const roomOptions = roomMetadata || options.recordingEnabled !== undefined
+        ? {
+            ...(roomMetadata ? { metadata: roomMetadata } : {}),
+            ...(options.recordingEnabled !== undefined
+              ? { recordingEnabled: options.recordingEnabled }
+              : {}),
+          }
+        : undefined;
       const { roomName: newRoomName } = await cb.createRoom(
         sessionIdRef.current,
-        roomMetadata ? { metadata: roomMetadata } : undefined,
+        roomOptions,
       );
 
       if (options.onRoomCreated) {
@@ -184,6 +194,7 @@ export function useLiveKitVoiceChat(
     options.serverUrl,
     options.agentMode,
     options.roomMetadata,
+    options.recordingEnabled,
     options.onRoomCreated,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 

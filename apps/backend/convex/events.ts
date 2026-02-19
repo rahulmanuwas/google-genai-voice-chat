@@ -1,5 +1,5 @@
 import { internal } from "./_generated/api";
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
@@ -66,5 +66,26 @@ export const insertEventBatchRecords = internalMutation({
         traceId: args.traceId,
       });
     }
+  },
+});
+
+export const getAppSessionEventRecords = internalQuery({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    limit: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const query = ctx.db
+      .query("events")
+      .withIndex("by_app_session", (q) =>
+        q.eq("appSlug", args.appSlug).eq("sessionId", args.sessionId)
+      )
+      .order("desc");
+
+    if (args.limit !== undefined) {
+      return await query.take(args.limit);
+    }
+    return await query.collect();
   },
 });

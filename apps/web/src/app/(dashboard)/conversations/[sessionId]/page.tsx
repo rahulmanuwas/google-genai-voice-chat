@@ -13,6 +13,7 @@ import { formatDuration, timeAgo } from '@/lib/utils';
 import { Sparkles, ThumbsUp, ThumbsDown, Minus, ArrowUpDown, ScanSearch, Save, CheckCircle2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { TurnAudioButton } from '@/components/conversations/turn-audio-button';
 import { FAILURE_MODES, type FailureMode } from '@/types/api';
 
 interface TranscriptMessage {
@@ -20,6 +21,7 @@ interface TranscriptMessage {
   role: string;
   content: string;
   ts?: number;
+  audioUrl?: string;
 }
 
 interface AISummary {
@@ -27,6 +29,20 @@ interface AISummary {
   sentiment: string;
   topics: string[];
   resolution: string;
+}
+
+interface RoleRecording {
+  role: 'user' | 'agent';
+  audioUrl: string;
+  audioMimeType?: string;
+}
+
+function normalizeSpeakerRole(role: string): 'user' | 'agent' {
+  const normalized = role.trim().toLowerCase();
+  if (normalized === 'agent' || normalized === 'assistant' || normalized === 'model') {
+    return 'agent';
+  }
+  return 'user';
 }
 
 const SENTIMENT_CONFIG: Record<string, { icon: typeof ThumbsUp; label: string; color: string }> = {
@@ -106,6 +122,7 @@ export default function ConversationDetailPage({
           role: m.role,
           content: m.content,
           ts: m.createdAt,
+          audioUrl: m.audioUrl,
         }));
     }
 
@@ -132,6 +149,22 @@ export default function ConversationDetailPage({
 
     return [];
   }, [messagesData, conversation]);
+
+  const roleRecordings = useMemo<RoleRecording[]>(() => {
+    const byRole = new Map<'user' | 'agent', RoleRecording>();
+    for (const message of messagesData?.messages ?? []) {
+      if (!message.audioUrl) continue;
+      const role = normalizeSpeakerRole(message.role);
+      byRole.set(role, {
+        role,
+        audioUrl: message.audioUrl,
+        audioMimeType: message.audioMimeType,
+      });
+    }
+    return ['user', 'agent']
+      .map((role) => byRole.get(role as 'user' | 'agent'))
+      .filter((recording): recording is RoleRecording => Boolean(recording));
+  }, [messagesData]);
 
   const fetchSummary = useCallback(async (msgs: TranscriptMessage[]) => {
     setSummaryLoading(true);
@@ -214,6 +247,28 @@ export default function ConversationDetailPage({
                 <span>{timeAgo(conversation.startedAt)}</span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {roleRecordings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Voice Recordings</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {roleRecordings.map((recording) => (
+              <div key={recording.role} className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant={recording.role === 'agent' ? 'secondary' : 'outline'} className="text-[10px]">
+                    {recording.role === 'agent' ? 'Agent' : 'Customer'}
+                  </Badge>
+                </div>
+                <audio controls preload="none" className="w-full">
+                  <source src={recording.audioUrl} type={recording.audioMimeType} />
+                </audio>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -393,6 +448,7 @@ export default function ConversationDetailPage({
                   >
                     {m.role}
                   </Badge>
+                  <TurnAudioButton audioUrl={m.audioUrl} className="mt-0.5" />
                   <div
                     className={`max-w-[90%] md:max-w-[80%] rounded-lg px-3 py-2 text-sm ${
                       m.role === 'agent'
