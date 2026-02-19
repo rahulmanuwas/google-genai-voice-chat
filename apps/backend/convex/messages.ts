@@ -193,6 +193,8 @@ export const saveMessages = corsHttpAction(async (ctx, request) => {
 export const listMessages = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("sessionId");
+  const all = url.searchParams.get("all") === "true";
+  const filterApp = url.searchParams.get("appSlug")?.trim() || undefined;
 
   if (!sessionId) {
     return jsonResponse({ error: "Missing sessionId" }, 400);
@@ -200,17 +202,27 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
 
   const auth = await authenticateRequest(ctx, getAuthCredentialsFromRequest(request));
   if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  const appSlug = all ? filterApp : auth.app.slug;
 
   const [messages, events] = await Promise.all([
-    ctx.runQuery(internal.messages.getAppSessionMessageRecords, {
-      appSlug: auth.app.slug,
-      sessionId,
-    }),
-    ctx.runQuery(internal.events.getAppSessionEventRecords, {
-      appSlug: auth.app.slug,
-      sessionId,
-      limit: 500,
-    }),
+    appSlug
+      ? ctx.runQuery(internal.messages.getAppSessionMessageRecords, {
+        appSlug,
+        sessionId,
+      })
+      : ctx.runQuery(internal.messages.getSessionMessageRecords, {
+        sessionId,
+      }),
+    appSlug
+      ? ctx.runQuery(internal.events.getAppSessionEventRecords, {
+        appSlug,
+        sessionId,
+        limit: 500,
+      })
+      : ctx.runQuery(internal.events.getSessionEventRecords, {
+        sessionId,
+        limit: 500,
+      }),
   ]);
 
   const egressEvents = events.filter((event) => event.eventType === "livekit_egress");

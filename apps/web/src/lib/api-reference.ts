@@ -382,8 +382,10 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
     auth: 'appSecret OR sessionToken',
     requestFields: [
       { name: 'sessionId', type: 'string', required: true, description: 'Session ID to query' },
+      { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app lookup' },
+      { name: 'appSlug', type: 'string', required: false, description: 'Optional app filter when all=true' },
     ],
-    response: '{ messages: Message[] }',
+    response: '{ messages: Message[], recordings: { user, agent } }',
   },
 
   // ── Persona ───────────────────────────────────────────────────────────

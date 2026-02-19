@@ -59,8 +59,12 @@ export default function ConversationDetailPage({
 }) {
   const { sessionId } = use(params);
   const { api, ready } = useSession();
-  const { data: messagesData, isLoading: messagesLoading } = useMessages(ready ? sessionId : null);
   const { data: conversation, isLoading: convLoading } = useConversationBySession(ready ? sessionId : null);
+  const messageAppSlug = conversation?.appSlug ?? null;
+  const { data: messagesData, isLoading: messagesLoading } = useMessages(
+    ready ? sessionId : null,
+    messageAppSlug,
+  );
   const { data: annotationData, mutate: mutateAnnotation } = useAnnotation(ready ? sessionId : null);
 
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);

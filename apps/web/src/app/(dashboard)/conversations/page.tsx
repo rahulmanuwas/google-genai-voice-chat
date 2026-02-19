@@ -71,7 +71,7 @@ export default function ConversationsPage() {
   const { data, isLoading } = useConversations(tab === 'all' ? undefined : tab, selectedApp);
   const [sessionId, setSessionId] = useState('');
   const [searchId, setSearchId] = useState<string | null>(null);
-  const { data: messagesData, isLoading: messagesLoading } = useMessages(searchId);
+  const { data: messagesData, isLoading: messagesLoading } = useMessages(searchId, selectedApp);
   const { data: annotationsData } = useAnnotations(undefined, selectedApp);
   const [annotationFilter, setAnnotationFilter] = useState('all');
 

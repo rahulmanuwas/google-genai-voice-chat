@@ -182,9 +182,12 @@ export function useOutboundDispatches(eventType?: string) {
 
 // ─── Messages ──────────────────────────────────────────────────
 
-export function useMessages(sessionId: string | null) {
+export function useMessages(sessionId: string | null, appSlug?: string | null) {
+  const params = new URLSearchParams({ all: 'true' });
+  if (sessionId) params.set('sessionId', sessionId);
+  if (appSlug) params.set('appSlug', appSlug);
   return useApiSWR<{ messages: Message[] }>(
-    sessionId ? `/api/messages?sessionId=${sessionId}` : null,
+    sessionId ? `/api/messages?${params.toString()}` : null,
   );
 }
 

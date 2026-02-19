@@ -89,3 +89,21 @@ export const getAppSessionEventRecords = internalQuery({
     return await query.collect();
   },
 });
+
+export const getSessionEventRecords = internalQuery({
+  args: {
+    sessionId: v.string(),
+    limit: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const query = ctx.db
+      .query("events")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .order("desc");
+
+    if (args.limit !== undefined) {
+      return await query.take(args.limit);
+    }
+    return await query.collect();
+  },
+});
