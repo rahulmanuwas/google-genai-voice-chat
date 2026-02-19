@@ -4,9 +4,10 @@ import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getTraceId, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
 type RoleKey = "user" | "agent";
+type RecordingRole = RoleKey | "conversation";
 
 interface RecordingSnapshot {
-  role: RoleKey;
+  role: RecordingRole;
   playbackUrl: string;
   mimeType?: string;
   durationMs?: number;
@@ -35,12 +36,13 @@ function readNumberish(value: unknown): number | undefined {
   return undefined;
 }
 
-function normalizeRole(role: string | undefined): RoleKey | undefined {
+function normalizeRole(role: string | undefined): RecordingRole | undefined {
   if (!role) return undefined;
   const normalized = role.trim().toLowerCase();
   if (!normalized) return undefined;
   if (normalized === "agent" || normalized === "assistant" || normalized === "model") return "agent";
   if (normalized === "user" || normalized === "customer") return "user";
+  if (normalized === "conversation" || normalized === "room" || normalized === "mixed") return "conversation";
   return undefined;
 }
 
@@ -73,7 +75,12 @@ function isUsableRecordingStatus(status: string | undefined): boolean {
   return !["failed", "aborted", "limit_reached"].includes(normalized);
 }
 
-function buildRecordingMap(events: Array<{ data?: string; ts: number }>): Map<RoleKey, RecordingSnapshot> {
+function buildRecordingMap(
+  events: Array<{ data?: string; ts: number }>,
+): {
+  byRole: Map<RoleKey, RecordingSnapshot>;
+  conversation: RecordingSnapshot | null;
+} {
   const latestByEgress = new Map<string, RecordingSnapshot & { status?: string }>();
 
   for (const event of events) {
@@ -95,8 +102,8 @@ function buildRecordingMap(events: Array<{ data?: string; ts: number }>): Map<Ro
 
     const role =
       normalizeRole(readString(payload.role))
-      ?? inferRoleFromIdentity(readString(payload.participantIdentity));
-    if (!role) continue;
+      ?? inferRoleFromIdentity(readString(payload.participantIdentity))
+      ?? "conversation";
 
     const status = readString(payload.status);
     if (!isUsableRecordingStatus(status)) continue;
@@ -118,7 +125,21 @@ function buildRecordingMap(events: Array<{ data?: string; ts: number }>): Map<Ro
   }
 
   const latestByRole = new Map<RoleKey, RecordingSnapshot>();
+  let latestConversation: RecordingSnapshot | null = null;
   for (const recording of latestByEgress.values()) {
+    if (recording.role === "conversation") {
+      if (!latestConversation || recording.updatedAt >= latestConversation.updatedAt) {
+        latestConversation = {
+          role: "conversation",
+          playbackUrl: recording.playbackUrl,
+          mimeType: recording.mimeType,
+          durationMs: recording.durationMs,
+          updatedAt: recording.updatedAt,
+        };
+      }
+      continue;
+    }
+
     const existing = latestByRole.get(recording.role);
     if (!existing || recording.updatedAt >= existing.updatedAt) {
       latestByRole.set(recording.role, {
@@ -131,7 +152,7 @@ function buildRecordingMap(events: Array<{ data?: string; ts: number }>): Map<Ro
     }
   }
 
-  return latestByRole;
+  return { byRole: latestByRole, conversation: latestConversation };
 }
 
 const messageValidator = {
@@ -226,12 +247,12 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
   ]);
 
   const egressEvents = events.filter((event) => event.eventType === "livekit_egress");
-  const recordingsByRole = buildRecordingMap(egressEvents);
+  const recordings = buildRecordingMap(egressEvents);
 
   const enrichedMessages = messages.map((message) => {
-    const role = normalizeRole(message.role) ?? inferRoleFromIdentity(message.participantIdentity);
-    if (!role) return message;
-    const recording = recordingsByRole.get(role);
+    const inferredRole =
+      (normalizeRole(message.role) ?? inferRoleFromIdentity(message.participantIdentity)) as RoleKey | undefined;
+    const recording = (inferredRole ? recordings.byRole.get(inferredRole) : undefined) ?? recordings.conversation;
     if (!recording) return message;
     return {
       ...message,
@@ -244,8 +265,9 @@ export const listMessages = corsHttpAction(async (ctx, request) => {
   return jsonResponse({
     messages: enrichedMessages,
     recordings: {
-      user: recordingsByRole.get("user") ?? null,
-      agent: recordingsByRole.get("agent") ?? null,
+      user: recordings.byRole.get("user") ?? recordings.conversation ?? null,
+      agent: recordings.byRole.get("agent") ?? recordings.conversation ?? null,
+      conversation: recordings.conversation ?? null,
     },
   });
 });

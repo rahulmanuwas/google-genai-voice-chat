@@ -3,10 +3,20 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { jsonResponse, authenticateRequest, getAuthCredentialsFromRequest, getFullAuthCredentials, corsHttpAction } from "./helpers";
 
+type RecordingMode = "room_composite" | "participant_per_role";
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function resolveRecordingMode(): RecordingMode {
+  const raw = process.env.LIVEKIT_EGRESS_RECORDING_MODE?.trim().toLowerCase();
+  if (raw === "participant" || raw === "participant_per_role") {
+    return "participant_per_role";
+  }
+  return "room_composite";
 }
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {
@@ -332,16 +342,29 @@ export const createRoom = corsHttpAction(async (ctx, request) => {
   });
 
   if (config?.enableRecording ?? true) {
-    await ctx.scheduler.runAfter(
-      1000,
-      internal.livekitInternal.bootstrapRoomRecordingsAction,
-      {
-        appSlug: auth.app.slug,
-        sessionId,
-        roomName,
-        attempt: 0,
-      },
-    );
+    const recordingMode = resolveRecordingMode();
+    if (recordingMode === "participant_per_role") {
+      await ctx.scheduler.runAfter(
+        1000,
+        internal.livekitInternal.bootstrapRoomRecordingsAction,
+        {
+          appSlug: auth.app.slug,
+          sessionId,
+          roomName,
+          attempt: 0,
+        },
+      );
+    } else {
+      await ctx.scheduler.runAfter(
+        1000,
+        internal.livekitInternal.startRoomRecordingAction,
+        {
+          appSlug: auth.app.slug,
+          sessionId,
+          roomName,
+        },
+      );
+    }
   }
 
   return jsonResponse({ roomId, roomName, sessionId });
@@ -502,17 +525,30 @@ export const addLivekitParticipantRecord = internalMutation({
         room.enableRecording
         && (args.role === "user" || args.role === "agent")
       ) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.livekitInternal.startParticipantRecordingAction,
-          {
-            appSlug: room.appSlug,
-            sessionId: room.sessionId,
-            roomName: room.roomName,
-            participantIdentity: args.identity,
-            role: args.role,
-          }
-        );
+        const recordingMode = resolveRecordingMode();
+        if (recordingMode === "participant_per_role") {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.livekitInternal.startParticipantRecordingAction,
+            {
+              appSlug: room.appSlug,
+              sessionId: room.sessionId,
+              roomName: room.roomName,
+              participantIdentity: args.identity,
+              role: args.role,
+            }
+          );
+        } else {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.livekitInternal.startRoomRecordingAction,
+            {
+              appSlug: room.appSlug,
+              sessionId: room.sessionId,
+              roomName: room.roomName,
+            },
+          );
+        }
       }
     }
   },

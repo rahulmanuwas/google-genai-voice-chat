@@ -182,6 +182,10 @@ LIVEKIT_URL=https://your-app.livekit.cloud
 
 # Optional: manual participant egress start (MP4 output)
 LIVEKIT_EGRESS_MANUAL_START=true
+# Recording strategy:
+# - room_composite (default): 1 egress per room, mixed audio of user+agent
+# - participant_per_role: up to 2 egress per room (user + agent)
+LIVEKIT_EGRESS_RECORDING_MODE=room_composite
 # Participant egress file output is mp4; mp3/ogg values are ignored by backend.
 LIVEKIT_EGRESS_FILE_TYPE=mp4
 LIVEKIT_EGRESS_FILEPATH_PREFIX=recordings

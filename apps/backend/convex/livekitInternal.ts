@@ -12,6 +12,8 @@ import {
   S3Upload,
 } from "livekit-server-sdk";
 
+type RecordingMode = "room_composite" | "participant_per_role";
+
 function normalizeServiceUrl(rawUrl: string): string {
   const parsed = new URL(rawUrl);
   if (parsed.protocol === "ws:") parsed.protocol = "http:";
@@ -31,6 +33,14 @@ function sanitizePathSegment(value: string): string {
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback;
   return value.toLowerCase() === "true";
+}
+
+function resolveRecordingMode(): RecordingMode {
+  const raw = process.env.LIVEKIT_EGRESS_RECORDING_MODE?.trim().toLowerCase();
+  if (raw === "participant" || raw === "participant_per_role") {
+    return "participant_per_role";
+  }
+  return "room_composite";
 }
 
 function normalizeRequestedFileType(value: string | undefined): string {
@@ -219,6 +229,10 @@ export const bootstrapRoomRecordingsAction = internalAction({
     attempt: v.optional(v.float64()),
   },
   handler: async (ctx, args) => {
+    if (resolveRecordingMode() !== "participant_per_role") {
+      return { ok: false, reason: "recording_mode_room_composite", attempt: args.attempt ?? 0 };
+    }
+
     const attempt = args.attempt ?? 0;
     const enabled = parseBoolean(
       process.env.LIVEKIT_EGRESS_MANUAL_START,
@@ -350,6 +364,131 @@ export const bootstrapRoomRecordingsAction = internalAction({
 });
 
 /**
+ * Start room-level recording egress (manual mode).
+ * Produces a single mixed audio recording for the full conversation.
+ */
+export const startRoomRecordingAction = internalAction({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    roomName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (resolveRecordingMode() !== "room_composite") {
+      return { started: false, reason: "recording_mode_participant_per_role" };
+    }
+
+    const enabled = parseBoolean(
+      process.env.LIVEKIT_EGRESS_MANUAL_START,
+      Boolean(process.env.LIVEKIT_EGRESS_S3_BUCKET),
+    );
+    if (!enabled) {
+      return { started: false, reason: "manual_start_disabled" };
+    }
+
+    const livekitUrl = process.env.LIVEKIT_URL;
+    const livekitApiKey = process.env.LIVEKIT_API_KEY;
+    const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
+    if (!livekitUrl || !livekitApiKey || !livekitApiSecret) {
+      return { started: false, reason: "missing_livekit_credentials" };
+    }
+
+    const s3Upload = buildS3UploadFromEnv();
+    if (!s3Upload) {
+      return { started: false, reason: "missing_egress_storage_config" };
+    }
+
+    const client = new EgressClient(
+      normalizeServiceUrl(livekitUrl),
+      livekitApiKey,
+      livekitApiSecret,
+    );
+
+    try {
+      const active = await client.listEgress({ roomName: args.roomName, active: true });
+      const existing = active[0];
+      if (existing) {
+        return {
+          started: false,
+          reason: "already_active",
+          egressId: existing.egressId,
+          status: normalizeEgressStatus(existing.status),
+        };
+      }
+
+      const requestedFileType = normalizeRequestedFileType(process.env.LIVEKIT_EGRESS_FILE_TYPE);
+      const fileType = resolveFileType();
+      const extension = fileExtensionForType(fileType);
+      const prefix = sanitizePathSegment(process.env.LIVEKIT_EGRESS_FILEPATH_PREFIX ?? "recordings");
+      const appSlug = sanitizePathSegment(args.appSlug);
+      const sessionId = sanitizePathSegment(args.sessionId);
+      const filepath = `${prefix}/${appSlug}/${sessionId}/conversation-${Date.now()}.${extension}`;
+
+      const output = new EncodedFileOutput({
+        fileType,
+        filepath,
+        output: {
+          case: "s3",
+          value: s3Upload,
+        },
+      });
+
+      const info = await client.startRoomCompositeEgress(
+        args.roomName,
+        { file: output },
+        { audioOnly: true },
+      );
+
+      await ctx.runMutation(internal.events.insertEventRecord, {
+        appSlug: args.appSlug,
+        sessionId: args.sessionId,
+        eventType: "livekit_egress",
+        ts: Date.now(),
+        data: JSON.stringify({
+          egressId: info.egressId,
+          roomName: args.roomName,
+          role: "conversation",
+          status: normalizeEgressStatus(info.status),
+          source: "manual_room_start",
+          requestCase: "room_composite",
+          requestedFileType,
+          fileType: "mp4",
+          fileName: filepath,
+          fileLocation: `s3://${s3Upload.bucket}/${filepath}`,
+          playbackUrl: buildPlaybackUrlFromFilepath(filepath),
+          mimeType: inferMimeTypeFromFilepath(filepath),
+          updatedAt: Date.now(),
+        }),
+      });
+
+      return {
+        started: true,
+        egressId: info.egressId,
+        status: normalizeEgressStatus(info.status),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await ctx.runMutation(internal.events.insertEventRecord, {
+        appSlug: args.appSlug,
+        sessionId: args.sessionId,
+        eventType: "livekit_recording_error",
+        ts: Date.now(),
+        data: JSON.stringify({
+          roomName: args.roomName,
+          source: "room_composite_start",
+          error: message,
+        }),
+      });
+      return {
+        started: false,
+        reason: "start_failed",
+        error: message,
+      };
+    }
+  },
+});
+
+/**
  * Start participant recording egress (manual mode).
  * Requires egress storage env vars; otherwise this action exits no-op.
  */
@@ -362,6 +501,10 @@ export const startParticipantRecordingAction = internalAction({
     role: v.string(),
   },
   handler: async (ctx, args) => {
+    if (resolveRecordingMode() !== "participant_per_role") {
+      return { started: false, reason: "recording_mode_room_composite" };
+    }
+
     const enabled = parseBoolean(
       process.env.LIVEKIT_EGRESS_MANUAL_START,
       Boolean(process.env.LIVEKIT_EGRESS_S3_BUCKET),

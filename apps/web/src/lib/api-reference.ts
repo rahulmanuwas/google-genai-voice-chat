@@ -385,7 +385,7 @@ export const CONVEX_ENDPOINTS: EndpointDef[] = [
       { name: 'all', type: 'string', required: false, description: 'Set to "true" for cross-app lookup' },
       { name: 'appSlug', type: 'string', required: false, description: 'Optional app filter when all=true' },
     ],
-    response: '{ messages: Message[], recordings: { user, agent } }',
+    response: '{ messages: Message[], recordings: { user, agent, conversation? } }',
   },
 
   // ── Persona ───────────────────────────────────────────────────────────
