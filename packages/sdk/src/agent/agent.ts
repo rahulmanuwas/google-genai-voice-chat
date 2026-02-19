@@ -794,6 +794,14 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         let attempt = 0;
         let isFirstSession = true;
         let currentMode = agentMode;
+        const safeCloseSession = async (session: voice.AgentSession) => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (session as any).close?.();
+          } catch {
+            // Session may already be closed by the time we attempt cleanup.
+          }
+        };
 
         try {
           while (attempt <= maxReconnects) {
@@ -847,7 +855,12 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               });
             }
 
-            await session.start({ agent, room: ctx.room });
+            // Reconnect sessions can briefly overlap while the previous one tears down.
+            // Mark reconnects as non-primary to avoid "Only one AgentSession can be the primary".
+            const startPayload = isFirstSession
+              ? { agent, room: ctx.room }
+              : ({ agent, room: ctx.room, record: false } as const);
+            await session.start(startPayload);
             console.log('[agent] Session started');
 
             if (isFirstSession) {
@@ -1053,15 +1066,14 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
             // If participant disconnected or idle timeout, close the session gracefully
             if (closeInfo.reason === 'participant_disconnected' || closeInfo.reason === 'idle_timeout') {
-              try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (session as any).close?.();
-              } catch { /* session might already be closed */ }
+              await safeCloseSession(session);
               break;
             }
 
             // Decide whether to reconnect
             if (closeInfo.reason === 'error') {
+              await safeCloseSession(session);
+
               // Check if anyone is still in the room
               if (!hasRemoteParticipants(ctx)) {
                 console.log('[agent] No remote participants left — not reconnecting');
