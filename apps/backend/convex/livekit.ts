@@ -110,6 +110,8 @@ function inferParticipantRole(identity?: string): "user" | "agent" | "observer" 
     normalized.startsWith("viewer-")
     || normalized.startsWith("observer-")
     || normalized.startsWith("monitor-")
+    || normalized.startsWith("eg_")
+    || normalized.startsWith("egress-")
   ) {
     return "observer";
   }

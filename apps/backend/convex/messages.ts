@@ -62,6 +62,8 @@ function inferRoleFromIdentity(identity?: string): RoleKey | undefined {
     normalized.startsWith("viewer-")
     || normalized.startsWith("observer-")
     || normalized.startsWith("monitor-")
+    || normalized.startsWith("eg_")
+    || normalized.startsWith("egress-")
   ) {
     return undefined;
   }
