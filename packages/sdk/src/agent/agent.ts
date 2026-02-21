@@ -9,6 +9,8 @@ import * as deepgram from '@livekit/agents-plugin-deepgram';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import type { LiveKitAgentConfig } from '../types';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
 import type {
   AgentCallbacks,
   AgentEvent,
@@ -1053,10 +1055,13 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
             if (enableBackgroundAudio) {
               try {
+                // Use short trimmed clips (1.2–1.5s, 30% volume, fade-out) instead of
+                // built-in BuiltinAudioClip which loop for 3–10s and feel too long.
+                const resourcesDir = join(dirname(fileURLToPath(import.meta.url)), 'resources');
                 backgroundAudio = new voice.BackgroundAudioPlayer({
                   thinkingSound: [
-                    { source: voice.BuiltinAudioClip.KEYBOARD_TYPING, volume: 0.6, probability: 0.6 },
-                    { source: voice.BuiltinAudioClip.KEYBOARD_TYPING2, volume: 0.5, probability: 0.4 },
+                    { source: join(resourcesDir, 'thinking-short1.ogg'), volume: 0.4, probability: 0.6 },
+                    { source: join(resourcesDir, 'thinking-short2.ogg'), volume: 0.3, probability: 0.4 },
                   ],
                 });
                 await backgroundAudio.start({ room: ctx.room, agentSession: session });
