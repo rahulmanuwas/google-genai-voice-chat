@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import type { AgentCallbacks, AgentEvent, BufferedMessage, GuardrailResult } from './callbacks';
 import { createConvexAgentCallbacks } from './callbacks';
 import { createToolsFromConvex } from './tools.js';
+import { DataChannelToolBridge } from './data-channel-tools.js';
 
 const GUARDRAIL_TIMEOUT_MS = 3000;
 const TTS_DIRECTIVE_PATTERN = /\[\[tts:([^\]]+)\]\]/gi;
@@ -652,6 +653,33 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         console.log(`[agent] Instructions loaded (${instructions.length} chars, starts with: "${instructions.slice(0, 60)}...")`);
         console.log(`[agent] Voice: ${personaVoice || config.voice} ${personaVoice ? '(from persona)' : '(default)'}`);
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
+
+        // --- Data channel tool bridge for robot participants ---
+        // If a robot participant is in the room, override robot_* tools to use
+        // LiveKit data channel instead of HTTP (robot is on local network, unreachable via HTTP).
+        const isRobotParticipant = participant.identity?.startsWith('robot');
+        if (isRobotParticipant && roomService) {
+          const bridge = new DataChannelToolBridge(ctx, roomService);
+          bridge.startListening();
+
+          const robotToolNames = Object.keys(loadedTools).filter(name => name.startsWith('robot_'));
+          for (const toolName of robotToolNames) {
+            const original = loadedTools[toolName] as any;
+
+            // Replace with data channel version, keeping same schema/description
+            loadedTools[toolName] = {
+              ...original,
+              execute: async (args: Record<string, unknown>) => {
+                return bridge.sendToolCall(toolName, args);
+              },
+            };
+            console.log(`[agent] Overrode ${toolName} → data channel execution`);
+          }
+
+          if (robotToolNames.length > 0) {
+            console.log(`[agent] ${robotToolNames.length} tools routed via data channel to robot`);
+          }
+        }
 
         // --- Shared state across reconnect sessions ---
         const sessionId = roomSessionId;
