@@ -655,10 +655,19 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
 
         // --- Data channel tool bridge for robot participants ---
-        // If a robot participant is in the room, override robot_* tools to use
-        // LiveKit data channel instead of HTTP (robot is on local network, unreachable via HTTP).
-        const isRobotParticipant = participant.identity?.startsWith('robot');
-        if (isRobotParticipant && roomService) {
+        // Check if ANY participant in the room is a robot (not just the first joiner).
+        // This ensures robot_* tools are overridden even if a non-robot joins first.
+        const hasRobotInRoom = (() => {
+          if (participant.identity?.startsWith('robot')) return true;
+          const room = ctx.room as any;
+          if (room.remoteParticipants) {
+            for (const [, p] of room.remoteParticipants) {
+              if (p.identity?.startsWith('robot')) return true;
+            }
+          }
+          return false;
+        })();
+        if (hasRobotInRoom && roomService) {
           // Audit logging callback: POST execution records back to Convex (best-effort)
           const auditLog: OnToolExecuted | undefined = convexUrl && roomAppSlug && appSecret
             ? (toolName, args, result, durationMs, status) => {

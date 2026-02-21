@@ -648,13 +648,16 @@ export const sendToolCallToParticipant = internalAction({
     const topic = args.topic ?? "robot-tools";
     const identityPrefix = args.targetIdentityPrefix ?? "robot";
 
-    // Resolve room from livekitRooms by session
+    // Resolve room from livekitRooms by session, verifying app ownership
     const room = await ctx.runQuery(internal.livekit.findActiveRoomBySession, {
       sessionId: args.sessionId,
     });
 
     if (!room) {
       return { success: false, error: "room_not_found", message: `No active room found for session ${args.sessionId}` };
+    }
+    if (room.appSlug !== args.appSlug) {
+      return { success: false, error: "app_mismatch", message: `Room belongs to app "${room.appSlug}", not "${args.appSlug}"` };
     }
     const roomName = room.roomName;
 
