@@ -30,5 +30,11 @@ apps/convex-backend/convex/_generated/
 test-results/
 **/test-results/
 
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
 # Local tracking docs
 sierra-parity-status.md

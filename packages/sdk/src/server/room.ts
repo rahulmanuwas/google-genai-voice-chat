@@ -18,6 +18,8 @@ export interface CreateRoomOptions extends RoomOptions {
   emptyTimeout?: number;
   /** Room metadata (JSON string) — available to agents via room.metadata */
   metadata?: string;
+  /** Agent dispatches — specify which agents to dispatch to this room */
+  agents?: Array<{ agentName: string; metadata?: string }>;
 }
 
 function getClient(options?: RoomOptions): RoomServiceClient {
@@ -36,12 +38,18 @@ function getClient(options?: RoomOptions): RoomServiceClient {
 export async function createRoom(options: CreateRoomOptions) {
   const client = getClient(options);
 
-  return await client.createRoom({
+  const createOptions: Record<string, unknown> = {
     name: options.roomName,
     maxParticipants: options.maxParticipants ?? 2,
     emptyTimeout: options.emptyTimeout ?? 300,
     metadata: options.metadata,
-  });
+  };
+
+  if (options.agents?.length) {
+    createOptions.agents = options.agents;
+  }
+
+  return await client.createRoom(createOptions as any);
 }
 
 /** Delete (close) a LiveKit room via the server API */

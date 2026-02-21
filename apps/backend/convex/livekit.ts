@@ -310,6 +310,7 @@ export const createRoom = corsHttpAction(async (ctx, request) => {
       maxParticipants?: number;
       emptyTimeout?: number;
       enableRecording?: boolean;
+      agents?: Array<{ agentName: string; metadata?: string }>;
     };
     metadata?: Record<string, unknown>;
   };
@@ -331,6 +332,7 @@ export const createRoom = corsHttpAction(async (ctx, request) => {
     emptyTimeout,
     maxParticipants,
     metadata: metadata ? JSON.stringify(metadata) : undefined,
+    agents: config?.agents,
   });
 
   // Store the room record in Convex

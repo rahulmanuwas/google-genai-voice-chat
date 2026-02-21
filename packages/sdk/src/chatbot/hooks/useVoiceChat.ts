@@ -533,6 +533,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     useEffect(() => {
         if (
             session.isConnected &&
+            !!session.session &&
             config.autoStartMicOnConnect !== false &&
             !voiceInput.isListening &&
             !isMuted &&
@@ -547,7 +548,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
             }, config.sessionInitDelayMs);
             return () => clearTimeout(timer);
         }
-    }, [session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs, config.autoStartMicOnConnect]);
+    }, [session.session, session.isConnected, session.isReconnecting, voiceInput.isListening, isMuted, isMicEnabled, config.sessionInitDelayMs, config.autoStartMicOnConnect]);
 
     useEffect(() => {
         if (

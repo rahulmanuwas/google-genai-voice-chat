@@ -51,6 +51,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     const [isConnected, setIsConnected] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
     const [sessionHandle, setSessionHandle] = useState<string | null>(null);
+    const [sessionState, setSessionState] = useState<LiveSession | null>(null);
 
     const sessionRef = useRef<LiveSession | null>(null);
     const playCtxRef = useRef<AudioContext | null>(null);
@@ -239,6 +240,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                         // Ignore
                     }
                     sessionRef.current = null;
+                    setSessionState(null);
                 }
                 setIsConnected(false);
 
@@ -413,6 +415,8 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                         console.log('Connection closed - Code:', code, 'Reason:', reason);
                         emitEvent('session_closed', { code, reason, closeReason });
                         setIsConnected(false);
+                        sessionRef.current = null;
+                        setSessionState(null);
 
                         if (closeReason === 'intentional' || closeReason === 'offline' || closeReason === 'pagehide') {
                             onDisconnectedRef.current?.();
@@ -493,12 +497,15 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
             }
 
             sessionRef.current = session as unknown as LiveSession;
+            setSessionState(sessionRef.current);
             console.log('Google GenAI Live session initialized successfully');
             emitEvent('session_initialized');
             return true;
         } catch (err) {
             console.error('Failed to initialize Google GenAI Live:', err);
             setIsConnected(false);
+            sessionRef.current = null;
+            setSessionState(null);
             emitEvent('session_connect_error', { reason: (err as Error).message });
             onErrorRef.current?.(`Failed to initialize: ${(err as Error).message}`);
             return false;
@@ -553,6 +560,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                         console.warn('Session cleanup during reconnection:', e);
                     }
                     sessionRef.current = null;
+                    setSessionState(null);
                 }
 
                 await initializeSessionWithFallback(sessionHandleRef.current);
@@ -619,6 +627,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                     console.warn('Session close failed during offline:', e);
                 }
                 sessionRef.current = null;
+                setSessionState(null);
             }
 
             setIsConnected(false);
@@ -653,6 +662,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                     console.warn('Session close failed during pagehide:', e);
                 }
                 sessionRef.current = null;
+                setSessionState(null);
             }
 
             setIsConnected(false);
@@ -744,6 +754,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
                 console.warn('Session close failed:', e);
             }
             sessionRef.current = null;
+            setSessionState(null);
         }
 
         if (playCtxRef.current && playCtxRef.current.state !== 'closed') {
@@ -758,6 +769,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         setIsConnected(false);
         setIsReconnecting(false);
         isReconnectingRef.current = false;
+        setSessionState(null);
     }, [config.useClientVAD, clearReconnectTimer, clearKeepaliveTimer]);
 
     const sendText = useCallback((text: string): void => {
@@ -780,7 +792,7 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
     }), []);
 
     return useMemo(() => ({
-        session: sessionRef.current,
+        session: sessionState,
         isConnected,
         isReconnecting,
         sessionHandle,
@@ -789,5 +801,5 @@ export function useLiveSession(options: UseLiveSessionOptions): UseLiveSessionRe
         sendText,
         playbackContext: playCtxRef.current,
         getStats,
-    }), [isConnected, isReconnecting, sessionHandle, connect, disconnect, sendText, getStats]);
+    }), [sessionState, isConnected, isReconnecting, sessionHandle, connect, disconnect, sendText, getStats]);
 }
