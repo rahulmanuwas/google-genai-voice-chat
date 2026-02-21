@@ -51,6 +51,16 @@ export interface AgentRunRecord {
   metadata?: Record<string, unknown>;
 }
 
+/** Knowledge search payload used by automatic RAG injection in voice agent sessions. */
+export interface AgentKnowledgeSearchResponse {
+  results: Array<{
+    title: string;
+    content: string;
+    category?: string;
+    score: number;
+  }>;
+}
+
 /** A single transcription message to persist */
 export interface BufferedMessage {
   sessionId: string;
@@ -89,6 +99,13 @@ export interface AgentCallbacks {
     sessionId: string,
     traceId?: string,
   ) => Promise<GuardrailResult>;
+
+  /** Retrieve relevant knowledge snippets for automatic RAG injection before reply generation. */
+  searchKnowledge?: (
+    query: string,
+    sessionId: string,
+    traceId?: string,
+  ) => Promise<AgentKnowledgeSearchResponse | null>;
 
   /** Persist per-run metadata (provider/model/fallback/failure diagnostics). */
   persistAgentRun?: (sessionId: string, run: AgentRunRecord) => Promise<void>;
@@ -217,6 +234,40 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
       } catch {
         // Fail-open: if guardrails endpoint is unreachable, allow the message
         return { allowed: true, violations: [] };
+      }
+    },
+
+    async searchKnowledge(
+      query: string,
+      sessionId: string,
+      callbackTraceId?: string,
+    ): Promise<AgentKnowledgeSearchResponse | null> {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json', ...traceHeaders };
+        if (callbackTraceId) headers['X-Trace-Id'] = callbackTraceId;
+        const res = await fetch(`${convexUrl}/api/knowledge/search`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            appSlug,
+            appSecret,
+            query,
+            sessionId,
+            topK: 3,
+          }),
+        });
+        if (!res.ok) return null;
+        const payload = await res.json() as { results?: AgentKnowledgeSearchResponse['results'] };
+        if (!Array.isArray(payload.results)) return null;
+        return {
+          results: payload.results.filter((item) => (
+            typeof item?.title === 'string'
+            && typeof item?.content === 'string'
+            && typeof item?.score === 'number'
+          )),
+        };
+      } catch {
+        return null;
       }
     },
 

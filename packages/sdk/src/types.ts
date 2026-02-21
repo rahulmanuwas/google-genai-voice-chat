@@ -36,6 +36,9 @@ export interface LiveKitAgentConfig {
 
   /** Model temperature (0-2) */
   temperature?: number;
+
+  /** Enable thinking sounds via LiveKit BackgroundAudioPlayer (default: true) */
+  enableBackgroundAudio?: boolean;
 }
 
 /** A participant in a LiveKit room */

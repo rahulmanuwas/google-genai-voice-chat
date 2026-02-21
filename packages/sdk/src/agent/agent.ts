@@ -2,14 +2,20 @@ import {
   type JobContext,
   defineAgent,
   voice,
-  type llm,
+  llm,
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
 import * as deepgram from '@livekit/agents-plugin-deepgram';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import type { LiveKitAgentConfig } from '../types';
 import crypto from 'node:crypto';
-import type { AgentCallbacks, AgentEvent, BufferedMessage, GuardrailResult } from './callbacks';
+import type {
+  AgentCallbacks,
+  AgentEvent,
+  AgentPersonaData,
+  BufferedMessage,
+  GuardrailResult,
+} from './callbacks';
 import { createConvexAgentCallbacks } from './callbacks';
 import { createToolsFromConvex } from './tools.js';
 import { DataChannelToolBridge, type OnToolExecuted } from './data-channel-tools.js';
@@ -19,6 +25,12 @@ const TTS_DIRECTIVE_PATTERN = /\[\[tts:([^\]]+)\]\]/gi;
 const SAFE_TTS_VOICE_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
 const SILERO_MODULE_NAME = '@livekit/agents-plugin-silero';
 const SILERO_VAD_USERDATA_KEY = 'sileroVAD';
+const RAG_MIN_QUERY_CHARS = 3;
+const RAG_SEARCH_TIMEOUT_MS = 1800;
+const RAG_MIN_SCORE = 0.5;
+const RAG_MAX_RESULTS = 3;
+const RAG_MAX_ITEM_CHARS = 800;
+const RAG_CONTEXT_MESSAGE_ID = 'lk.agent.rag_context';
 
 interface ProcWithUserData {
   userData?: Record<string, unknown>;
@@ -119,6 +131,11 @@ async function checkInputGuardrail(
   }
 }
 
+function truncateForRag(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}...`;
+}
+
 export interface AgentDefinitionOptions {
   /** Gemini native audio model for speech-to-speech (default: "gemini-2.5-flash-native-audio-preview-12-2025") */
   model?: string;
@@ -138,6 +155,8 @@ export interface AgentDefinitionOptions {
   reconnectDelayMs?: number;
   /** Idle timeout in ms — auto-disconnect if no speech activity (default: 30000) */
   idleTimeoutMs?: number;
+  /** Enable thinking sounds during model/tool processing (default: true) */
+  enableBackgroundAudio?: boolean;
 }
 
 /**
@@ -463,6 +482,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
   const maxReconnects = options?.maxReconnects ?? 5;
   const reconnectDelayMs = options?.reconnectDelayMs ?? 2000;
   const idleTimeoutMs = options?.idleTimeoutMs ?? 30_000;
+  const enableBackgroundAudio = options?.enableBackgroundAudio !== false;
 
   return defineAgent({
     entry: async (ctx: JobContext) => {
@@ -529,22 +549,21 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         }
 
         // Load persona and tools in parallel with waiting for participant
-        const personaPromise = (async (): Promise<{ instructions: string; voice?: string }> => {
+        const personaPromise = (async (): Promise<{
+          instructions: string;
+          voice?: string;
+          rawPersona?: AgentPersonaData;
+        }> => {
           if (!callbacks?.loadPersona) return { instructions: VOICE_PREAMBLE + config.instructions };
           try {
             const persona = await callbacks.loadPersona();
             if (persona) {
               const base = persona.systemPrompt || config.instructions;
-              // Only append persona fields if they're not already in the system prompt
-              const extras: string[] = [];
-              if (persona.personaName && !base.includes(persona.personaName))
-                extras.push(`Your name is ${persona.personaName}.`);
-              if (persona.personaTone && !base.toLowerCase().includes(persona.personaTone.toLowerCase()))
-                extras.push(`Speak in a ${persona.personaTone} tone.`);
-              if (persona.preferredTerms) extras.push(`Preferred terms: ${persona.preferredTerms}.`);
-              if (persona.blockedTerms) extras.push(`Never use these terms: ${persona.blockedTerms}.`);
-              const combined = extras.length > 0 ? base + '\n\n' + extras.join(' ') : base;
-              return { instructions: VOICE_PREAMBLE + combined, voice: persona.voice };
+              return {
+                instructions: VOICE_PREAMBLE + base,
+                voice: persona.voice,
+                rawPersona: persona,
+              };
             }
           } catch (err) {
             console.warn('[agent] Failed to load persona, using default instructions:', err);
@@ -637,7 +656,24 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         ]);
         const baseInstructions = personaResult.instructions;
         const personaVoice = personaResult.voice;
+        const rawPersona = personaResult.rawPersona;
         const { tools: loadedTools, confirmationRequired } = toolsResult;
+
+        // Seed session chat context with persona traits rather than flattening into instructions.
+        const baseChatCtx = llm.ChatContext.empty();
+        if (rawPersona) {
+          const personaContextParts: string[] = [];
+          if (rawPersona.personaName) personaContextParts.push(`Your name is ${rawPersona.personaName}.`);
+          if (rawPersona.personaTone) personaContextParts.push(`Speak in a ${rawPersona.personaTone} tone.`);
+          if (rawPersona.preferredTerms) personaContextParts.push(`Preferred terms: ${rawPersona.preferredTerms}.`);
+          if (rawPersona.blockedTerms) personaContextParts.push(`Never use these terms: ${rawPersona.blockedTerms}.`);
+          if (personaContextParts.length > 0) {
+            baseChatCtx.addMessage({
+              role: 'system',
+              content: personaContextParts.join(' '),
+            });
+          }
+        }
 
         // Append tool instructions when tools are loaded
         const hasTools = Object.keys(loadedTools).length > 0;
@@ -730,6 +766,73 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         let pipelineVoice = personaVoice || config.voice;
         let restartSessionForVoiceDirective = false;
         let suppressReconnectReply = false;
+        const searchKnowledge = callbacks?.searchKnowledge;
+
+        class ContextAgent extends voice.Agent {
+          async onUserTurnCompleted(turnCtx: llm.ChatContext, newMessage: llm.ChatMessage): Promise<void> {
+            if (!searchKnowledge) return;
+            const clearRagContext = () => {
+              const idx = turnCtx.indexById(RAG_CONTEXT_MESSAGE_ID);
+              if (idx !== undefined) {
+                turnCtx.items.splice(idx, 1);
+              }
+            };
+            const userText = (newMessage.textContent ?? '').trim();
+            if (userText.length < RAG_MIN_QUERY_CHARS) {
+              clearRagContext();
+              return;
+            }
+            try {
+              const result = await Promise.race([
+                searchKnowledge(userText, sessionId, traceId),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), RAG_SEARCH_TIMEOUT_MS)),
+              ]);
+              if (!result?.results?.length) {
+                clearRagContext();
+                return;
+              }
+
+              const relevant = result.results
+                .filter((item) => Number.isFinite(item.score) && item.score >= RAG_MIN_SCORE)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, RAG_MAX_RESULTS);
+              if (relevant.length === 0) {
+                clearRagContext();
+                return;
+              }
+
+              const snippets = relevant.map((item, index) => {
+                const source = item.category
+                  ? `${item.title} (${item.category}, score ${item.score.toFixed(2)})`
+                  : `${item.title} (score ${item.score.toFixed(2)})`;
+                return `[${index + 1}] ${source}\n${truncateForRag(item.content, RAG_MAX_ITEM_CHARS)}`;
+              }).join('\n\n');
+
+              const ragContext =
+                `Relevant knowledge snippets:\n\n${snippets}\n\n`
+                + 'Use these when relevant. Do not mention retrieval unless it is natural in the conversation.';
+              const existingIdx = turnCtx.indexById(RAG_CONTEXT_MESSAGE_ID);
+              if (existingIdx !== undefined && turnCtx.items[existingIdx]?.type === 'message') {
+                turnCtx.items[existingIdx] = llm.ChatMessage.create({
+                  id: RAG_CONTEXT_MESSAGE_ID,
+                  role: 'system',
+                  content: ragContext,
+                  createdAt: turnCtx.items[existingIdx]!.createdAt,
+                });
+              } else {
+                turnCtx.addMessage({
+                  id: RAG_CONTEXT_MESSAGE_ID,
+                  role: 'system',
+                  content: ragContext,
+                });
+              }
+              console.log(`[agent] RAG: injected ${relevant.length} result(s) (top score: ${relevant[0]!.score.toFixed(3)})`);
+            } catch (err) {
+              clearRagContext();
+              console.warn('[agent] RAG search failed (continuing without retrieval):', err);
+            }
+          }
+        }
 
         const pushEvent = (eventType: string, data?: Record<string, unknown>) => {
           eventBuffer.push({
@@ -784,12 +887,6 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         const flushTimer = setInterval(flushAll, 2000);
         const syncTimer = setInterval(syncConversation, 5000);
-
-        // Reusable agent config (stateless, can be reused across sessions)
-        const agent = new voice.Agent({
-          instructions,
-          tools: loadedTools,
-        });
 
         // --- SIGTERM safety: flush data + resolve conversation on shutdown ---
         ctx.addShutdownCallback(async () => {
@@ -856,6 +953,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         let attempt = 0;
         let isFirstSession = true;
         let currentMode = agentMode;
+        let backgroundAudio: voice.BackgroundAudioPlayer | null = null;
         const safeCloseSession = async (session: voice.AgentSession) => {
           try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -864,23 +962,51 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             // Session may already be closed by the time we attempt cleanup.
           }
         };
+        const safeCloseBackgroundAudio = async () => {
+          if (!backgroundAudio) return;
+          try {
+            await backgroundAudio.close();
+          } catch {
+            // Ignore close errors from best-effort background audio.
+          }
+          backgroundAudio = null;
+        };
 
         try {
           while (attempt <= maxReconnects) {
             console.log(`[agent] Creating agent session (mode: ${currentMode}, model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
+            await safeCloseBackgroundAudio();
 
-            // On reconnect, inject full conversation history so the model retains context
+            const sessionChatCtx = (() => {
+              const ctxWithPersona = baseChatCtx.copy();
+              if (isFirstSession || allMessages.length === 0) {
+                return ctxWithPersona;
+              }
+              for (const msg of allMessages) {
+                ctxWithPersona.addMessage({
+                  role: msg.role === 'user' ? 'user' : 'assistant',
+                  content: msg.content,
+                  createdAt: msg.ts,
+                });
+              }
+              return ctxWithPersona;
+            })();
+
             let sessionInstructions = instructions;
-            if (!isFirstSession && allMessages.length > 0) {
-              const historyLines = allMessages.map(
-                (m) => `${m.role === 'user' ? 'User' : 'You'}: ${m.content}`
-              ).join('\n');
+            if (currentMode === 'realtime' && !isFirstSession && allMessages.length > 0) {
               sessionInstructions = instructions
-                + '\n\nIMPORTANT: This is a resumed session. The conversation so far:\n'
-                + historyLines
-                + '\n\nContinue naturally from where you left off. Do NOT re-introduce yourself or greet the user again.';
-              console.log(`[agent] Injected ${allMessages.length} messages as history for reconnect`);
+                + '\n\nIMPORTANT: This is a resumed session. Continue naturally from where you left off.'
+                + ' Do NOT re-introduce yourself or greet the user again.';
             }
+            if (!isFirstSession && allMessages.length > 0) {
+              console.log(`[agent] Reconnect context restored from ${allMessages.length} message(s)`);
+            }
+
+            const agent = new ContextAgent({
+              instructions: sessionInstructions,
+              chatCtx: sessionChatCtx,
+              tools: loadedTools,
+            });
 
             const sessionVoice = currentMode === 'pipeline'
               ? (pipelineVoice || personaVoice || config.voice)
@@ -924,6 +1050,22 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               : ({ agent, room: ctx.room, record: false } as const);
             await session.start(startPayload);
             console.log('[agent] Session started');
+
+            if (enableBackgroundAudio) {
+              try {
+                backgroundAudio = new voice.BackgroundAudioPlayer({
+                  thinkingSound: [
+                    { source: voice.BuiltinAudioClip.KEYBOARD_TYPING, volume: 0.6, probability: 0.6 },
+                    { source: voice.BuiltinAudioClip.KEYBOARD_TYPING2, volume: 0.5, probability: 0.4 },
+                  ],
+                });
+                await backgroundAudio.start({ room: ctx.room, agentSession: session });
+                console.log('[agent] Background audio player started');
+              } catch (err) {
+                console.warn('[agent] Background audio failed (non-fatal):', err);
+                backgroundAudio = null;
+              }
+            }
 
             if (isFirstSession) {
               session.generateReply();
@@ -1115,6 +1257,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
             lastCloseReason = closeInfo.reason;
             console.log(`[agent] Session closed (reason: ${closeInfo.reason})`);
+            await safeCloseBackgroundAudio();
 
             if (restartSessionForVoiceDirective) {
               restartSessionForVoiceDirective = false;
@@ -1166,6 +1309,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             break;
           }
         } finally {
+          await safeCloseBackgroundAudio();
+
           // Cleanup: stop timers and prevent future syncs from firing
           conversationResolved = true;
           if (idleTimer) clearTimeout(idleTimer);
@@ -1214,5 +1359,6 @@ export function createAgentFromConfig(agentConfig: LiveKitAgentConfig) {
     voice: agentConfig.voice,
     instructions: agentConfig.instructions,
     temperature: agentConfig.temperature,
+    enableBackgroundAudio: agentConfig.enableBackgroundAudio,
   });
 }

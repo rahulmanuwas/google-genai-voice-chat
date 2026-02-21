@@ -14,6 +14,7 @@ export type {
   ConvexAgentConfig,
   AgentEvent,
   AgentRunRecord,
+  AgentKnowledgeSearchResponse,
 } from './callbacks.js';
 export type { LiveKitAgentConfig } from '../types';
 
