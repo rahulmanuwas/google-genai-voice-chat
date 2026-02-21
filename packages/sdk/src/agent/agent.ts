@@ -12,7 +12,7 @@ import crypto from 'node:crypto';
 import type { AgentCallbacks, AgentEvent, BufferedMessage, GuardrailResult } from './callbacks';
 import { createConvexAgentCallbacks } from './callbacks';
 import { createToolsFromConvex } from './tools.js';
-import { DataChannelToolBridge } from './data-channel-tools.js';
+import { DataChannelToolBridge, type OnToolExecuted } from './data-channel-tools.js';
 
 const GUARDRAIL_TIMEOUT_MS = 3000;
 const TTS_DIRECTIVE_PATTERN = /\[\[tts:([^\]]+)\]\]/gi;
@@ -659,7 +659,32 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         // LiveKit data channel instead of HTTP (robot is on local network, unreachable via HTTP).
         const isRobotParticipant = participant.identity?.startsWith('robot');
         if (isRobotParticipant && roomService) {
-          const bridge = new DataChannelToolBridge(ctx, roomService);
+          // Audit logging callback: POST execution records back to Convex (best-effort)
+          const auditLog: OnToolExecuted | undefined = convexUrl && roomAppSlug && appSecret
+            ? (toolName, args, result, durationMs, status) => {
+                const spanId = crypto.randomUUID().slice(0, 8);
+                fetch(new URL('/api/tools/log', convexUrl).toString(), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    appSlug: roomAppSlug,
+                    appSecret,
+                    sessionId: roomSessionId,
+                    toolName,
+                    parameters: JSON.stringify(args),
+                    result,
+                    status,
+                    executedAt: Date.now() - durationMs,
+                    durationMs,
+                    traceId,
+                    spanId,
+                    source: 'agent_datachannel',
+                  }),
+                }).catch((err) => console.warn('[agent] Failed to log data channel tool execution:', err));
+              }
+            : undefined;
+
+          const bridge = new DataChannelToolBridge(ctx, roomService, auditLog);
           bridge.startListening();
 
           const robotToolNames = Object.keys(loadedTools).filter(name => name.startsWith('robot_'));

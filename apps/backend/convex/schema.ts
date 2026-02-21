@@ -78,6 +78,9 @@ export default defineSchema({
     endpoint: v.optional(v.string()),
     headers: v.optional(v.string()),
     httpMethod: v.optional(v.string()),
+    transport: v.optional(v.string()), // "http" (default) | "livekit_data"
+    livekitTopic: v.optional(v.string()), // default "robot-tools"
+    targetIdentityPrefix: v.optional(v.string()), // default "robot"
     requiresConfirmation: v.boolean(),
     requiresAuth: v.boolean(),
     isActive: v.boolean(),
@@ -98,6 +101,7 @@ export default defineSchema({
     durationMs: v.float64(),
     traceId: v.optional(v.string()),
     spanId: v.optional(v.string()),
+    source: v.optional(v.string()), // "http" | "agent_datachannel" | "livekit_dispatch"
   })
     .index("by_session", ["sessionId"])
     .index("by_app", ["appSlug"])

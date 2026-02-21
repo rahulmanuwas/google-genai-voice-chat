@@ -11,7 +11,7 @@ import { saveConversation, listConversations } from "./conversations";
 import { createSession } from "./sessions";
 
 // ─── Phase 1 handlers ───────────────────────────────────────────
-import { listTools, executeTool, registerTool, listExecutions as listToolExecutions, listAllTools } from "./tools";
+import { listTools, executeTool, registerTool, listExecutions as listToolExecutions, listAllTools, logExecution as logToolExecution } from "./tools";
 import { createHandoff, updateHandoff, listHandoffs } from "./handoffs";
 import { checkGuardrails, upsertRule, listRules, listViolations, annotateViolation } from "./guardrails";
 import { upsertDocument, searchKnowledge, listGaps, listDocuments as listKnowledgeDocs, searchMetrics } from "./knowledge";
@@ -106,6 +106,7 @@ get("/api/tools/all", listAllTools);
 get("/api/tools/executions", listToolExecutions);
 post("/api/tools", registerTool);
 post("/api/tools/execute", executeTool);
+post("/api/tools/log", logToolExecution);
 
 // ─── Handoffs ───────────────────────────────────────────────────
 get("/api/handoffs", listHandoffs);

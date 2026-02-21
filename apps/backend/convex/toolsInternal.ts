@@ -133,6 +133,39 @@ export const executeToolAction = internalAction({
       return result;
     }
 
+    // --- LiveKit data channel dispatch (for robot/device tools) ---
+    if (fullTool.transport === "livekit_data") {
+      const dispatchResult = await ctx.runAction(
+        internal.livekitInternal.sendToolCallToParticipant,
+        {
+          appSlug: args.appSlug,
+          sessionId: args.sessionId,
+          toolName: args.toolName,
+          parameters: args.parameters,
+          topic: fullTool.livekitTopic,
+          targetIdentityPrefix: fullTool.targetIdentityPrefix,
+          traceId: args.traceId,
+          spanId: args.spanId,
+        },
+      );
+
+      await ctx.runMutation(internal.tools.logToolExecutionRecord, {
+        appSlug: args.appSlug,
+        sessionId: args.sessionId,
+        toolName: args.toolName,
+        parameters: args.parameters,
+        result: JSON.stringify(dispatchResult),
+        status: dispatchResult.success ? "success" : "error",
+        executedAt: startedAt,
+        durationMs: Date.now() - startedAt,
+        traceId: args.traceId,
+        spanId: args.spanId,
+        source: "livekit_dispatch",
+      });
+
+      return dispatchResult;
+    }
+
     if (!fullTool.endpoint) {
       // Try internal mock handler for demo tools
 

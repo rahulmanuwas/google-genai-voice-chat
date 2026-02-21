@@ -20,7 +20,19 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 interface PendingResult {
   resolve: (result: string) => void;
   timer: ReturnType<typeof setTimeout>;
+  toolName: string;
+  args: Record<string, unknown>;
+  startedAt: number;
 }
+
+/** Callback invoked after a data channel tool execution completes */
+export type OnToolExecuted = (
+  toolName: string,
+  args: Record<string, unknown>,
+  result: string,
+  durationMs: number,
+  status: 'success' | 'timeout' | 'error',
+) => void;
 
 export class DataChannelToolBridge {
   private pendingResults = new Map<string, PendingResult>();
@@ -29,6 +41,7 @@ export class DataChannelToolBridge {
   constructor(
     private ctx: JobContext,
     private roomService: RoomServiceClient,
+    private onToolExecuted?: OnToolExecuted,
   ) {}
 
   /**
@@ -74,15 +87,20 @@ export class DataChannelToolBridge {
     timeoutMs: number = DEFAULT_TIMEOUT_MS,
   ): Promise<string> {
     const callId = crypto.randomUUID().slice(0, 8);
+    const startedAt = Date.now();
 
     const robot = this.findRobotParticipant();
     if (!robot) {
-      return 'Error: Robot is not connected to the room';
+      const result = 'Error: Robot is not connected to the room';
+      this.notifyExecuted(toolName, args, result, startedAt, 'error');
+      return result;
     }
 
     const roomName = this.ctx.room.name;
     if (!roomName) {
-      return 'Error: Room name not available';
+      const result = 'Error: Room name not available';
+      this.notifyExecuted(toolName, args, result, startedAt, 'error');
+      return result;
     }
 
     const message = JSON.stringify({
@@ -100,10 +118,12 @@ export class DataChannelToolBridge {
     const resultPromise = new Promise<string>((resolve) => {
       const timer = setTimeout(() => {
         this.pendingResults.delete(callId);
-        resolve(`Error: Tool call '${toolName}' timed out after ${timeoutMs / 1000}s`);
+        const result = `Error: Tool call '${toolName}' timed out after ${timeoutMs / 1000}s`;
+        this.notifyExecuted(toolName, args, result, startedAt, 'timeout');
+        resolve(result);
       }, timeoutMs);
 
-      this.pendingResults.set(callId, { resolve, timer });
+      this.pendingResults.set(callId, { resolve, timer, toolName, args, startedAt });
     });
 
     // Send via LiveKit server API (bypasses client-side protobuf issues)
@@ -116,7 +136,9 @@ export class DataChannelToolBridge {
     } catch (err) {
       console.error(`[data-channel-tools] Failed to send data to robot:`, err);
       this.pendingResults.delete(callId);
-      return `Error: Failed to send command to robot: ${err}`;
+      const result = `Error: Failed to send command to robot: ${err}`;
+      this.notifyExecuted(toolName, args, result, startedAt, 'error');
+      return result;
     }
 
     return resultPromise;
@@ -151,20 +173,30 @@ export class DataChannelToolBridge {
         if (pending) {
           clearTimeout(pending.timer);
           this.pendingResults.delete(message.id);
-          console.log(`[data-channel-tools] Received result for ${message.id}: ${message.result}`);
-          pending.resolve(message.result ?? 'Action completed');
+          const result = message.result ?? 'Action completed';
+          console.log(`[data-channel-tools] Received result for ${message.id}: ${result}`);
+          this.notifyExecuted(pending.toolName, pending.args, result, pending.startedAt, 'success');
+          pending.resolve(result);
         }
       }
     } catch (err) {
       console.error('[data-channel-tools] Failed to parse data message:', err);
     }
   }
-}
 
-/** Endpoint marker for tools that should be routed via data channel */
-export const DATA_CHANNEL_ENDPOINT_PREFIX = 'livekit-data://';
-
-/** Check if a tool endpoint indicates data channel routing */
-export function isDataChannelTool(endpoint: string | undefined): boolean {
-  return !!endpoint && endpoint.startsWith(DATA_CHANNEL_ENDPOINT_PREFIX);
+  /** Best-effort notification — never throws */
+  private notifyExecuted(
+    toolName: string,
+    args: Record<string, unknown>,
+    result: string,
+    startedAt: number,
+    status: 'success' | 'timeout' | 'error',
+  ): void {
+    if (!this.onToolExecuted) return;
+    try {
+      this.onToolExecuted(toolName, args, result, Date.now() - startedAt, status);
+    } catch (err) {
+      console.warn('[data-channel-tools] onToolExecuted callback error:', err);
+    }
+  }
 }

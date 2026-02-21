@@ -628,3 +628,99 @@ export const startParticipantRecordingAction = internalAction({
     }
   },
 });
+
+/**
+ * Send a tool call to a robot participant via LiveKit data channel.
+ * Used for control-plane (dashboard/API) tool dispatch — returns async ack, not robot result.
+ */
+export const sendToolCallToParticipant = internalAction({
+  args: {
+    appSlug: v.string(),
+    sessionId: v.string(),
+    toolName: v.string(),
+    parameters: v.string(),
+    topic: v.optional(v.string()),
+    targetIdentityPrefix: v.optional(v.string()),
+    traceId: v.optional(v.string()),
+    spanId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const topic = args.topic ?? "robot-tools";
+    const identityPrefix = args.targetIdentityPrefix ?? "robot";
+
+    // Resolve room from livekitRooms by session
+    const room = await ctx.runQuery(internal.livekit.findActiveRoomBySession, {
+      sessionId: args.sessionId,
+    });
+
+    if (!room) {
+      return { success: false, error: "room_not_found", message: `No active room found for session ${args.sessionId}` };
+    }
+    const roomName = room.roomName;
+
+    // Get LiveKit credentials
+    const livekitUrl = process.env.LIVEKIT_URL;
+    const livekitApiKey = process.env.LIVEKIT_API_KEY;
+    const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
+    if (!livekitUrl || !livekitApiKey || !livekitApiSecret) {
+      return { success: false, error: "missing_credentials", message: "LiveKit credentials not configured" };
+    }
+
+    // Find target participant
+    const roomClient = new RoomServiceClient(
+      normalizeServiceUrl(livekitUrl),
+      livekitApiKey,
+      livekitApiSecret,
+    );
+
+    let targetIdentity: string | null = null;
+    try {
+      const participants = await roomClient.listParticipants(roomName);
+      for (const p of participants) {
+        if (p.identity?.startsWith(identityPrefix)) {
+          targetIdentity = p.identity;
+          break;
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: "list_participants_failed", message };
+    }
+
+    if (!targetIdentity) {
+      return { success: false, error: "target_not_found", message: `No participant with prefix "${identityPrefix}" in room ${roomName}` };
+    }
+
+    // Build and send tool call message
+    const callId = args.spanId ?? Math.random().toString(36).slice(2, 10);
+    let parsedArgs: Record<string, unknown> = {};
+    try { parsedArgs = JSON.parse(args.parameters); } catch { /* use empty */ }
+
+    const payload = JSON.stringify({
+      type: "tool_call",
+      id: callId,
+      name: args.toolName,
+      args: parsedArgs,
+    });
+
+    try {
+      await roomClient.sendData(roomName, new TextEncoder().encode(payload), 1 /* RELIABLE */, {
+        destinationIdentities: [targetIdentity],
+        topic,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: "send_failed", message };
+    }
+
+    return {
+      success: true,
+      dispatched: true,
+      callId,
+      roomName,
+      targetIdentity,
+      transport: "livekit_data",
+    };
+  },
+});
+

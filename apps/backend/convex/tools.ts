@@ -57,6 +57,57 @@ export const executeTool = corsHttpAction(async (ctx, request) => {
   return jsonResponse(result);
 });
 
+/** POST /api/tools/log — Log a tool execution from agent-side data channel execution */
+export const logExecution = corsHttpAction(async (ctx, request) => {
+  const body = await request.json();
+  const {
+    sessionId,
+    toolName,
+    parameters,
+    result,
+    status,
+    durationMs,
+    executedAt,
+    traceId,
+    spanId,
+    source,
+  } = body as {
+    sessionId: string;
+    toolName: string;
+    parameters: string;
+    result?: string;
+    status: string;
+    durationMs: number;
+    executedAt: number;
+    traceId?: string;
+    spanId?: string;
+    source?: string;
+  };
+
+  if (!sessionId || !toolName || !status) {
+    return jsonResponse({ error: "Missing required fields" }, 400);
+  }
+
+  const auth = await authenticateRequest(ctx, getFullAuthCredentials(request, body));
+  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  await ctx.runMutation(internal.tools.logToolExecutionRecord, {
+    appSlug: auth.app.slug,
+    sessionId,
+    toolName,
+    parameters: parameters ?? "{}",
+    result,
+    status,
+    executedAt: executedAt ?? Date.now(),
+    durationMs: durationMs ?? 0,
+    traceId,
+    spanId,
+    source: source ?? "agent_datachannel",
+  });
+
+  return jsonResponse({ ok: true });
+});
+
 /** GET /api/tools/executions — List recent tool executions */
 export const listExecutions = corsHttpAction(async (ctx, request) => {
   const url = new URL(request.url);
@@ -99,6 +150,9 @@ export const registerTool = corsHttpAction(async (ctx, request) => {
     endpoint,
     headers,
     httpMethod,
+    transport,
+    livekitTopic,
+    targetIdentityPrefix,
     requiresConfirmation,
     requiresAuth,
   } = body as {
@@ -108,6 +162,9 @@ export const registerTool = corsHttpAction(async (ctx, request) => {
     endpoint?: string;
     headers?: string;
     httpMethod?: string;
+    transport?: string;
+    livekitTopic?: string;
+    targetIdentityPrefix?: string;
     requiresConfirmation?: boolean;
     requiresAuth?: boolean;
   };
@@ -116,7 +173,8 @@ export const registerTool = corsHttpAction(async (ctx, request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  if (!endpoint) {
+  // HTTP tools require an endpoint; livekit_data tools do not
+  if (transport !== "livekit_data" && !endpoint) {
     return jsonResponse({ error: "Active tools must have an endpoint" }, 400);
   }
 
@@ -131,6 +189,9 @@ export const registerTool = corsHttpAction(async (ctx, request) => {
     endpoint,
     headers,
     httpMethod: httpMethod ?? "POST",
+    transport,
+    livekitTopic,
+    targetIdentityPrefix,
     requiresConfirmation: requiresConfirmation ?? false,
     requiresAuth: requiresAuth ?? false,
   });
@@ -183,6 +244,9 @@ export const upsertToolDefinitionRecord = internalMutation({
     endpoint: v.optional(v.string()),
     headers: v.optional(v.string()),
     httpMethod: v.string(),
+    transport: v.optional(v.string()),
+    livekitTopic: v.optional(v.string()),
+    targetIdentityPrefix: v.optional(v.string()),
     requiresConfirmation: v.boolean(),
     requiresAuth: v.boolean(),
   },
@@ -203,6 +267,9 @@ export const upsertToolDefinitionRecord = internalMutation({
         endpoint: args.endpoint,
         headers: args.headers,
         httpMethod: args.httpMethod,
+        transport: args.transport,
+        livekitTopic: args.livekitTopic,
+        targetIdentityPrefix: args.targetIdentityPrefix,
         requiresConfirmation: args.requiresConfirmation,
         requiresAuth: args.requiresAuth,
         isActive: true,
@@ -233,6 +300,7 @@ export const logToolExecutionRecord = internalMutation({
     durationMs: v.float64(),
     traceId: v.optional(v.string()),
     spanId: v.optional(v.string()),
+    source: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("toolExecutions", args);

@@ -615,6 +615,19 @@ export const getLivekitRoomRecordByName = internalQuery({
   },
 });
 
+/** Find the most recent non-ended room for a session */
+export const findActiveRoomBySession = internalQuery({
+  args: { sessionId: v.string() },
+  handler: async (ctx, args) => {
+    const rooms = await ctx.db
+      .query("livekitRooms")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .order("desc")
+      .collect();
+    return rooms.find((r) => r.status !== "ended") ?? null;
+  },
+});
+
 /** Handle a webhook event from LiveKit, updating room/participant state */
 export const handleLivekitWebhookEventRecord = internalMutation({
   args: {
