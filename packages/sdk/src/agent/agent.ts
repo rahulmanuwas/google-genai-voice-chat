@@ -692,6 +692,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         console.log(`[agent] Voice: ${personaVoice || config.voice} ${personaVoice ? '(from persona)' : '(default)'}`);
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
 
+        // Mutable reference to the current agent — set inside the session loop,
+        // read by the robot_look tool closure to inject images into chat context.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let currentAgent: any = null;
+
         // --- Data channel tool bridge for robot participants ---
         // Check if ANY participant in the room is a robot (not just the first joiner).
         // This ensures robot_* tools are overridden even if a non-robot joins first.
@@ -738,13 +743,45 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           for (const toolName of robotToolNames) {
             const original = loadedTools[toolName] as any;
 
-            // Replace with data channel version, keeping same schema/description
-            loadedTools[toolName] = {
-              ...original,
-              execute: async (args: Record<string, unknown>) => {
-                return bridge.sendToolCall(toolName, args);
-              },
-            };
+            if (toolName === 'robot_look') {
+              // robot_look returns a base64 JPEG — inject into chat context as an image
+              loadedTools[toolName] = {
+                ...original,
+                execute: async (args: Record<string, unknown>) => {
+                  const result = await bridge.sendToolCall(toolName, args);
+                  if (result.startsWith('data:image/') && currentAgent) {
+                    try {
+                      const chatCtx = currentAgent.chatCtx.copy();
+                      chatCtx.addMessage({
+                        role: 'user',
+                        content: [
+                          llm.createImageContent({
+                            image: result,
+                            inferenceDetail: 'low',
+                            mimeType: 'image/jpeg',
+                          }),
+                        ],
+                      });
+                      await currentAgent.updateChatCtx(chatCtx);
+                      console.log(`[agent] robot_look: injected image into chat context`);
+                      return 'Photo captured successfully. The image has been added to your visual context — describe what you see.';
+                    } catch (err) {
+                      console.error('[agent] robot_look: failed to inject image into chat context:', err);
+                      return 'Photo captured but failed to process the image.';
+                    }
+                  }
+                  return result; // error string passthrough
+                },
+              };
+            } else {
+              // Standard robot tool — pass through data channel
+              loadedTools[toolName] = {
+                ...original,
+                execute: async (args: Record<string, unknown>) => {
+                  return bridge.sendToolCall(toolName, args);
+                },
+              };
+            }
             console.log(`[agent] Overrode ${toolName} → data channel execution`);
           }
 
@@ -1009,6 +1046,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               chatCtx: sessionChatCtx,
               tools: loadedTools,
             });
+            currentAgent = agent;
 
             const sessionVoice = currentMode === 'pipeline'
               ? (pipelineVoice || personaVoice || config.voice)
