@@ -692,11 +692,6 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         console.log(`[agent] Voice: ${personaVoice || config.voice} ${personaVoice ? '(from persona)' : '(default)'}`);
         console.log(`[agent] Tools loaded: ${Object.keys(loadedTools).join(', ') || '(none)'}`);
 
-        // Mutable reference to the current agent — set inside the session loop,
-        // read by the robot_look tool closure to inject images into chat context.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let currentAgent: any = null;
-
         // --- Data channel tool bridge for robot participants ---
         // Check if ANY participant in the room is a robot (not just the first joiner).
         // This ensures robot_* tools are overridden even if a non-robot joins first.
@@ -752,15 +747,21 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
             if (toolName === 'robot_look') {
               // robot_look returns a base64 JPEG via chunked data channel.
-              // Inject it into chat context as an image so Gemini can see it.
+              // Pipeline tool results are text-only (FunctionCallOutput.output is string),
+              // so we make a direct Gemini vision call to describe the image and return
+              // the description as the tool result.
               loadedTools[toolName] = {
                 ...original,
                 execute: async (args: Record<string, unknown>) => {
                   const result = await bridge.sendToolCall(toolName, args);
-                  if (result.startsWith('data:image/') && currentAgent) {
+                  if (result.startsWith('data:image/')) {
                     try {
-                      const chatCtx = currentAgent.chatCtx.copy();
-                      chatCtx.addMessage({
+                      const visionLlm = new google.LLM({
+                        model: 'gemini-flash-latest',
+                        apiKey: process.env.GOOGLE_API_KEY,
+                      });
+                      const visionCtx = llm.ChatContext.empty();
+                      visionCtx.addMessage({
                         role: 'user',
                         content: [
                           llm.createImageContent({
@@ -768,14 +769,25 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                             inferenceDetail: 'auto',
                             mimeType: 'image/jpeg',
                           }),
+                          'Describe exactly what you see in this image in detail. Be precise about quantities, colors, objects, and any text visible.',
                         ],
                       });
-                      await currentAgent.updateChatCtx(chatCtx);
-                      console.log(`[agent] robot_look: injected image into chat context (${result.length} chars)`);
-                      return 'Photo captured successfully. The image has been added to your visual context — describe what you see.';
+                      const stream = visionLlm.chat({ chatCtx: visionCtx });
+                      let description = '';
+                      for await (const chunk of stream) {
+                        if (chunk.delta?.content) {
+                          description += chunk.delta.content;
+                        }
+                      }
+                      description = description.trim();
+                      if (!description) {
+                        description = 'Image captured but vision model returned no description.';
+                      }
+                      console.log(`[agent] robot_look: vision description (${description.length} chars): ${description.slice(0, 200)}...`);
+                      return `[Camera capture] ${description}`;
                     } catch (err) {
-                      console.error('[agent] robot_look: failed to inject image into chat context:', err);
-                      return 'Photo captured but failed to process the image.';
+                      console.error('[agent] robot_look: vision analysis failed:', err);
+                      return 'Photo captured but failed to analyze the image.';
                     }
                   }
                   return result; // error string passthrough
@@ -1054,7 +1066,6 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               chatCtx: sessionChatCtx,
               tools: loadedTools,
             });
-            currentAgent = agent;
 
             const sessionVoice = currentMode === 'pipeline'
               ? (pipelineVoice || personaVoice || config.voice)
