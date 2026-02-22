@@ -534,6 +534,40 @@ When the LiveKit agent connects to a room, it automatically loads tool definitio
 
 This means seeded demo tools work end-to-end: the agent exposes tools to Gemini, Gemini generates function calls, and the agent executes them via Convex (which uses built-in mock handlers for tools without endpoints).
 
+### Tool Transport Types
+
+Tools support two transport modes via the `transport` field:
+
+| Transport | Routing | `endpoint` Required |
+|---|---|---|
+| `http` (default) | Agent calls `POST /api/tools/execute` → Convex executes via HTTP endpoint or built-in handler | Yes (unless built-in mock) |
+| `livekit_data` | Agent routes via LiveKit data channel to a matching participant (e.g. robot) | No |
+
+### Registering & Querying Tools
+
+```bash
+# Register a tool
+curl -X POST https://your-deployment.convex.site/api/tools \
+  -H "Content-Type: application/json" \
+  -d '{
+    "appSlug": "my-app", "appSecret": "...",
+    "name": "my_tool", "description": "Does something",
+    "parametersSchema": "{\"type\":\"object\",\"properties\":{},\"required\":[]}",
+    "endpoint": "https://api.example.com/do"
+  }'
+
+# List active tools for an app
+curl "https://your-deployment.convex.site/api/tools?appSlug=my-app&appSecret=..."
+
+# List all tools including inactive (dashboard)
+curl "https://your-deployment.convex.site/api/tools/all?appSlug=my-app&appSecret=..."
+
+# Query via Convex CLI
+CONVEX_DEPLOY_KEY=... npx convex run --prod tools:getActiveToolDefinitionRecords '{"appSlug": "my-app"}'
+```
+
+Registration is idempotent — calling `POST /api/tools` with an existing tool name upserts the definition. All tool executions (both HTTP and data channel) are logged to the `toolExecutions` table with `traceId`/`spanId` for distributed tracing.
+
 ## Scenario State (Live Demo Data)
 
 Demo tools are **state-aware**: the `scenarioState` table stores mutable data (appointments, orders, inventory) per app slug. When a tool executes, it reads the current state and can return a `stateUpdate` that gets persisted.

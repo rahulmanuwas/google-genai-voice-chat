@@ -743,50 +743,64 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           for (const toolName of robotToolNames) {
             const original = loadedTools[toolName] as any;
 
-            if (toolName === 'robot_look') {
-              // robot_look returns a base64 JPEG — inject into chat context as an image
-              loadedTools[toolName] = {
-                ...original,
-                execute: async (args: Record<string, unknown>) => {
-                  const result = await bridge.sendToolCall(toolName, args);
-                  if (result.startsWith('data:image/') && currentAgent) {
-                    try {
-                      const chatCtx = currentAgent.chatCtx.copy();
-                      chatCtx.addMessage({
-                        role: 'user',
-                        content: [
-                          llm.createImageContent({
-                            image: result,
-                            inferenceDetail: 'low',
-                            mimeType: 'image/jpeg',
-                          }),
-                        ],
-                      });
-                      await currentAgent.updateChatCtx(chatCtx);
-                      console.log(`[agent] robot_look: injected image into chat context`);
-                      return 'Photo captured successfully. The image has been added to your visual context — describe what you see.';
-                    } catch (err) {
-                      console.error('[agent] robot_look: failed to inject image into chat context:', err);
-                      return 'Photo captured but failed to process the image.';
-                    }
-                  }
-                  return result; // error string passthrough
-                },
-              };
-            } else {
-              // Standard robot tool — pass through data channel
-              loadedTools[toolName] = {
-                ...original,
-                execute: async (args: Record<string, unknown>) => {
-                  return bridge.sendToolCall(toolName, args);
-                },
-              };
-            }
+            // Replace with data channel version, keeping same schema/description
+            loadedTools[toolName] = {
+              ...original,
+              execute: async (args: Record<string, unknown>) => {
+                return bridge.sendToolCall(toolName, args);
+              },
+            };
             console.log(`[agent] Overrode ${toolName} → data channel execution`);
           }
 
           if (robotToolNames.length > 0) {
             console.log(`[agent] ${robotToolNames.length} tools routed via data channel to robot`);
+          }
+
+          // Register byte stream handler for robot camera images (robot_look tool).
+          // The robot sends the JPEG via sendFile on topic "robot-image", and the
+          // tool result (text) comes separately via the data channel.
+          const room = ctx.room as any;
+          if (room.registerByteStreamHandler) {
+            room.registerByteStreamHandler('robot-image', async (stream: any) => {
+              try {
+                const chunks: Uint8Array[] = [];
+                for await (const chunk of stream) {
+                  chunks.push(chunk);
+                }
+                const totalLength = chunks.reduce((sum: number, c: Uint8Array) => sum + c.length, 0);
+                const imageBytes = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunks) {
+                  imageBytes.set(chunk, offset);
+                  offset += chunk.length;
+                }
+
+                console.log(`[agent] Received robot image via byte stream (${totalLength} bytes)`);
+
+                if (currentAgent) {
+                  const chatCtx = currentAgent.chatCtx.copy();
+                  const base64 = Buffer.from(imageBytes).toString('base64');
+                  chatCtx.addMessage({
+                    role: 'user',
+                    content: [
+                      llm.createImageContent({
+                        image: `data:image/jpeg;base64,${base64}`,
+                        inferenceDetail: 'low',
+                        mimeType: 'image/jpeg',
+                      }),
+                    ],
+                  });
+                  await currentAgent.updateChatCtx(chatCtx);
+                  console.log('[agent] Injected robot camera image into chat context');
+                } else {
+                  console.warn('[agent] Received robot image but no active agent to inject into');
+                }
+              } catch (err) {
+                console.error('[agent] Failed to process robot image byte stream:', err);
+              }
+            });
+            console.log('[agent] Registered byte stream handler for robot-image');
           }
         }
 
