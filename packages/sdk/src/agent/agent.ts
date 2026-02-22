@@ -1133,7 +1133,11 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             }
 
             if (isFirstSession) {
-              session.generateReply({ allowInterruptions: false });
+              const greetingText = rawPersona?.personaGreeting;
+              const greetingInstructions = greetingText
+                ? `Greet the user by saying: "${greetingText}". Keep it natural and warm.`
+                : 'Introduce yourself briefly and ask how you can help. Keep it to one or two short sentences.';
+              session.generateReply({ allowInterruptions: false, instructions: greetingInstructions });
               console.log('[agent] Greeting generated (non-interruptible)');
               isFirstSession = false;
 
