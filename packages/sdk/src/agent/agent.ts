@@ -502,8 +502,8 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           try { return JSON.parse(ctx.room.metadata ?? '{}'); }
           catch { return {}; }
         })();
-        const agentMode: 'realtime' | 'pipeline' = roomMeta.agentMode === 'pipeline' ? 'pipeline' : 'realtime';
-        console.log(`[agent] Mode: ${agentMode}`);
+        let agentMode: 'realtime' | 'pipeline' = roomMeta.agentMode === 'pipeline' ? 'pipeline' : 'realtime';
+        console.log(`[agent] Mode from metadata: ${agentMode}`);
 
         // Validate GOOGLE_API_KEY (required for both modes — realtime uses RealtimeModel, pipeline uses LLM)
         if (!process.env.GOOGLE_API_KEY) {
@@ -711,6 +711,13 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           return false;
         })();
         if (hasRobotInRoom && roomService) {
+          // Force pipeline mode when robot is present — robot_look uses updateChatCtx
+          // to inject images, which is not supported in Gemini Live (realtime) mode.
+          if (agentMode !== 'pipeline') {
+            console.log(`[agent] Forcing pipeline mode (was ${agentMode}) — robot participant requires updateChatCtx for vision`);
+            agentMode = 'pipeline';
+          }
+
           // Audit logging callback: POST execution records back to Convex (best-effort)
           const auditLog: OnToolExecuted | undefined = convexUrl && roomAppSlug && appSecret
             ? (toolName, args, result, durationMs, status) => {
