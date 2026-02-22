@@ -758,7 +758,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
                         content: [
                           llm.createImageContent({
                             image: result,
-                            inferenceDetail: 'low',
+                            inferenceDetail: 'auto',
                             mimeType: 'image/jpeg',
                           }),
                         ],
