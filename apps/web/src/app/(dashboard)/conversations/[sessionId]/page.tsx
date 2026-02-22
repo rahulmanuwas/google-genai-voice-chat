@@ -238,6 +238,16 @@ export default function ConversationDetailPage({
                   <span>{conversation.channel}</span>
                 </div>
               )}
+              {conversation.agentModes && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Agent Mode: </span>
+                  {conversation.agentModes.split(',').map((mode) => (
+                    <Badge key={mode} variant="outline" className="text-xs">
+                      {mode}
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <div>
                 <span className="text-muted-foreground">Messages: </span>
                 <span>{conversation.messageCount}</span>

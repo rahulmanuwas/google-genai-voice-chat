@@ -48,6 +48,7 @@ export default defineSchema({
     transcript: v.optional(v.string()),
     resolution: v.optional(v.string()),
     experimentVariant: v.optional(v.string()),
+    agentModes: v.optional(v.string()),
   })
     .index("by_app", ["appSlug"])
     .index("by_session", ["sessionId"])

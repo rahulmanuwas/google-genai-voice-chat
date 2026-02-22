@@ -812,6 +812,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
 
         // --- Shared state across reconnect sessions ---
         const sessionId = roomSessionId;
+        const modesUsed = new Set<string>();
         const messageBuffer: BufferedMessage[] = [];
         const eventBuffer: AgentEvent[] = [];
         const allMessages: Array<{ role: string; content: string; ts: number }> = [];
@@ -937,7 +938,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           if (!resolveConversation || conversationResolved) return;
           if (allMessages.length === lastSyncedMessageCount) return;
           lastSyncedMessageCount = allMessages.length;
-          const p = resolveConversation(sessionId, channel, sessionStart, allMessages, { status: 'active' })
+          const p = resolveConversation(sessionId, channel, sessionStart, allMessages, { status: 'active', agentModes: [...modesUsed].join(',') })
             .catch((err) => console.warn('[agent] Failed to sync conversation:', err));
           syncState.promise = p;
           await p;
@@ -966,6 +967,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
               await resolveConversation(sessionId, channel, sessionStart, allMessages, {
                 status: 'resolved',
                 resolution: 'shutdown',
+                agentModes: [...modesUsed].join(','),
               });
               console.log('[agent] Conversation resolved (shutdown)');
             } catch (err) {
@@ -1034,6 +1036,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
         try {
           while (attempt <= maxReconnects) {
             console.log(`[agent] Creating agent session (mode: ${currentMode}, model: ${config.model}, attempt: ${attempt}/${maxReconnects})`);
+            modesUsed.add(currentMode);
             await safeCloseBackgroundAudio();
 
             const sessionChatCtx = (() => {
@@ -1130,13 +1133,13 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
             }
 
             if (isFirstSession) {
-              session.generateReply();
-              console.log('[agent] Greeting generated');
+              session.generateReply({ allowInterruptions: false });
+              console.log('[agent] Greeting generated (non-interruptible)');
               isFirstSession = false;
 
               // Create conversation entry immediately so it appears in dashboard
               if (resolveConversation) {
-                resolveConversation(sessionId, channel, sessionStart, [], { status: 'active' })
+                resolveConversation(sessionId, channel, sessionStart, [], { status: 'active', agentModes: [...modesUsed].join(',') })
                   .then(() => console.log('[agent] Conversation created (active)'))
                   .catch((err) => console.warn('[agent] Failed to create initial conversation:', err));
               }
@@ -1397,7 +1400,7 @@ export function createAgentDefinition(options?: AgentDefinitionOptions) {
           if (resolveConversation) {
             const { status, resolution } = mapCloseReasonToResolution(lastCloseReason);
             try {
-              await resolveConversation(sessionId, channel, sessionStart, allMessages, { status, resolution });
+              await resolveConversation(sessionId, channel, sessionStart, allMessages, { status, resolution, agentModes: [...modesUsed].join(',') });
               console.log(`[agent] Conversation resolved: ${resolution}`);
             } catch (err) {
               console.error('[agent] Failed to resolve conversation:', err);

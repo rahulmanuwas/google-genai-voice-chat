@@ -298,6 +298,7 @@ export interface Conversation {
   transcript?: string;
   resolution?: string;
   experimentVariant?: string;
+  agentModes?: string;
 }
 
 // ─── Tool Executions ───────────────────────────────────────────

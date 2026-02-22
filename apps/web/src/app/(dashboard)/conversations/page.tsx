@@ -209,6 +209,7 @@ export default function ConversationsPage() {
                       <tr className="border-b border-border text-left text-muted-foreground">
                         <th className="p-3 font-medium w-[50%]">Preview</th>
                         <th className="p-3 font-medium">Status</th>
+                        <th className="p-3 font-medium">Mode</th>
                         <th className="p-3 font-medium">Msgs</th>
                         <th className="p-3 font-medium">Duration</th>
                         <th className="p-3 font-medium">Started</th>
@@ -235,6 +236,19 @@ export default function ConversationsPage() {
                             </td>
                             <td className="p-3">
                               <StatusBadge value={c.status ?? 'active'} />
+                            </td>
+                            <td className="p-3">
+                              {c.agentModes ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {c.agentModes.split(',').map((mode) => (
+                                    <Badge key={mode} variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {mode}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </td>
                             <td className="p-3">{c.messageCount}</td>
                             <td className="p-3 text-muted-foreground">
@@ -265,6 +279,11 @@ export default function ConversationsPage() {
                           {getTranscriptPreview(c)}
                         </Link>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          {c.agentModes && c.agentModes.split(',').map((mode) => (
+                            <Badge key={mode} variant="outline" className="text-[10px] px-1.5 py-0">
+                              {mode}
+                            </Badge>
+                          ))}
                           <span>{c.messageCount} msgs</span>
                           <span>{c.endedAt ? formatDuration(c.endedAt - c.startedAt) : 'ongoing'}</span>
                           <span>{timeAgo(c.startedAt)}</span>

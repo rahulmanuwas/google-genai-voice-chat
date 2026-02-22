@@ -11,6 +11,7 @@ export const upsertConversationRecord = internalMutation({
     status: v.optional(v.string()),
     channel: v.optional(v.string()),
     resolution: v.optional(v.string()),
+    agentModes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -35,6 +36,7 @@ export const upsertConversationRecord = internalMutation({
         ...(shouldUpdateStatus && { status: args.status }),
         ...(args.channel !== undefined && { channel: args.channel }),
         ...(args.resolution !== undefined && { resolution: args.resolution }),
+        ...(args.agentModes !== undefined && { agentModes: args.agentModes }),
       });
     } else {
       await ctx.db.insert("conversations", {
@@ -46,6 +48,7 @@ export const upsertConversationRecord = internalMutation({
         transcript: args.transcript,
         status: args.status ?? "active",
         channel: args.channel,
+        ...(args.agentModes !== undefined && { agentModes: args.agentModes }),
       });
     }
   },

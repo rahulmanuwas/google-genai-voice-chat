@@ -86,7 +86,7 @@ export interface AgentCallbacks {
     channel: string,
     startedAt: number,
     messages?: Array<{ role: string; content: string; ts: number }>,
-    options?: { status?: string; resolution?: string },
+    options?: { status?: string; resolution?: string; agentModes?: string },
   ) => Promise<void>;
 
   /** Emit lifecycle events (agent state, errors, metrics, tool calls) */
@@ -183,7 +183,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
       channel: string,
       startedAt: number,
       messages?: Array<{ role: string; content: string; ts: number }>,
-      options?: { status?: string; resolution?: string },
+      options?: { status?: string; resolution?: string; agentModes?: string },
     ): Promise<void> {
       const res = await fetch(`${convexUrl}/api/conversations`, {
         method: 'POST',
@@ -197,6 +197,7 @@ export function createConvexAgentCallbacks(config: ConvexAgentConfig): AgentCall
           status: options?.status ?? 'resolved',
           channel,
           ...(options?.resolution !== undefined && { resolution: options.resolution }),
+          ...(options?.agentModes !== undefined && { agentModes: options.agentModes }),
         }),
       });
       if (!res.ok) {

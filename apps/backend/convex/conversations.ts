@@ -10,6 +10,7 @@ export const saveConversation = corsHttpAction(async (ctx, request) => {
     status,
     channel,
     resolution,
+    agentModes,
   } = body as {
     sessionId: string;
     startedAt: number;
@@ -17,6 +18,7 @@ export const saveConversation = corsHttpAction(async (ctx, request) => {
     status?: string;
     channel?: string;
     resolution?: string;
+    agentModes?: string;
   };
 
   if (!sessionId) {
@@ -35,6 +37,7 @@ export const saveConversation = corsHttpAction(async (ctx, request) => {
     status,
     channel,
     resolution,
+    agentModes,
   });
 
   const shouldIndexTranscript =
