@@ -34,8 +34,14 @@ export type OnToolExecuted = (
   status: 'success' | 'timeout' | 'error',
 ) => void;
 
+interface ChunkBuffer {
+  chunks: Map<number, string>;
+  total: number;
+}
+
 export class DataChannelToolBridge {
   private pendingResults = new Map<string, PendingResult>();
+  private chunkBuffers = new Map<string, ChunkBuffer>();
   private listening = false;
 
   constructor(
@@ -174,9 +180,41 @@ export class DataChannelToolBridge {
           clearTimeout(pending.timer);
           this.pendingResults.delete(message.id);
           const result = message.result ?? 'Action completed';
-          console.log(`[data-channel-tools] Received result for ${message.id}: ${result}`);
+          const logResult = result.length > 200 ? `${result.slice(0, 200)}... (${result.length} chars)` : result;
+          console.log(`[data-channel-tools] Received result for ${message.id}: ${logResult}`);
           this.notifyExecuted(pending.toolName, pending.args, result, pending.startedAt, 'success');
           pending.resolve(result);
+        }
+      } else if (message.type === 'tool_result_chunk' && message.id) {
+        // Chunked result — buffer until all chunks received
+        const { id, index, total, data } = message;
+        let buffer = this.chunkBuffers.get(id);
+        if (!buffer) {
+          buffer = { chunks: new Map(), total };
+          this.chunkBuffers.set(id, buffer);
+        }
+        buffer.chunks.set(index, data);
+
+        if (buffer.chunks.size === buffer.total) {
+          // All chunks received — reassemble in order
+          const parts: string[] = [];
+          for (let i = 0; i < buffer.total; i++) {
+            parts.push(buffer.chunks.get(i) ?? '');
+          }
+          const result = parts.join('');
+          this.chunkBuffers.delete(id);
+
+          console.log(`[data-channel-tools] Reassembled ${buffer.total} chunks for ${id} (${result.length} chars)`);
+
+          const pending = this.pendingResults.get(id);
+          if (pending) {
+            clearTimeout(pending.timer);
+            this.pendingResults.delete(id);
+            this.notifyExecuted(pending.toolName, pending.args, result, pending.startedAt, 'success');
+            pending.resolve(result);
+          }
+        } else {
+          console.log(`[data-channel-tools] Chunk ${index + 1}/${total} for ${id}`);
         }
       }
     } catch (err) {
